@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Minimale Rechte: CI liest nur den Code. Keine Deployments, keine Secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Install, Lint, Typecheck, Test, Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Abhängigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Secret- und Datenschutz-Scan
+        run: pnpm check:secrets
+
+      - name: Formatierung prüfen
+        run: pnpm format:check
+
+      - name: Lint, Typecheck und Tests
+        run: pnpm turbo run lint typecheck test
+
+      - name: Web-Build (ohne echte Zugangsdaten)
+        run: pnpm turbo run build --filter=@tagestakt/web
+
+  database:
+    name: Migrationen und RLS-Tests (lokales Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.119.0
+
+      - name: Lokale Datenbank starten (wendet Migrationen und Seed an)
+        run: supabase db start
+
+      - name: Datenbank-Lint
+        run: supabase db lint --level warning --fail-on warning
+
+      - name: pgTAP-Sicherheitstests
+        run: supabase test db
