@@ -1,0 +1,34 @@
+{
+  "name": "tagestakt",
+  "private": true,
+  "description": "TagesTakt – private Wochenplanung für genau einen Benutzer",
+  "packageManager": "pnpm@11.28.2",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@tagestakt/web",
+    "dev:mobile": "pnpm --filter @tagestakt/mobile start",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "turbo run lint typecheck test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:lint": "supabase db lint --level warning",
+    "db:types": "supabase gen types typescript --local --schema public > packages/schedule-schema/src/database.types.ts && prettier --write packages/schedule-schema/src/database.types.ts",
+    "check:secrets": "node scripts/check-secrets.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "supabase": "2.119.0",
+    "turbo": "2.11.7",
+    "typescript": "~6.0.3"
+  }
+}

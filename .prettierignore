@@ -1,0 +1,13 @@
+node_modules
+.next
+.expo
+dist
+build
+coverage
+.turbo
+pnpm-lock.yaml
+supabase/.temp
+supabase/.branches
+apps/mobile/android
+apps/mobile/ios
+*.sql

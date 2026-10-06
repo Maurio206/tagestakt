@@ -1,0 +1,61 @@
+# Abhängigkeiten
+node_modules/
+.pnpm-store/
+
+# Builds & Caches
+.next/
+out/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Expo / React Native
+.expo/
+.expo-shared/
+expo-env.d.ts
+apps/mobile/android/
+apps/mobile/ios/
+*.apk
+*.aab
+*.ipa
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+credentials.json
+
+# Umgebungsvariablen und Secrets – niemals committen
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Supabase lokal
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+
+# Persönliche Planexporte nie ins Repo
+*.plan.json
+plan-export*.json
+private/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Lokale Claude-Code-Einstellungen
+.claude/

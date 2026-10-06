@@ -1,0 +1,22 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# React Native / Metro funktioniert am zuverlässigsten mit einem
+# flachen node_modules-Layout (offizielle Expo-Empfehlung für pnpm-Monorepos).
+nodeLinker: hoisted
+
+# Nur ausdrücklich erlaubte Pakete dürfen Install-Skripte ausführen.
+allowBuilds:
+  esbuild: true
+  supabase: true
+  sharp: true
+  unrs-resolver: true
+
+# Kein automatisches Nachinstallieren bei `pnpm run/exec` in Unterpaketen
+# (unter Windows mit nodeLinker=hoisted unzuverlässig). Bei Bedarf `pnpm install`.
+verifyDepsBeforeRun: false
+
+minimumReleaseAgeExclude:
+  - expo-constants@57.0.21
+  - expo-linking@57.0.12
