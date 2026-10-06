@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getPublicEnv } from "@/lib/env";
 import { SESSION_COOKIE_OPTIONS } from "@/lib/session-cookies";
 import { buildContentSecurityPolicy, createNonce } from "@/lib/security-headers";
+import { getAllowedOwnerId, isAllowedUser } from "@/server/owner";
 
 const PUBLIC_PATHS = new Set(["/login"]);
 
@@ -12,7 +13,9 @@ const PUBLIC_PATHS = new Set(["/login"]);
  * Proxy (früher „Middleware“):
  *  1. setzt pro Request eine CSP mit Nonce,
  *  2. aktualisiert die Supabase-Session (Token-Refresh über Cookies),
- *  3. leitet nicht angemeldete Besucher zur Loginseite um.
+ *  3. leitet nicht angemeldete Besucher zur Loginseite um,
+ *  4. behandelt Sessions anderer Supabase-Benutzer wie „nicht angemeldet“,
+ *  5. verweigert den Betrieb (503), wenn die Konfiguration unvollständig ist.
  *
  * Wichtig: Das ist nur die erste Schutzschicht für eine gute Nutzerführung.
  * Jede geschützte Seite und jede Server Action prüft die Anmeldung zusätzlich
@@ -30,7 +33,22 @@ export async function proxy(request: NextRequest) {
   };
 
   let response = forward();
-  const env = getPublicEnv();
+
+  let env: ReturnType<typeof getPublicEnv>;
+  let allowedOwnerId: string | undefined;
+  try {
+    env = getPublicEnv();
+    allowedOwnerId = getAllowedOwnerId();
+  } catch (error) {
+    // Fail closed: ohne gültige Konfiguration keine geschützten Seiten.
+    console.error("[tagestakt] Konfigurationsfehler im Proxy", {
+      message: error instanceof Error ? error.message : "unbekannt",
+    });
+    return new NextResponse("Dienst nicht verfügbar: Konfiguration unvollständig.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
 
   const supabase = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -56,7 +74,9 @@ export async function proxy(request: NextRequest) {
   // getClaims() validiert das JWT und erneuert bei Bedarf die Session.
   // Zwischen createServerClient und diesem Aufruf darf keine weitere Logik stehen.
   const { data } = await supabase.auth.getClaims();
-  const isAuthenticated = Boolean(data?.claims?.sub);
+  const subject = data?.claims?.sub;
+  // Nur der eine konfigurierte Eigentümer gilt als angemeldet.
+  const isAuthenticated = typeof subject === "string" && isAllowedUser(subject, allowedOwnerId);
   const { pathname } = request.nextUrl;
 
   let finalResponse: NextResponse = response;
@@ -85,9 +105,9 @@ function redirectWithCookies(request: NextRequest, path: string, source: NextRes
 
 export const config = {
   matcher: [
-    // Alles außer statischen Dateien und Next.js-Interna.
+    // Alles außer statischen Dateien, Next.js-Interna und dem Health-Endpunkt.
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|robots.txt).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|robots.txt|api/health).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

@@ -52,6 +52,12 @@ pnpm dev:mobile        # Expo Dev Server (QR-Code mit Expo Go scannen)
 Die vollständige Anleitung – inklusive Anlegen des einen Benutzers, Supabase-Cloud-Projekt
 und Android-Gerät – steht in **[docs/setup.md](docs/setup.md)**.
 
+## Produktion
+
+Die Website wird als Docker-Image (Next.js Standalone, `Dockerfile` im Wurzelverzeichnis) mit
+Coolify betrieben; Supabase läuft als eigene Ressource. Einstellungen, Variablen und Prüfungen
+nach dem Deployment: **[docs/deployment-coolify.md](docs/deployment-coolify.md)**.
+
 ## Befehle
 
 | Befehl               | Zweck                                                           |

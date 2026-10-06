@@ -3,29 +3,16 @@ import "server-only";
 import { type User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { z } from "zod";
 
+import { isAllowedUser } from "./owner";
 import { createSupabaseServerClient, type TypedSupabaseClient } from "./supabase";
 
-const ownerIdSchema = z.guid().optional();
-
 /**
- * Optionale zusätzliche Autorisierung: Ist TAGESTAKT_OWNER_USER_ID gesetzt,
- * wird ausschließlich dieser Benutzer akzeptiert – auch wenn in Supabase Auth
- * versehentlich weitere Konten existieren sollten.
+ * Zusätzliche Autorisierung über TAGESTAKT_OWNER_USER_ID (in Produktion Pflicht):
+ * Ausschließlich dieser Benutzer wird akzeptiert – auch wenn in Supabase Auth
+ * versehentlich weitere Konten existieren sollten. Siehe ./owner.ts.
  */
-export function getAllowedOwnerId(): string | undefined {
-  const raw = process.env.TAGESTAKT_OWNER_USER_ID?.trim();
-  const parsed = ownerIdSchema.safeParse(raw ? raw : undefined);
-  if (!parsed.success) {
-    throw new Error("TAGESTAKT_OWNER_USER_ID muss eine gültige UUID sein.");
-  }
-  return parsed.data;
-}
-
-export function isAllowedUser(userId: string, allowedOwnerId = getAllowedOwnerId()): boolean {
-  return allowedOwnerId === undefined || userId === allowedOwnerId;
-}
+export { getAllowedOwnerId, isAllowedUser } from "./owner";
 
 /**
  * Prüft die Session serverseitig gegen Supabase Auth (getUser validiert das

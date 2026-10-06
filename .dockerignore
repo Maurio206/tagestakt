@@ -1,0 +1,65 @@
+# Docker-Build-Kontext für das Web-Image so klein und sicher wie möglich halten.
+
+# Git und Editor
+.git
+.github
+.claude
+.idea
+.vscode
+*.log
+
+# Abhängigkeiten und Build-Ausgaben (werden im Image neu erzeugt)
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/build
+**/out
+**/coverage
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Umgebungsdateien und Zugangsdaten – niemals ins Image
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.mobileprovision
+**/google-services.json
+**/GoogleService-Info.plist
+**/credentials.json
+
+# Expo / EAS / React Native
+**/.expo
+**/.expo-shared
+**/expo-env.d.ts
+**/eas.json
+apps/mobile/android
+apps/mobile/ios
+**/*.apk
+**/*.aab
+**/*.ipa
+
+# Supabase lokal, Tests, Doku und Werkzeuge (nicht für das Web-Image nötig)
+supabase
+docs
+scripts
+**/*.test.ts
+**/*.test.tsx
+**/__tests__
+**/test-results
+**/playwright-report
+
+# Persönliche Exporte
+**/*.plan.json
+**/plan-export*.json
+private
+
+# Docker selbst
+Dockerfile
+.dockerignore

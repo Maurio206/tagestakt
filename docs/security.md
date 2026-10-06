@@ -12,7 +12,7 @@ sie keine „besonderen Kategorien“ im Sinne der DSGVO sind.
 | Angreifer / Risiko                 | Beispiel                                                                           | Gegenmaßnahmen                                                                                                                                                     |
 | ---------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Unbekannte im Internet             | Aufruf der Website, Erraten von URLs, direkte API-Aufrufe mit dem öffentlichen Key | Keine öffentlichen Inhalte; Proxy leitet auf `/login`; jede Seite und Server Action prüft serverseitig; `anon` hat **keine** Grants; RLS auf jeder Tabelle         |
-| Registrierung eines eigenen Kontos | Signup-API von Supabase aufrufen                                                   | Registrierung in Supabase deaktiviert; zusätzlich optionale Eigentümer-UUID (`TAGESTAKT_OWNER_USER_ID`)                                                            |
+| Registrierung eines eigenen Kontos | Signup-API von Supabase aufrufen                                                   | Registrierung in Supabase deaktiviert; zusätzlich Eigentümer-UUID (`TAGESTAKT_OWNER_USER_ID`, in Produktion Pflicht)                                               |
 | Anderer gültiger Supabase-Benutzer | z. B. versehentlich angelegtes Zweitkonto                                          | RLS `owner_id = auth.uid()`, zusammengesetzter FK, Trigger-Prüfung; pgTAP-Negativtests                                                                             |
 | Passwort-Raten                     | Brute Force auf `/login`                                                           | Supabase-Rate-Limits, Mindestlänge 12, neutrale Fehlermeldungen; optional später Zugriffsschicht/MFA                                                               |
 | XSS / Code-Injektion               | eingeschleustes Skript liest Tokens                                                | React-Escaping, strikte CSP mit Nonce + `strict-dynamic`, Session-Cookies `httpOnly`, keine Fremdskripte/-schriften                                                |
@@ -63,7 +63,11 @@ zusammen mit korrekt getesteter RLS verwendet werden.
 
 - Keine Registrierung in Web oder App, kein „Registrieren“-Button.
 - Der Benutzer wird manuell in Supabase angelegt (siehe setup.md).
-- Optional akzeptiert die Website über `TAGESTAKT_OWNER_USER_ID` nur genau diese UUID.
+- Die Website akzeptiert über `TAGESTAKT_OWNER_USER_ID` nur genau diese UUID. In Produktion
+  (`NODE_ENV=production`) ist die Variable **Pflicht**: Fehlt sie oder ist sie ungültig, bricht
+  der Serverstart ab, und der Proxy verweigert jede Anfrage mit 503 (fail closed). Sessions
+  anderer Supabase-Benutzer gelten bereits im Proxy als „nicht angemeldet“. Die UUID ist eine
+  reine Laufzeitvariable und gelangt nie in den Client. In development/test darf sie fehlen.
   (Die App verlässt sich auf deaktivierte Registrierung + RLS; ein anderes Konto sähe ohnehin
   keine fremden Daten.)
 

@@ -178,6 +178,12 @@ pnpm dev:mobile
 Für einen Emulator: Android Studio → Device Manager → virtuelles Gerät starten, dann ebenfalls
 `pnpm --filter @tagestakt/mobile android`. Lokale Supabase-URL im Emulator: `http://10.0.2.2:54321`.
 
+## 5a. Produktion (Website)
+
+Für das Deployment der Website mit Coolify (Dockerfile, Variablen, Healthcheck, Prüfungen) siehe
+[deployment-coolify.md](deployment-coolify.md). In Produktion ist `TAGESTAKT_OWNER_USER_ID`
+Pflicht – ohne gültige UUID startet die Website nicht.
+
 ## 6. Später: private APK / eigener Build (noch nicht veröffentlichen)
 
 Für den Alltag ohne Expo Go wird später ein eigener, **privater** Build erstellt – nicht über
