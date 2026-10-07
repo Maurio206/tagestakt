@@ -33,6 +33,7 @@ begin
 end;
 $$;
 
+drop function if exists public.switch_activity_session(uuid, text, text, uuid);
 drop function if exists public.correct_activity_session(uuid, timestamptz, timestamptz);
 drop function if exists public.stop_activity_session(uuid);
 drop function if exists public.start_activity_session(text, text, uuid);

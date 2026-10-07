@@ -66,7 +66,8 @@ begin
   foreach v_function in array array[
     'public.start_activity_session(text, text, uuid)',
     'public.stop_activity_session(uuid)',
-    'public.correct_activity_session(uuid, timestamptz, timestamptz)'
+    'public.correct_activity_session(uuid, timestamptz, timestamptz)',
+    'public.switch_activity_session(uuid, text, text, uuid)'
   ] loop
     if to_regprocedure(v_function) is null then
       raise exception 'Funktion % fehlt', v_function;
@@ -79,6 +80,11 @@ begin
     end if;
     if not has_function_privilege('authenticated', v_function, 'execute') then
       raise exception 'authenticated darf % nicht ausführen', v_function;
+    end if;
+    if not exists (select 1 from pg_proc
+                    where oid = to_regprocedure(v_function)
+                      and proconfig @> array['search_path=""']) then
+      raise exception 'Funktion % hat keinen leeren search_path', v_function;
     end if;
   end loop;
 

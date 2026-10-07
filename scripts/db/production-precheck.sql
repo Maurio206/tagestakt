@@ -34,6 +34,23 @@ select 'neue_user_settings_spalten=' || count(*)
 select 'migrationsverlauf_vorhanden='
        || (to_regclass('supabase_migrations.schema_migrations') is not null);
 
+-- Entscheidet den Weg im Runbook (Abschnitt 4). Die Abfrage auf die Verlaufstabelle läuft
+-- dynamisch (query_to_xml), damit die Prüfung auch ohne diese Tabelle funktioniert.
+--   1 = Verlaufstabelle fehlt
+--   2 = Tabelle vorhanden, Initialmigration 20261006120000 aber nicht eingetragen
+--       (z. B. im SQL-Editor ausgeführt) – `supabase db push` würde sie erneut ausführen!
+--   3 = Initialmigration korrekt eingetragen
+select 'migrationsverlauf_fall=' ||
+       case
+         when to_regclass('supabase_migrations.schema_migrations') is null
+           then '1-tabelle-fehlt'
+         when (xpath('/row/n/text()', query_to_xml(
+                 'select count(*) as n from supabase_migrations.schema_migrations
+                   where version = ''20261006120000''', false, true, '')))[1]::text::integer = 0
+           then '2-initialmigration-nicht-eingetragen'
+         else '3-initialmigration-eingetragen'
+       end;
+
 -- Eingetragene Versionen als Hinweis (dynamisch, weil die Tabelle fehlen kann – z. B. wenn
 -- die Initialmigration im SQL-Editor statt mit der Supabase-CLI eingespielt wurde).
 do $$

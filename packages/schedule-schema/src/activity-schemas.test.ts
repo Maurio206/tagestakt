@@ -7,6 +7,7 @@ import {
   activityManualInputSchema,
   activitySessionRowSchema,
   activityStartInputSchema,
+  activitySwitchInputSchema,
   goalSettingsInputSchema,
   parseHoursInput,
   recurringCommitmentBatchInputSchema,
@@ -89,6 +90,27 @@ describe("Aktivität starten", () => {
       scheduleEntryId: null,
     });
     expect(activityStartInputSchema.safeParse({ goal: "duty" }).success).toBe(false);
+  });
+});
+
+describe("Aktivität wechseln", () => {
+  const running = "6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
+
+  it("verlangt die laufende Aktivität und ein bekanntes Ziel", () => {
+    expect(activitySwitchInputSchema.parse({ runningSessionId: running, goal: "sport" })).toEqual({
+      runningSessionId: running,
+      goal: "sport",
+      title: null,
+      scheduleEntryId: null,
+    });
+    expect(activitySwitchInputSchema.safeParse({ goal: "sport" }).success).toBe(false);
+    expect(
+      activitySwitchInputSchema.safeParse({ runningSessionId: "keine-uuid", goal: "sport" })
+        .success,
+    ).toBe(false);
+    expect(
+      activitySwitchInputSchema.safeParse({ runningSessionId: running, goal: "duty" }).success,
+    ).toBe(false);
   });
 });
 

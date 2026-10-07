@@ -56,9 +56,14 @@ begin
   v_session := public.start_activity_session('business', null, v_business_entry);
   assert v_session.ended_at is null and v_session.title = 'Kundenprojekt (Beispiel)',
     'Start fehlerhaft';
+  -- Atomarer Wechsel: danach läuft genau eine Aktivität (die neue).
+  v_session := public.switch_activity_session(v_session.id, 'sport', 'Laufen (Beispiel)');
+  select count(*) into v_count from public.activity_sessions where ended_at is null;
+  assert v_count = 1 and v_session.goal_category = 'sport', 'Wechsel fehlerhaft';
   v_session := public.stop_activity_session(v_session.id);
   assert v_session.ended_at > v_session.started_at, 'Beenden fehlerhaft';
-  assert v_session.corrected_at is null, 'Normale Erfassung als korrigiert markiert';
+  select count(*) into v_count from public.activity_sessions where corrected_at is not null;
+  assert v_count = 0, 'Normale Erfassung als korrigiert markiert';
 
   -- 5. Nachtragen wird als Korrektur gekennzeichnet.
   insert into public.activity_sessions (goal_category, title, started_at, ended_at)

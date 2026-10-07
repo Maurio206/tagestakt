@@ -398,6 +398,15 @@ export const activityStartInputSchema = z.object({
 export type ActivityStartInput = z.input<typeof activityStartInputSchema>;
 
 /**
+ * Atomarer Wechsel (`switch_activity_session`): die aktuell laufende Aktivität wird beendet
+ * und die neue gestartet – beides in einer Transaktion mit Serverzeit.
+ */
+export const activitySwitchInputSchema = activityStartInputSchema.extend({
+  runningSessionId: idSchema,
+});
+export type ActivitySwitchInput = z.input<typeof activitySwitchInputSchema>;
+
+/**
  * Prüft Beginn/Ende einer Aktivität wie die Datenbank: Ende nach Beginn, höchstens
  * 24 Stunden, nichts in der Zukunft. Gibt eine Fehlermeldung oder `null` zurück.
  */

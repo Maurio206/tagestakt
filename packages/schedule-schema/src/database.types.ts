@@ -344,6 +344,32 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      switch_activity_session: {
+        Args: {
+          p_goal_category: string;
+          p_schedule_entry_id?: string;
+          p_session_id: string;
+          p_title?: string;
+        };
+        Returns: {
+          corrected_at: string | null;
+          created_at: string;
+          ended_at: string | null;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          schedule_entry_id: string | null;
+          started_at: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "activity_sessions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       [_ in never]: never;

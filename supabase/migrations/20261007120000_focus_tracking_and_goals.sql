@@ -390,13 +390,96 @@ begin
 end;
 $$;
 
+-- Wechselt atomar zu einer anderen Aktivität: beendet die laufende und startet die neue mit
+-- demselben Serverzeitpunkt – in einer Transaktion. Scheitert der neue Start (z. B. fremder
+-- oder Entwurfs-Planblock), wird auch das Beenden zurückgenommen. p_session_id muss die
+-- aktuell laufende Aktivität sein; ein veralteter Stand (z. B. auf einem zweiten Gerät bereits
+-- gewechselt) wird mit TT002 abgewiesen, statt eine andere Aktivität zu beenden.
+create function public.switch_activity_session(
+  p_session_id uuid,
+  p_goal_category text,
+  p_title text default null,
+  p_schedule_entry_id uuid default null
+)
+returns public.activity_sessions
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_owner uuid := auth.uid();
+  v_running public.activity_sessions;
+  v_switch_at timestamptz;
+  v_entry_title text;
+  v_session public.activity_sessions;
+begin
+  if v_owner is null then
+    raise exception 'Nicht angemeldet' using errcode = 'insufficient_privilege';
+  end if;
+  if p_session_id is null then
+    raise exception 'Die laufende Aktivität ist erforderlich.'
+      using errcode = 'invalid_parameter_value';
+  end if;
+  if p_goal_category is null or p_goal_category not in ('business', 'sport', 'relationship') then
+    raise exception 'Unbekanntes Ziel.' using errcode = 'invalid_parameter_value';
+  end if;
+
+  -- Dieselbe Sperre wie Start und Trigger: Schreibvorgänge desselben Benutzers nacheinander.
+  perform pg_advisory_xact_lock(
+    hashtextextended('tagestakt.activity_sessions:' || v_owner::text, 0)
+  );
+
+  select * into v_running
+    from public.activity_sessions
+   where owner_id = v_owner and ended_at is null
+     for update;
+
+  if not found or v_running.id <> p_session_id then
+    raise exception 'Es läuft keine Aktivität.' using errcode = 'TT002';
+  end if;
+  if now() - v_running.started_at > interval '24 hours' then
+    raise exception 'Die Aktivität läuft seit über 24 Stunden. Bitte das Ende über „Zeit korrigieren“ eintragen.'
+      using errcode = 'TT003';
+  end if;
+
+  -- Ende der alten = Beginn der neuen Aktivität (halboffene Intervalle überschneiden sich nicht).
+  v_switch_at := greatest(now(), v_running.started_at + interval '1 second');
+
+  update public.activity_sessions
+     set ended_at = v_switch_at
+   where id = v_running.id;
+
+  if p_schedule_entry_id is not null then
+    select e.title into v_entry_title
+      from public.schedule_entries e
+     where e.id = p_schedule_entry_id and e.owner_id = v_owner;
+  end if;
+
+  -- Der Trigger prüft Planblock (eigener, veröffentlicht, gleiches Ziel) und Überschneidungen.
+  insert into public.activity_sessions (owner_id, schedule_entry_id, goal_category, title, started_at)
+  values (
+    v_owner,
+    p_schedule_entry_id,
+    p_goal_category,
+    left(coalesce(nullif(btrim(p_title), ''), v_entry_title, 'Aktivität'), 120),
+    v_switch_at
+  )
+  returning * into v_session;
+
+  return v_session;
+end;
+$$;
+
 revoke all on function public.start_activity_session(text, text, uuid) from public, anon;
 revoke all on function public.stop_activity_session(uuid) from public, anon;
 revoke all on function public.correct_activity_session(uuid, timestamptz, timestamptz)
   from public, anon;
+revoke all on function public.switch_activity_session(uuid, text, text, uuid) from public, anon;
 
 grant execute on function public.start_activity_session(text, text, uuid)
   to authenticated, service_role;
 grant execute on function public.stop_activity_session(uuid) to authenticated, service_role;
 grant execute on function public.correct_activity_session(uuid, timestamptz, timestamptz)
+  to authenticated, service_role;
+grant execute on function public.switch_activity_session(uuid, text, text, uuid)
   to authenticated, service_role;
