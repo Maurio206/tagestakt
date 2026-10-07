@@ -47,12 +47,16 @@ Kontraste (berechnet): `text` 16,5 : 1, `textMuted` 9,4 : 1, `textSubtle` 6,0 : 
 | `business`     | `#E2B04A` | `#875A00` | `briefcase`     | Gewerbe                                                  |
 | `sport`        | `#5DBE86` | `#1E7546` | `dumbbell`      | Sport                                                    |
 | `relationship` | `#EC8FA3` | `#AE3A5F` | `heart`         | Laila                                                    |
-| `duty`         | `#88A6C6` | `#2E5B88` | `building-2`    | Dienst                                                   |
+| `duty`         | `#88A6C6` | `#2E5B88` | `building`      | Dienst                                                   |
 | `violet`       | `#A99BD8` | `#5C4AA3` | `calendar`      | Termin, Freizeit                                         |
 | `neutral`      | `#A59E92` | `#655F55` | `circle`        | Einkaufen, Essen, Körperpflege, Fahrt, Schlaf, Sonstiges |
 
-Alle Töne erreichen ≥ 6 : 1 (dunkel) bzw. ≥ 4,4 : 1 (hell) auf `bg` und sind damit auch als
-Textfarbe zulässig. Kategorien werden **immer** zusätzlich als Text angezeigt.
+Alle Töne erreichen ≥ 6,6 : 1 (dunkel) bzw. ≥ 5,2 : 1 (hell) auf `bg` und `surface1` und sind
+damit auch als Textfarbe zulässig (geprüft in `packages/design-tokens/src/index.test.ts`,
+Mindestwert 4,5 : 1). Kategorien werden **immer** zusätzlich als Text angezeigt.
+
+Hinweis: Lucide 1.x heißt das Dienst-Symbol `Building` (vormals `Building2`) und das
+Löschen-Symbol `Trash` (vormals `Trash2`).
 
 ### Status
 

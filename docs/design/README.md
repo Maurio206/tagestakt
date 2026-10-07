@@ -49,3 +49,17 @@ die pgTAP-Tests, `packages/schedule-schema`, sämtliche Web- und Mobile-Dateien 
   (unkontrolliertes Feld blieb bei Client-Navigation stehen).
 - Expo-Berechtigungen: `USE_BIOMETRIC`, `USE_FINGERPRINT`, `POST_NOTIFICATIONS` waren gesperrt;
   `allowBackup: false`.
+
+## Umsetzungsstand dieses Branches
+
+| Bereich          | Ergebnis                                                                                                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Datenbank        | `activity_sessions`, Ziele für Sport/Laila, Erinnerungs-Vorgaben – eine additive Migration, pgTAP-Tests                                                                       |
+| Gemeinsame Logik | Zielstatus, Plan/Ist, Erinnerungsplanung, Wiederholungen an mehreren Wochentagen (`packages/schedule-schema`)                                                                 |
+| Designsystem     | `packages/design-tokens` (Web: CSS-Variablen, App: Theme)                                                                                                                     |
+| Website          | Neugestaltung aller Seiten, Fokus-Timer, Auswertung, Ziele und Erinnerungen in den Einstellungen                                                                              |
+| App              | Tabs Jetzt/Tag/Woche/Mehr, Fokus-Erfassung, Plan bearbeiten (Entwurf), Ziele, Wochenbilanz                                                                                    |
+| App, nur lokal   | App-Sperre (Standard aus), lokale Erinnerungen ohne Termininhalte (Standard aus)                                                                                              |
+| Berechtigungen   | neu erlaubt: `USE_BIOMETRIC`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`; weiterhin gesperrt: `USE_FINGERPRINT`; zusätzlich gesperrt: Exact Alarms, Push (`c2dm.RECEIVE`) |
+
+Visuelle Prüfung: [visual-qa.md](visual-qa.md).

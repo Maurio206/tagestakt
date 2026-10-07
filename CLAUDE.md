@@ -32,6 +32,9 @@ Private Wochenplanungs-App für genau einen Benutzer (pnpm-Monorepo: `apps/web` 
 - Neue Tabellen in `supabase/tests/01_security_baseline.test.sql` aufnehmen (die Tabellenanzahl
   ist dort bewusst fest) und Negativtests in `02_rls_access.test.sql` ergänzen.
 - Nach Schemaänderungen: `pnpm db:reset && pnpm db:test && pnpm db:lint && pnpm db:types`.
+- Neue Migrationen zusätzlich mit `pnpm db:upgrade-test` prüfen (Altdaten bleiben per
+  Fingerabdruck identisch); Produktion nur gemeinsam mit dem Benutzer nach
+  `docs/production-migration-runbook.md`.
 
 ## Fachlogik und Zeit
 

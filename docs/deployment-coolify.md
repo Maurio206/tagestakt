@@ -89,6 +89,18 @@ In der Supabase-Ressource (Auth/GoTrue):
 
 ## 4. Deployment
 
+> **Reihenfolge bei Versionen mit neuer Migration** (z. B. Fokus-Erfassung,
+> `20261007120000_focus_tracking_and_goals.sql`): **zuerst** die Migration gemeinsam mit dem
+> Benutzer nach [production-migration-runbook.md](production-migration-runbook.md) anwenden und
+> prüfen, **danach** die Website deployen. Die neue Website liest `activity_sessions` und die
+> neuen `user_settings`-Spalten; ohne Migration zeigen Übersicht und Auswertung eine
+> Fehlermeldung (keine Datenänderung). Die Migration ist rein additiv – die bisherige Website
+> läuft mit der migrierten Datenbank unverändert weiter.
+>
+> Das Image baut zusätzlich das Workspace-Paket `packages/design-tokens` (im `Dockerfile`
+> bereits berücksichtigt). Schriften (Geist) und Symbole (Lucide) werden mitgebündelt – es werden
+> keine externen Ressourcen geladen, die CSP bleibt unverändert.
+
 1. Variablen wie oben setzen.
 2. **Deploy** auslösen. Coolify baut das Image aus dem `Dockerfile` im Repository-Wurzelverzeichnis:
    - `pnpm install --frozen-lockfile` nur für `@tagestakt/web` und seine Workspace-Pakete,

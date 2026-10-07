@@ -6,10 +6,10 @@
                 ┌────────────────────────────── Supabase ──────────────────────────────┐
                 │  Auth (genau 1 Benutzer, keine Registrierung)                          │
                 │  Postgres: user_settings · recurring_commitments ·                     │
-                │            schedule_weeks · schedule_entries                           │
+                │            schedule_weeks · schedule_entries · activity_sessions       │
                 │  RLS + Grants: nur owner_id = auth.uid(); anon hat keinerlei Rechte    │
                 │  RPC (SECURITY INVOKER): create_schedule_draft, publish_schedule_week, │
-                │                          add_schedule_entries                          │
+                │    add_schedule_entries, start/stop/correct_activity_session           │
                 └───────────▲───────────────────────────────────────▲──────────────────┘
                             │ HTTPS, Publishable Key                │ HTTPS, Publishable Key
                             │ + Benutzer-JWT (Cookie, serverseitig) │ + Benutzer-JWT (SecureStore)
@@ -19,12 +19,15 @@
 │            Umleitung zu /login            │        │  TanStack Query lädt veröffentlichte      │
 │  src/server: Auth-Prüfung + Data-Access-  │        │  Wochen (Vor-, aktuelle, nächste Woche)   │
 │            Schicht + Server Actions       │        │  Cache in AsyncStorage → Offline-Anzeige  │
-│  Browser ↔ nur eigener Server (kein       │        │  Ansichten: Jetzt · Tag · Woche ·         │
-│            direkter Supabase-Zugriff)     │        │            Einstellungen                  │
+│  Browser ↔ nur eigener Server (kein       │        │  Ansichten: Jetzt · Tag · Woche · Mehr    │
+│            direkter Supabase-Zugriff)     │        │  lokal: App-Sperre, Erinnerungen          │
 └───────────────────────────▲──────────────┘        └───────────────────────────────────────────┘
                             │
                packages/schedule-schema (gemeinsam): Zod-Schemas, Typen, Konstanten,
-               Zeitlogik Europe/Berlin, Überschneidungen, Gewerbeminuten, Jetzt/Als Nächstes
+               Zeitlogik Europe/Berlin, Überschneidungen, Ziele (Plan/Ist/Status),
+               Erinnerungsplanung, Jetzt/Als Nächstes
+               packages/design-tokens (gemeinsam): Farben, Typografie, Abstände, Kategorie-
+               und Statusdarstellung für Web (CSS-Variablen) und App (Theme)
 ```
 
 ## Datenfluss
@@ -46,8 +49,23 @@
    ausschließlich in Expo SecureStore.
 2. Sie lädt nur Wochen mit `status = 'published'` (Vorwoche, aktuelle, nächste Woche) plus
    Wochenziel, validiert sie mit `planSnapshotSchema` und speichert den Stand als Cache.
-3. „Jetzt“, „Als Nächstes“, Restzeit und Gewerbefortschritt werden lokal aus dem Snapshot
-   berechnet – mit derselben Logik wie im Web.
+3. „Jetzt“, „Als Nächstes“, Restzeit und Zielfortschritt werden lokal aus dem Snapshot
+   berechnet – mit derselben Logik wie im Web. Der Snapshot enthält zusätzlich die erfassten
+   Aktivitäten dieser Wochen, die Wochenziele und die Erinnerungs-Vorgaben.
+
+**Zeit erfassen (Web und App):**
+
+1. „Fokus starten“ bzw. „Aktivität starten“ ruft `start_activity_session` auf; Beginn und Ende
+   setzt immer der Server (`now()`), nie die Geräteuhr. Der Timer zeigt die Differenz zur
+   Serverzeit des Beginns und übersteht dadurch Neustarts und Gerätewechsel.
+2. „Beenden“ ruft `stop_activity_session` auf; „Zeit korrigieren“ `correct_activity_session`
+   (danach als „korrigiert“ gekennzeichnet).
+3. Die Datenbank erzwingt höchstens eine laufende Aktivität, keine Überschneidungen und
+   höchstens 24 h – auch bei gleichzeitigen Anfragen aus Web und App.
+
+**Plan bearbeiten (App):** dieselben RPCs wie im Web (`create_schedule_draft`, Einträge im
+Entwurf, `publish_schedule_week`). Entwürfe werden nie lokal gespeichert; ohne Verbindung ist
+der Modus gesperrt.
 
 ## Warum Web und App dieselbe Auth-Identität verwenden
 
@@ -69,7 +87,25 @@
   „Offline – gespeicherter Plan“ und dem Zeitpunkt der letzten erfolgreichen Aktualisierung.
 - Ist der Stand älter als 6 Stunden, erscheint „Plan möglicherweise veraltet“.
 - Ein beschädigter Cache wird verworfen statt die App abstürzen zu lassen.
-- Beim Abmelden werden Session und Cache gelöscht – auch offline.
+- **Offline wird nichts geschrieben und nichts vorgemerkt** (keine Warteschlange): Starten,
+  Beenden, Korrigieren, Erledigt-Status, Ziele und Bearbeiten sind ohne Verbindung gesperrt und
+  erklären warum. Ein laufender Timer läuft offline sichtbar weiter, weil er nur aus dem
+  gespeicherten Beginn rechnet. Eine robuste Offline-Warteschlange wäre ein eigenes Vorhaben
+  (Konflikte mit Web-Änderungen, Serverzeit).
+- Beim Abmelden werden Session, Cache, Geräteeinstellungen und geplante Erinnerungen gelöscht –
+  auch offline.
+
+## Gerätelokale Funktionen (App)
+
+- **App-Sperre** (`src/lib/app-lock.ts`, `src/components/app-lock.tsx`): Standard aus; sperrt
+  beim Kaltstart und nach der eingestellten Hintergrundzeit.
+- **Erinnerungen** (`src/lib/notifications.ts`, `src/hooks/use-reminder-sync.ts`): werden nach
+  jedem neuen Planstand, bei Rückkehr in die App und nach Änderungen vollständig neu geplant
+  (`planReminders` aus `packages/schedule-schema`). Erinnerungen an „nicht gestartet“ entfallen,
+  sobald Zeit für den Block erfasst wird.
+- Beide Einstellungen gelten nur für dieses Gerät und liegen in SecureStore
+  (`src/lib/device-settings.ts`). Die Erinnerungs-**Vorgaben** (Vorlauf, Umfang) liegen dagegen
+  in `user_settings` und gelten für Web und App.
 
 ## Planversionierung
 
@@ -102,16 +138,19 @@ Es gibt keinen Agent-Endpunkt, keinen Agent-Schlüssel und keine Agent-Tabellen.
 
 ## Technologieentscheidungen und Abweichungen
 
-| Thema                            | Entscheidung                               | Begründung                                                                                                         |
-| -------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Paketmanager                     | pnpm 11 + Turborepo 2.11                   | pnpm 11 ist die stabile, gepflegte Linie mit Release-Alter-Schutz; pnpm 12 war erst wenige Wochen alt.             |
-| `nodeLinker: hoisted`            | flaches `node_modules`                     | Offizielle Empfehlung für React Native/Metro in pnpm-Monorepos.                                                    |
-| TypeScript 6.0                   | statt 7.0                                  | Expo SDK 57 und typescript-eslint unterstützen 7.0 noch nicht.                                                     |
-| ESLint 9                         | statt 10                                   | `eslint-plugin-react` (über Next/Expo-Configs) unterstützt ESLint 10 noch nicht.                                   |
-| Next.js 16 `proxy.ts`            | statt `middleware.ts`                      | In Next.js 16 umbenannt.                                                                                           |
-| `@supabase/ssr` nur serverseitig | kein Browser-Client                        | Weniger Angriffsfläche; Session-Cookies können `httpOnly` sein.                                                    |
-| Zeitlogik ohne Zusatzbibliothek  | `Intl.DateTimeFormat`                      | Klein, testbar, in Node und Hermes identisch; DST-Strategie wie TC39 Temporal „compatible“.                        |
-| Expo Router Tabs                 | `expo-router/js-tabs`                      | Der frühere Export `Tabs` aus `expo-router` ist veraltet.                                                          |
-| SecureStore-Chunking             | Session in Abschnitten ≤ 1800 Zeichen      | Supabase-Sessions können größer als die SecureStore-Empfehlung sein; keine Eigen-Kryptografie nötig.               |
-| Wiederholungen über Mitternacht  | `end_time ≤ start_time` = Folgetag         | Schlaf (z. B. 22:30–06:30) muss als ein Block planbar sein. Für konkrete Einträge gilt strikt `end_at > start_at`. |
-| Zeitzone                         | DB-Constraint `timezone = 'Europe/Berlin'` | Die gesamte Logik ist auf diese Zone ausgelegt; eine Erweiterung erfordert bewusst eine Migration.                 |
+| Thema                            | Entscheidung                                   | Begründung                                                                                                         |
+| -------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Paketmanager                     | pnpm 11 + Turborepo 2.11                       | pnpm 11 ist die stabile, gepflegte Linie mit Release-Alter-Schutz; pnpm 12 war erst wenige Wochen alt.             |
+| `nodeLinker: hoisted`            | flaches `node_modules`                         | Offizielle Empfehlung für React Native/Metro in pnpm-Monorepos.                                                    |
+| TypeScript 6.0                   | statt 7.0                                      | Expo SDK 57 und typescript-eslint unterstützen 7.0 noch nicht.                                                     |
+| ESLint 9                         | statt 10                                       | `eslint-plugin-react` (über Next/Expo-Configs) unterstützt ESLint 10 noch nicht.                                   |
+| Next.js 16 `proxy.ts`            | statt `middleware.ts`                          | In Next.js 16 umbenannt.                                                                                           |
+| `@supabase/ssr` nur serverseitig | kein Browser-Client                            | Weniger Angriffsfläche; Session-Cookies können `httpOnly` sein.                                                    |
+| Zeitlogik ohne Zusatzbibliothek  | `Intl.DateTimeFormat`                          | Klein, testbar, in Node und Hermes identisch; DST-Strategie wie TC39 Temporal „compatible“.                        |
+| Expo Router Tabs                 | `expo-router/js-tabs`                          | Der frühere Export `Tabs` aus `expo-router` ist veraltet.                                                          |
+| SecureStore-Chunking             | Session in Abschnitten ≤ 1800 Zeichen          | Supabase-Sessions können größer als die SecureStore-Empfehlung sein; keine Eigen-Kryptografie nötig.               |
+| Wiederholungen über Mitternacht  | `end_time ≤ start_time` = Folgetag             | Schlaf (z. B. 22:30–06:30) muss als ein Block planbar sein. Für konkrete Einträge gilt strikt `end_at > start_at`. |
+| Zeitzone                         | DB-Constraint `timezone = 'Europe/Berlin'`     | Die gesamte Logik ist auf diese Zone ausgelegt; eine Erweiterung erfordert bewusst eine Migration.                 |
+| Plan und Ist getrennt            | eigene Tabelle `activity_sessions`             | `completion_status` bleibt Planstatus; Ziele zählen nur tatsächlich erfasste Zeit.                                 |
+| Symbole                          | Lucide (`lucide-react`, `lucide-react-native`) | Einheitlich in Web und App, als Komponenten gebündelt (keine externen Ressourcen, CSP bleibt streng).              |
+| Erinnerungen                     | `expo-notifications`, nur lokal                | Kein Push-Dienst nötig; keine Exact-Alarm-Berechtigung (dafür nicht minutengenau).                                 |

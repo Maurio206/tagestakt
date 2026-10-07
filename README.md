@@ -4,18 +4,25 @@ Private Wochenplanung für **genau einen Benutzer**. Die mobile App zeigt auf de
 Smartphone, was gerade ansteht, was als Nächstes kommt und wie die Woche aufgebaut ist.
 Geplant wird über eine geschützte Verwaltungswebsite.
 
-> Status: MVP (Phase 1). Ein späterer Claude-Agent, der Wochenpläne als Entwurf hochlädt, ist
+> Status: MVP plus Designsystem und Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
+> Sport und Laila). Ein späterer Claude-Agent, der Wochenpläne als Entwurf hochlädt, ist
 > konzipiert ([docs/agent-integration.md](docs/agent-integration.md)), aber **nicht** implementiert.
 
 ## Architektur auf einen Blick
 
 ```
-apps/web     Next.js (App Router) – Verwaltungswebsite: Login, Übersicht, Wocheneditor,
-             Wiederholungen, Einstellungen. Server-seitige Auth + zentrale Data-Access-Schicht.
-apps/mobile  Expo / React Native (Expo Router) – „Jetzt“, Tag, Woche, Einstellungen.
-             Session in SecureStore, Offline-Cache des zuletzt veröffentlichten Plans.
+apps/web     Next.js (App Router) – Verwaltungswebsite: Login, Übersicht mit Fokus-Timer,
+             Wocheneditor, Wiederholungen, Auswertung, Einstellungen.
+             Server-seitige Auth + zentrale Data-Access-Schicht.
+apps/mobile  Expo / React Native (Expo Router) – Jetzt, Tag, Woche, Mehr; Fokus starten/
+             beenden, Zeit korrigieren, Plan bearbeiten (Entwurf), Ziele, Wochenbilanz,
+             optionale App-Sperre, lokale Erinnerungen. Session in SecureStore,
+             Offline-Cache des zuletzt veröffentlichten Plans (offline nur lesen).
 packages/schedule-schema
-             Gemeinsame Zod-Schemas, Typen, Konstanten und Zeitlogik (Europe/Berlin).
+             Gemeinsame Zod-Schemas, Typen, Konstanten, Zeitlogik (Europe/Berlin),
+             Zielberechnung und Erinnerungsplanung.
+packages/design-tokens
+             Gemeinsames Designsystem (Farben, Typografie, Abstände) für Web und App.
 packages/config
              Gemeinsame ESLint- und TypeScript-Basiskonfiguration.
 supabase     Versionierte SQL-Migrationen, RLS, Grants, neutrale Seed-Daten, pgTAP-Tests.
@@ -27,7 +34,8 @@ Wochenplan-Typ (`ScheduleWeekWithEntries`). Zugriff auf Daten wird ausschließli
 **Row Level Security + Postgres-Grants** begrenzt – der öffentliche Publishable Key allein
 gewährt keinerlei Zugriff.
 
-Details: [docs/architecture.md](docs/architecture.md) · [docs/data-model.md](docs/data-model.md)
+Details: [docs/architecture.md](docs/architecture.md) · [docs/data-model.md](docs/data-model.md) ·
+Design: [docs/design/README.md](docs/design/README.md)
 
 ## Voraussetzungen
 
@@ -56,26 +64,30 @@ und Android-Gerät – steht in **[docs/setup.md](docs/setup.md)**.
 
 Die Website wird als Docker-Image (Next.js Standalone, `Dockerfile` im Wurzelverzeichnis) mit
 Coolify betrieben; Supabase läuft als eigene Ressource. Einstellungen, Variablen und Prüfungen
-nach dem Deployment: **[docs/deployment-coolify.md](docs/deployment-coolify.md)**.
+nach dem Deployment: **[docs/deployment-coolify.md](docs/deployment-coolify.md)**. Neue
+Migrationen werden nur gemeinsam mit dem Benutzer nach
+**[docs/production-migration-runbook.md](docs/production-migration-runbook.md)** angewendet;
+private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.md)**.
 
 ## Befehle
 
-| Befehl               | Zweck                                                           |
-| -------------------- | --------------------------------------------------------------- |
-| `pnpm dev:web`       | Web-App im Entwicklungsmodus                                    |
-| `pnpm dev:mobile`    | Expo Dev Server                                                 |
-| `pnpm lint`          | ESLint in allen Paketen (Turborepo)                             |
-| `pnpm typecheck`     | TypeScript (strict) in allen Paketen                            |
-| `pnpm test`          | Unit-, Komponenten- und Integrationstests                       |
-| `pnpm check`         | lint + typecheck + test                                         |
-| `pnpm build`         | Produktions-Build der Web-App (ohne echte Zugangsdaten möglich) |
-| `pnpm format`        | Prettier                                                        |
-| `pnpm check:secrets` | Secret- und Datenschutz-Scan aller Repo-Dateien                 |
-| `pnpm db:start/stop` | Lokales Supabase starten/stoppen                                |
-| `pnpm db:reset`      | Lokale DB neu aufsetzen (Migrationen + Seed)                    |
-| `pnpm db:test`       | pgTAP-Sicherheitstests (RLS, Grants, Constraints)               |
-| `pnpm db:lint`       | Supabase-Datenbank-Lint                                         |
-| `pnpm db:types`      | TypeScript-Typen aus der lokalen DB generieren                  |
+| Befehl                 | Zweck                                                                      |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `pnpm dev:web`         | Web-App im Entwicklungsmodus                                               |
+| `pnpm dev:mobile`      | Expo Dev Server                                                            |
+| `pnpm lint`            | ESLint in allen Paketen (Turborepo)                                        |
+| `pnpm typecheck`       | TypeScript (strict) in allen Paketen                                       |
+| `pnpm test`            | Unit-, Komponenten- und Integrationstests                                  |
+| `pnpm check`           | lint + typecheck + test                                                    |
+| `pnpm build`           | Produktions-Build der Web-App (ohne echte Zugangsdaten möglich)            |
+| `pnpm format`          | Prettier                                                                   |
+| `pnpm check:secrets`   | Secret- und Datenschutz-Scan aller Repo-Dateien                            |
+| `pnpm db:start/stop`   | Lokales Supabase starten/stoppen                                           |
+| `pnpm db:reset`        | Lokale DB neu aufsetzen (Migrationen + Seed)                               |
+| `pnpm db:test`         | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                          |
+| `pnpm db:upgrade-test` | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal) |
+| `pnpm db:lint`         | Supabase-Datenbank-Lint                                                    |
+| `pnpm db:types`        | TypeScript-Typen aus der lokalen DB generieren                             |
 
 ## Sicherheit
 

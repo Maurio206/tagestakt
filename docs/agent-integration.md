@@ -21,6 +21,13 @@ Vertragsschema `agentDraftRequestSchema` in `packages/schedule-schema/src/agent-
 7. **Nachvollziehbar versioniert.** Jeder Upload erzeugt bzw. ersetzt nur den Entwurf; frühere
    Versionen bleiben unverändert; Einträge tragen `source = 'agent'`.
 8. **Rate Limiting und Audit-Log sind Voraussetzung**, bevor der Endpunkt aktiviert wird.
+9. **Keine erfasste Zeit.** Ein Agent liest oder schreibt weder `activity_sessions` noch
+   Wochenziele oder Erinnerungs-Vorgaben. Tatsächliche Zeit erfasst nur der Benutzer selbst
+   („Fokus starten“/„Beenden“, „Zeit korrigieren“). Ein Agent darf Planblöcke für Gewerbe, Sport
+   und Laila **vorschlagen** – ob ein Ziel erreicht wurde, entscheidet allein die erfasste Zeit.
+10. **Mobile Bearbeitung ist kein Agent-Weg.** Die App nutzt für „Plan bearbeiten“ dieselben
+    Entwurfs-RPCs wie das Web; ein Agent-Entwurf und ein manueller Entwurf derselben Woche sind
+    derselbe Entwurf (siehe „Verhalten bei vorhandenem Entwurf“).
 
 ## Geplanter Ablauf
 

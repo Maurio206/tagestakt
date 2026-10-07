@@ -32,6 +32,7 @@ pnpm install
 pnpm db:start     # startet Postgres, Auth, REST, Studio (lokal)
 pnpm db:reset     # spielt alle Migrationen und die neutralen Beispieldaten ein
 pnpm db:test      # pgTAP-Sicherheitstests (RLS, Grants, Constraints)
+pnpm db:upgrade-test  # beweist: neue Migrationen verändern vorhandene Daten nicht (nur lokal)
 pnpm exec supabase status   # zeigt lokale URLs und Keys (nur lokal gültig)
 ```
 
@@ -163,7 +164,9 @@ pnpm dev:mobile
 - Im Terminal erscheint ein QR-Code. Auf dem Android-Gerät **Expo Go** öffnen und den Code
   scannen (Gerät und Rechner im selben WLAN).
 - Die App nutzt nur Module, die in Expo Go enthalten sind – ein eigener Build ist für die
-  Entwicklung nicht nötig.
+  Entwicklung nicht nötig. **Einschränkungen in Expo Go** (App-Sperre, Erinnerungen,
+  Berechtigungen) und wie ein privater Vorschau-Build aussieht:
+  [mobile-preview-build.md](mobile-preview-build.md).
 - Bei lokalem Supabase muss `EXPO_PUBLIC_SUPABASE_URL` die **WLAN-IP** des Rechners enthalten
   (nicht `127.0.0.1`); ggf. die Windows-Firewall für Port 54321 im privaten Netzwerk freigeben.
 - Nach Änderungen an `.env.local`: Dev-Server mit `pnpm dev:mobile -- --clear` neu starten.
@@ -185,6 +188,9 @@ Für das Deployment der Website mit Coolify (Dockerfile, Variablen, Healthcheck,
 Pflicht – ohne gültige UUID startet die Website nicht.
 
 ## 6. Später: private APK / eigener Build (noch nicht veröffentlichen)
+
+Ausführliche Checkliste inklusive Gerätetests für App-Sperre und Erinnerungen:
+[mobile-preview-build.md](mobile-preview-build.md).
 
 Für den Alltag ohne Expo Go wird später ein eigener, **privater** Build erstellt – nicht über
 einen App-Store, sondern als APK zur direkten Installation:
@@ -213,3 +219,4 @@ ausgeschlossen und dürfen nie committed werden.
 | App zeigt „Für diese Woche … kein Plan“        | Im Web wurde für die Woche noch kein Entwurf veröffentlicht.                                                           |
 | `pnpm` EPERM unter Windows                     | Editor/Dev-Server schließen, `pnpm install` im Repo-Wurzelverzeichnis ausführen.                                       |
 | `expo install --check` meldet Patch-Abweichung | Bei sehr neuen Expo-Patches greift die pnpm-Release-Sperre; nach 24 h `pnpm update` im Paket ausführen.                |
+| `pnpm db:upgrade-test` meldet Abweichung       | Eine neue Migration verändert vorhandene Daten – Migration korrigieren, **nicht** gegen Produktion anwenden.           |
