@@ -78,6 +78,25 @@ export async function startSession(input: {
   return activitySessionRowSchema.parse(data);
 }
 
+/**
+ * Atomarer Wechsel (RPC): beendet die laufende Aktivität und startet die neue in einer
+ * Transaktion mit Serverzeit. Scheitert der Start, läuft die bisherige Aktivität unverändert.
+ */
+export async function switchSession(
+  runningSessionId: string,
+  input: { goal: GoalKey; title: string | null; scheduleEntryId: string | null },
+): Promise<ActivitySession> {
+  const { supabase } = await authorizedClient();
+  const { data, error } = await supabase.rpc("switch_activity_session", {
+    p_session_id: runningSessionId,
+    p_goal_category: input.goal,
+    ...(input.title ? { p_title: input.title } : {}),
+    ...(input.scheduleEntryId ? { p_schedule_entry_id: input.scheduleEntryId } : {}),
+  });
+  if (error) throw activityError("Aktivität wechseln", error);
+  return activitySessionRowSchema.parse(data);
+}
+
 /** Beenden mit Serverzeit (RPC). */
 export async function stopSession(id: string): Promise<ActivitySession> {
   const { supabase } = await authorizedClient();

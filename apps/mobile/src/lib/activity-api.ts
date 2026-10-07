@@ -5,6 +5,7 @@ import {
   activityCorrectionTimestampsSchema,
   activitySessionRowSchema,
   activityStartInputSchema,
+  activitySwitchInputSchema,
   idSchema,
 } from "@tagestakt/schedule-schema";
 
@@ -26,6 +27,28 @@ export async function startActivity(
   if (!parsed.success) throw new WriteError("Bitte ein Ziel wählen.");
   const { goal, scheduleEntryId } = parsed.data;
   const { data, error } = await supabase.rpc("start_activity_session", {
+    p_goal_category: goal,
+    ...(scheduleEntryId
+      ? { p_schedule_entry_id: scheduleEntryId }
+      : { p_title: GOAL_LABELS[goal] }),
+  });
+  if (error) throw toWriteError(error);
+  return activitySessionRowSchema.parse(data);
+}
+
+/**
+ * Atomarer Wechsel: beendet die laufende und startet die neue Aktivität in einer
+ * Datenbanktransaktion (Serverzeit). Scheitert der Start, läuft die bisherige weiter.
+ */
+export async function switchActivity(
+  supabase: TypedSupabaseClient,
+  input: { runningSessionId: string; goal: GoalKey; scheduleEntryId: string | null },
+): Promise<ActivitySession> {
+  const parsed = activitySwitchInputSchema.safeParse(input);
+  if (!parsed.success) throw new WriteError("Ungültige Anfrage.");
+  const { runningSessionId, goal, scheduleEntryId } = parsed.data;
+  const { data, error } = await supabase.rpc("switch_activity_session", {
+    p_session_id: runningSessionId,
     p_goal_category: goal,
     ...(scheduleEntryId
       ? { p_schedule_entry_id: scheduleEntryId }

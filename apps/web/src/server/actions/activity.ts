@@ -5,6 +5,7 @@ import {
   activityCorrectionInputSchema,
   activityManualInputSchema,
   activityStartInputSchema,
+  activitySwitchInputSchema,
   idSchema,
   resolveActivityTimes,
 } from "@tagestakt/schedule-schema";
@@ -27,6 +28,7 @@ import {
   deleteSession,
   startSession,
   stopSession,
+  switchSession,
 } from "../data/activity";
 import { handleAction } from "./handle";
 
@@ -62,17 +64,26 @@ export async function startActivityAction(
   });
 }
 
-/** Wechsel: laufende Aktivität beenden, dann die neue starten (zwei Serveraufrufe). */
+/**
+ * Wechsel in einem Schritt (atomar in der Datenbank): Die laufende Aktivität endet genau dann,
+ * wenn die neue startet. Scheitert der Start, läuft die bisherige unverändert weiter.
+ */
 export async function switchActivityAction(
   runningSessionId: string,
   goal: string,
   scheduleEntryId: string | null,
 ): Promise<ActionState> {
   return handleAction(async () => {
-    const input = parseStart({ goal, scheduleEntryId });
-    await stopSession(parseId(runningSessionId));
+    // Dasselbe Schema wie in der App (laufende Aktivität + Ziel + optionaler Planblock).
+    const parsed = activitySwitchInputSchema.safeParse({ runningSessionId, goal, scheduleEntryId });
+    if (!parsed.success) throw new UserFacingError("Ungültige Anfrage.");
+    const { runningSessionId: running, ...start } = parsed.data;
+    const session = await switchSession(running, {
+      goal: start.goal,
+      scheduleEntryId: start.scheduleEntryId,
+      title: start.title ?? (start.scheduleEntryId ? null : GOAL_LABELS[start.goal]),
+    });
     refreshAll();
-    const session = await startSession(input);
     return { status: "success", message: `„${session.title}“ läuft.` };
   });
 }

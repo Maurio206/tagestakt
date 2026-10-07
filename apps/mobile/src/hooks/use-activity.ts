@@ -3,7 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { useAuth } from "@/auth/auth-context";
-import { correctActivity, discardActivity, startActivity, stopActivity } from "@/lib/activity-api";
+import {
+  correctActivity,
+  discardActivity,
+  startActivity,
+  stopActivity,
+  switchActivity,
+} from "@/lib/activity-api";
 import { setEntryCompletion } from "@/lib/plan-edit-api";
 import { OFFLINE_MESSAGE, toWriteError } from "@/lib/write-errors";
 
@@ -47,12 +53,9 @@ export function useActivityActions(canWrite: boolean) {
     start: (goal: GoalKey, scheduleEntryId: string | null) =>
       run(() => startActivity(supabase, { goal, scheduleEntryId })),
     stop: (sessionId: string) => run(() => stopActivity(supabase, sessionId)),
-    /** Wechsel: laufende Aktivität beenden, dann die neue starten. */
+    /** Wechsel in einem Schritt (atomar in der Datenbank). */
     switchTo: (runningId: string, goal: GoalKey, scheduleEntryId: string | null) =>
-      run(async () => {
-        await stopActivity(supabase, runningId);
-        await startActivity(supabase, { goal, scheduleEntryId });
-      }),
+      run(() => switchActivity(supabase, { runningSessionId: runningId, goal, scheduleEntryId })),
     discard: (sessionId: string) => run(() => discardActivity(supabase, sessionId)),
     correct: (sessionId: string, startedAt: string, endedAt: string | null) =>
       run(() => correctActivity(supabase, { sessionId, startedAt, endedAt })),

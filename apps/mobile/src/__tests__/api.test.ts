@@ -1,4 +1,4 @@
-import { correctActivity, startActivity, stopActivity } from "@/lib/activity-api";
+import { correctActivity, startActivity, stopActivity, switchActivity } from "@/lib/activity-api";
 import { type TypedSupabaseClient } from "@/lib/supabase";
 import { stepTime } from "@/lib/time-step";
 import { OFFLINE_MESSAGE, WriteError, toWriteError } from "@/lib/write-errors";
@@ -52,6 +52,44 @@ describe("Aktivitäten-API", () => {
       p_goal_category: "business",
       p_schedule_entry_id: businessBlock.id,
     });
+  });
+
+  it("wechselt atomar mit einem einzigen Serveraufruf", async () => {
+    const { client, rpc } = fakeClient({ data: row, error: null });
+    await switchActivity(client, {
+      runningSessionId: row.id,
+      goal: "sport",
+      scheduleEntryId: null,
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("switch_activity_session", {
+      p_session_id: row.id,
+      p_goal_category: "sport",
+      p_title: "Sport",
+    });
+  });
+
+  it("meldet einen abgewiesenen Wechsel verständlich (laufende Aktivität bleibt)", async () => {
+    const { client } = fakeClient({ data: null, error: { code: "TT005", message: "intern" } });
+    await expect(
+      switchActivity(client, {
+        runningSessionId: row.id,
+        goal: "business",
+        scheduleEntryId: businessBlock.id,
+      }),
+    ).rejects.toThrow(WriteError);
+  });
+
+  it("wechselt nicht mit ungültiger laufender Aktivität", async () => {
+    const { client, rpc } = fakeClient({ data: row, error: null });
+    await expect(
+      switchActivity(client, {
+        runningSessionId: "keine-uuid",
+        goal: "sport",
+        scheduleEntryId: null,
+      }),
+    ).rejects.toBeInstanceOf(WriteError);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("lehnt ungültige IDs ab, ohne den Server zu fragen", async () => {

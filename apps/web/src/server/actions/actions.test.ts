@@ -37,6 +37,7 @@ const activityData = vi.hoisted(() => ({
   deleteSession: vi.fn(),
   startSession: vi.fn(),
   stopSession: vi.fn(),
+  switchSession: vi.fn(),
 }));
 const supabaseAuth = vi.hoisted(() => ({ signInWithPassword: vi.fn(), signOut: vi.fn() }));
 
@@ -299,19 +300,32 @@ describe("Zeiterfassung", () => {
     });
   });
 
-  it("wechselt: erst beenden, dann starten", async () => {
-    const order: string[] = [];
-    activityData.stopSession.mockImplementationOnce(async () => {
-      order.push("stop");
-      return { title: "Alt" };
-    });
-    activityData.startSession.mockImplementationOnce(async () => {
-      order.push("start");
-      return { title: "Neu" };
-    });
+  it("wechselt atomar in einem Aufruf (kein getrenntes Beenden und Starten)", async () => {
+    activityData.switchSession.mockResolvedValueOnce({ title: "Sport" });
     const state = await switchActivityAction(SESSION_ID, "sport", null);
-    expect(state.status).toBe("success");
-    expect(order).toEqual(["stop", "start"]);
+    expect(state).toMatchObject({ status: "success", message: "„Sport“ läuft." });
+    expect(activityData.switchSession).toHaveBeenCalledWith(SESSION_ID, {
+      goal: "sport",
+      title: "Sport",
+      scheduleEntryId: null,
+    });
+    expect(activityData.stopSession).not.toHaveBeenCalled();
+    expect(activityData.startSession).not.toHaveBeenCalled();
+  });
+
+  it("meldet einen fehlgeschlagenen Wechsel – die bisherige Aktivität läuft weiter", async () => {
+    activityData.switchSession.mockRejectedValueOnce(
+      new UserFacingError("Der Planblock gehört zu einem anderen Ziel."),
+    );
+    const state = await switchActivityAction(SESSION_ID, "business", ENTRY_ID);
+    expect(state).toMatchObject({ status: "error" });
+    expect(activityData.stopSession).not.toHaveBeenCalled();
+  });
+
+  it("wechselt nur mit gültiger laufender Aktivität und bekanntem Ziel", async () => {
+    expect((await switchActivityAction("keine-uuid", "sport", null)).status).toBe("error");
+    expect((await switchActivityAction(SESSION_ID, "duty", null)).status).toBe("error");
+    expect(activityData.switchSession).not.toHaveBeenCalled();
   });
 
   it("beendet nur gültige IDs", async () => {
