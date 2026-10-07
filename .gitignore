@@ -59,3 +59,8 @@ pnpm-debug.log*
 
 # Lokale Claude-Code-Einstellungen
 .claude/
+
+# Produktionsmigration (Runbook): Sicherungen und Fingerabdrücke nie committen
+*.dump
+*.backup
+fingerprint-*.txt

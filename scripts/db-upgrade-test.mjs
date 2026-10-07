@@ -7,8 +7,10 @@
  *  3. Fingerabdruck der Fachdaten erzeugen (scripts/db/data-fingerprint.sql),
  *  4. alle ausstehenden Migrationen anwenden (`supabase migration up --local`),
  *  5. Fingerabdruck erneut erzeugen und vergleichen – muss identisch sein,
- *  6. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql),
- *  7. lokale Datenbank wieder vollständig zurücksetzen.
+ *  6. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql) und die
+ *     lesenden Produktionsprüfungen des Runbooks (scripts/db/production-*check.sql),
+ *  7. Rückfall-Skript des Runbooks anwenden und prüfen, dass die Altdaten unverändert sind,
+ *  8. lokale Datenbank wieder vollständig zurücksetzen.
  *
  * Arbeitet ausschließlich mit der lokalen Supabase-Instanz (Docker). Niemals gegen
  * Produktion verwenden.
@@ -53,6 +55,7 @@ try {
   psql("scripts/db/upgrade-fixture.sql");
   const before = psql("scripts/db/data-fingerprint.sql");
   process.stdout.write(`Fingerabdruck vorher:\n${before}\n`);
+  process.stdout.write(`Vorprüfung:\n${psql("scripts/db/production-precheck.sql")}\n`);
 
   supabase(["migration", "up", "--local"]);
   const after = psql("scripts/db/data-fingerprint.sql");
@@ -65,6 +68,17 @@ try {
 
   psql("scripts/db/upgrade-postcheck.sql");
   process.stdout.write("Nachprüfungen erfolgreich.\n");
+  process.stdout.write(`${psql("scripts/db/production-postcheck.sql")}\n`);
+
+  // Rückfall des Runbooks: entfernt nur die neuen Objekte, Altdaten bleiben identisch.
+  psql("scripts/db/rollback-20261007120000.sql");
+  if (psql("scripts/db/data-fingerprint.sql") !== before) {
+    throw new Error("Der Rückfall hat bestehende Daten verändert.");
+  }
+  if (!psql("scripts/db/production-precheck.sql").includes("activity_sessions_vorhanden=false")) {
+    throw new Error("Der Rückfall hat nicht alle neuen Objekte entfernt.");
+  }
+  process.stdout.write("Rückfall geprüft: Altdaten unverändert, neue Objekte entfernt.\n");
 } catch (error) {
   failed = true;
   process.stderr.write(`Upgrade-Test fehlgeschlagen: ${error.message}\n`);
