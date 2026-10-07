@@ -35,6 +35,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/mobile/package.json apps/mobile/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/schedule-schema/package.json packages/schedule-schema/package.json
+COPY packages/design-tokens/package.json packages/design-tokens/package.json
 RUN corepack install \
     && pnpm install --frozen-lockfile --filter "@tagestakt/web..."
 
@@ -44,6 +45,7 @@ RUN corepack install \
 FROM deps AS build
 COPY packages/config packages/config
 COPY packages/schedule-schema packages/schedule-schema
+COPY packages/design-tokens packages/design-tokens
 COPY apps/web apps/web
 
 # Öffentliche Werte, die Next.js beim Build in den Code einsetzt (kein Secret!).

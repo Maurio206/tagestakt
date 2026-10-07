@@ -1,0 +1,26 @@
+{
+  "name": "@tagestakt/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gemeinsame Gestaltungswerte (Farben, Abstände, Typografie, Bewegung) für Web und App",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tagestakt/schedule-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@tagestakt/config": "workspace:*",
+    "@types/node": "24.19.1",
+    "eslint": "9.39.5",
+    "typescript": "~6.0.3",
+    "vitest": "5.0.3"
+  }
+}

@@ -14,7 +14,10 @@
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
+    "@tagestakt/design-tokens": "workspace:*",
     "@tagestakt/schedule-schema": "workspace:*",
+    "geist": "1.7.2",
+    "lucide-react": "1.52.0",
     "next": "16.3.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
