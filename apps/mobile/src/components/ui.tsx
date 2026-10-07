@@ -1,202 +1,487 @@
-import { CATEGORY_COLORS, CATEGORY_LABELS, type EntryCategory } from "@tagestakt/schedule-schema";
+import { categoryTone } from "@tagestakt/design-tokens";
+import { CATEGORY_LABELS, type EntryCategory } from "@tagestakt/schedule-schema";
+import {
+  type LucideIcon,
+  OctagonAlert,
+  TriangleAlert,
+  Info,
+  CircleCheck,
+} from "lucide-react-native";
 import { type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  type TextStyle,
+  View,
+  type ViewStyle,
+} from "react-native";
 
-import { type Theme, spacing, useTheme } from "@/theme";
+import { type Theme, radius, spacing, tint, touch, type, useTheme } from "@/theme";
 
-export function Card({
+import { ToneIcon } from "./icons";
+
+// ---------------------------------------------------------------------------
+// Text
+// ---------------------------------------------------------------------------
+
+export function Title({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  return (
+    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      {children}
+    </Text>
+  );
+}
+
+export function SectionTitle({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  return (
+    <Text accessibilityRole="header" style={[styles.section, { color: theme.textSubtle }]}>
+      {children}
+    </Text>
+  );
+}
+
+export function Eyebrow({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  return <Text style={[styles.eyebrow, { color: theme.textSubtle }]}>{children}</Text>;
+}
+
+export function Body({
   children,
+  bold,
   style,
-  highlighted,
 }: {
   children: ReactNode;
-  style?: ViewStyle;
-  highlighted?: boolean;
+  bold?: boolean;
+  style?: TextStyle;
 }) {
   const theme = useTheme();
   return (
+    <Text style={[styles.body, { color: theme.text }, bold ? styles.bold : null, style]}>
+      {children}
+    </Text>
+  );
+}
+
+export function Muted({ children, small }: { children: ReactNode; small?: boolean }) {
+  const theme = useTheme();
+  return (
+    <Text style={[small ? styles.small : styles.body, { color: theme.textMuted }]}>{children}</Text>
+  );
+}
+
+export function Divider() {
+  const theme = useTheme();
+  return <View style={[styles.divider, { backgroundColor: theme.line }]} />;
+}
+
+// ---------------------------------------------------------------------------
+// Flächen
+// ---------------------------------------------------------------------------
+
+/** Fläche nur für bedienbare Einheiten (Listen, Sheets) – sonst Linien statt Karten. */
+export function Surface({ children, style }: { children: ReactNode; style?: ViewStyle }) {
+  const theme = useTheme();
+  return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.surface, borderColor: highlighted ? theme.accent : theme.border },
-        highlighted ? styles.highlighted : null,
-        style,
-      ]}
+      style={[styles.surface, { backgroundColor: theme.surface1, borderColor: theme.line }, style]}
     >
       {children}
     </View>
   );
 }
 
-export function Eyebrow({ children }: { children: ReactNode }) {
-  const theme = useTheme();
+export function Section({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
-    <Text style={[styles.eyebrow, { color: theme.textMuted }]} accessibilityRole="header">
+    <View style={styles.sectionBlock}>
+      <View style={styles.sectionHead}>
+        <SectionTitle>{title}</SectionTitle>
+        {action}
+      </View>
       {children}
-    </Text>
+    </View>
   );
 }
 
-export function Muted({ children }: { children: ReactNode }) {
-  const theme = useTheme();
-  return <Text style={[styles.body, { color: theme.textMuted }]}>{children}</Text>;
-}
+// ---------------------------------------------------------------------------
+// Kategorie und Ziel
+// ---------------------------------------------------------------------------
 
-export function Body({ children, bold }: { children: ReactNode; bold?: boolean }) {
-  const theme = useTheme();
-  return (
-    <Text style={[styles.body, { color: theme.text }, bold ? styles.bold : null]}>{children}</Text>
-  );
-}
-
-/** Kategorie als Text mit zurückhaltendem Farbpunkt (Farbe nie alleiniger Informationsträger). */
+/** Kategorie als Text mit Symbol in zurückhaltender Farbe (Farbe nie alleiniger Träger). */
 export function CategoryPill({ category }: { category: EntryCategory }) {
   const theme = useTheme();
+  const tone = categoryTone[category];
   return (
     <View
       style={styles.pill}
       accessible
       accessibilityLabel={`Kategorie ${CATEGORY_LABELS[category]}`}
     >
-      <View style={[styles.dot, { backgroundColor: CATEGORY_COLORS[category] }]} />
-      <Text style={[styles.pillText, { color: theme.textMuted }]}>{CATEGORY_LABELS[category]}</Text>
+      <ToneIcon tone={tone} color={theme[tone]} size={16} />
+      <Text style={[styles.small, { color: theme.textMuted }]}>{CATEGORY_LABELS[category]}</Text>
     </View>
   );
 }
 
-export function ProgressBar({
-  ratio,
-  label,
-  secondaryRatio,
-}: {
-  ratio: number;
-  label: string;
-  secondaryRatio?: number;
-}) {
+/** Getönter Chip mit Zielsymbol und Text, z. B. „Gewerbe · Läuft“. */
+export function ToneChip({ category, label }: { category: EntryCategory; label: string }) {
   const theme = useTheme();
-  const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
-  const secondary = Math.round(Math.min(1, Math.max(0, secondaryRatio ?? 0)) * 100);
+  const color = theme[categoryTone[category]];
   return (
-    <View
-      accessibilityRole="progressbar"
-      accessibilityLabel={label}
-      accessibilityValue={{ min: 0, max: 100, now: percent }}
-      style={[styles.track, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
-    >
-      <View
-        style={[
-          styles.fill,
-          { width: `${percent}%`, backgroundColor: theme.accent, opacity: 0.45 },
-        ]}
-      />
-      {secondaryRatio !== undefined ? (
-        <View style={[styles.fill, { width: `${secondary}%`, backgroundColor: theme.accent }]} />
-      ) : null}
+    <View style={[styles.chip, { backgroundColor: tint(color, 0.14) }]}>
+      <ToneIcon tone={categoryTone[category]} color={color} size={16} />
+      <Text style={[styles.chipText, { color }]}>{label}</Text>
     </View>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Knöpfe und Eingaben
+// ---------------------------------------------------------------------------
+
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+
+function buttonColors(theme: Theme, variant: ButtonVariant) {
+  switch (variant) {
+    case "primary":
+      return { bg: theme.inverse, border: theme.inverse, text: theme.onInverse };
+    case "danger":
+      return { bg: "transparent", border: tint(theme.error, 0.55), text: theme.error };
+    case "ghost":
+      return { bg: "transparent", border: "transparent", text: theme.text };
+    default:
+      return { bg: theme.surface2, border: theme.lineStrong, text: theme.text };
+  }
 }
 
 export function Button({
   label,
   onPress,
-  variant = "primary",
+  variant = "secondary",
+  size = "md",
+  icon: Icon,
   disabled,
+  accessibilityLabel,
   accessibilityHint,
+  flex,
 }: {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: ButtonVariant;
+  size?: "md" | "lg";
+  icon?: LucideIcon;
   disabled?: boolean;
+  accessibilityLabel?: string;
   accessibilityHint?: string;
+  flex?: boolean;
 }) {
   const theme = useTheme();
   const colors = buttonColors(theme, variant);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        size === "lg" ? styles.buttonLg : null,
+        flex ? styles.flex : null,
         {
-          backgroundColor: colors.bg,
+          backgroundColor: pressed && !disabled ? theme.surface3 : colors.bg,
           borderColor: colors.border,
-          opacity: disabled ? 0.5 : pressed ? 0.8 : 1,
+          opacity: disabled ? 0.45 : 1,
         },
       ]}
     >
-      <Text style={[styles.buttonText, { color: colors.text }]}>{label}</Text>
+      {Icon ? <Icon color={colors.text} size={size === "lg" ? 20 : 18} strokeWidth={2} /> : null}
+      <Text
+        style={[
+          styles.buttonText,
+          size === "lg" ? styles.buttonTextLg : null,
+          { color: colors.text },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
-function buttonColors(theme: Theme, variant: "primary" | "secondary" | "danger") {
-  if (variant === "primary")
-    return { bg: theme.accent, border: theme.accent, text: theme.accentText };
-  if (variant === "danger") return { bg: "transparent", border: theme.danger, text: theme.danger };
-  return { bg: theme.surfaceAlt, border: theme.border, text: theme.text };
+/** Schritt-Eingabe (z. B. ±15 Minuten) mit großem Wert in der Mitte. */
+export function Stepper({
+  label,
+  value,
+  onDecrease,
+  onIncrease,
+  decreaseLabel,
+  increaseLabel,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  decreaseLabel: string;
+  increaseLabel: string;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.stepperBlock}>
+      <Text style={[styles.label, { color: theme.textMuted }]}>{label}</Text>
+      <View style={styles.stepper}>
+        <Button
+          label="−"
+          accessibilityLabel={decreaseLabel}
+          onPress={onDecrease}
+          disabled={disabled}
+        />
+        <View
+          accessible
+          accessibilityLabel={`${label}: ${value}`}
+          style={[
+            styles.stepperValue,
+            { backgroundColor: theme.surface2, borderColor: theme.lineStrong },
+          ]}
+        >
+          <Text style={[styles.stepperText, { color: theme.text }]}>{value}</Text>
+        </View>
+        <Button
+          label="+"
+          accessibilityLabel={increaseLabel}
+          onPress={onIncrease}
+          disabled={disabled}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** Auswahl aus wenigen Optionen als Chips (Einzelauswahl). */
+export function ChoiceChips<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.stepperBlock} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      <Text style={[styles.label, { color: theme.textMuted }]}>{label}</Text>
+      <View style={styles.chipRow}>
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <Pressable
+              key={String(option.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              accessibilityLabel={option.label}
+              onPress={() => onChange(option.value)}
+              style={[
+                styles.choice,
+                {
+                  backgroundColor: selected ? theme.inverse : "transparent",
+                  borderColor: selected ? theme.inverse : theme.lineStrong,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.choiceText, { color: selected ? theme.onInverse : theme.textMuted }]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/** Zeile mit Schalter; Beschriftung und Zustand werden gemeinsam vorgelesen. */
+export function SwitchRow({
+  label,
+  hint,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.switchRow}>
+      <View style={styles.flex}>
+        <Text style={[styles.body, { color: theme.text }]}>{label}</Text>
+        {hint ? <Text style={[styles.small, { color: theme.textMuted }]}>{hint}</Text> : null}
+      </View>
+      <Switch
+        accessibilityLabel={label}
+        accessibilityHint={hint}
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ false: theme.surface3, true: theme.inverse }}
+        thumbColor={value ? theme.onInverse : theme.textMuted}
+      />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Hinweise
+// ---------------------------------------------------------------------------
+
+const NOTICE_ICONS = {
+  info: Info,
+  warning: TriangleAlert,
+  error: OctagonAlert,
+  success: CircleCheck,
+} as const;
+
+export function Notice({
+  tone = "info",
+  title,
+  children,
+  action,
+}: {
+  tone?: keyof typeof NOTICE_ICONS;
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
+}) {
+  const theme = useTheme();
+  const Icon = NOTICE_ICONS[tone];
+  const colors =
+    tone === "warning"
+      ? { bg: theme.warningBg, border: tint(theme.warning, 0.45), icon: theme.warning }
+      : tone === "error"
+        ? { bg: theme.errorBg, border: tint(theme.error, 0.45), icon: theme.error }
+        : tone === "success"
+          ? { bg: theme.successBg, border: tint(theme.success, 0.45), icon: theme.success }
+          : { bg: theme.surface1, border: theme.line, icon: theme.textMuted };
+  return (
+    <View
+      accessibilityRole={tone === "error" || tone === "warning" ? "alert" : undefined}
+      style={[styles.notice, { backgroundColor: colors.bg, borderColor: colors.border }]}
+    >
+      <Icon color={colors.icon} size={20} strokeWidth={1.9} />
+      <View style={[styles.flex, styles.noticeBody]}>
+        <Text style={[styles.noticeTitle, { color: theme.text }]}>{title}</Text>
+        {typeof children === "string" ? (
+          <Text style={[styles.small, { color: theme.text }]}>{children}</Text>
+        ) : (
+          children
+        )}
+        {action}
+      </View>
+    </View>
+  );
 }
 
 export const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  highlighted: {
-    borderWidth: 2,
-  },
-  eyebrow: {
+  flex: { flex: 1 },
+  title: { ...type.pageTitle, fontWeight: "700" },
+  section: {
     fontSize: 13,
+    lineHeight: 17,
     fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-  body: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  bold: {
-    fontWeight: "700",
-  },
-  pill: {
+  eyebrow: { ...type.eyebrow, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" },
+  body: { ...type.body },
+  small: { ...type.small },
+  bold: { fontWeight: "700" },
+  label: { fontSize: 13, fontWeight: "600" },
+  divider: { height: StyleSheet.hairlineWidth, alignSelf: "stretch" },
+  surface: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
+  sectionBlock: { gap: spacing.md },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "flex-start",
     gap: 6,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: 15,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  pillText: {
-    fontSize: 15,
-  },
-  track: {
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  fill: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-  },
+  chipText: { fontSize: 14, fontWeight: "700" },
   button: {
-    minHeight: 48,
-    borderRadius: 10,
+    minHeight: touch.min,
+    borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  buttonLg: { minHeight: touch.primary, borderRadius: 14 },
+  buttonText: { fontSize: 16, fontWeight: "700" },
+  buttonTextLg: { fontSize: 17 },
+  stepperBlock: { gap: 6 },
+  stepper: { flexDirection: "row", gap: 6, alignItems: "stretch" },
+  stepperValue: {
+    flex: 1,
+    minHeight: touch.min,
+    borderWidth: 1,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: "700",
+  stepperText: { fontSize: 20, fontVariant: ["tabular-nums"], fontWeight: "600" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  choice: {
+    minHeight: 44,
+    minWidth: 48,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  choiceText: { fontSize: 14, fontWeight: "700" },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    minHeight: touch.min,
+    paddingVertical: spacing.sm,
+  },
+  notice: {
+    flexDirection: "row",
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+  },
+  noticeBody: { gap: 4 },
+  noticeTitle: { fontSize: 15, fontWeight: "700" },
 });

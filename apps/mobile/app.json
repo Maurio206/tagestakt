@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "tagestakt",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#11151b",
+    "backgroundColor": "#121110",
     "android": {
       "package": "app.tagestakt.privat",
       "allowBackup": false,

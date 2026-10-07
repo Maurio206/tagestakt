@@ -1,56 +1,74 @@
+import {
+  type Palette,
+  type Tone,
+  categoryTone,
+  palettes,
+  radius as tokenRadius,
+  space,
+  typeScale,
+} from "@tagestakt/design-tokens";
+import { type EntryCategory } from "@tagestakt/schedule-schema";
 import { useColorScheme } from "react-native";
 
-export interface Theme {
+/**
+ * App-Theme aus packages/design-tokens (dieselben Werte wie die Website).
+ * Dark-first: hell nur, wenn das System ausdrücklich hell eingestellt ist.
+ */
+export interface Theme extends Palette {
   dark: boolean;
-  background: string;
-  surface: string;
-  surfaceAlt: string;
-  border: string;
-  text: string;
-  textMuted: string;
-  accent: string;
-  accentText: string;
-  warning: string;
-  warningBg: string;
-  danger: string;
-  success: string;
 }
 
-const dark: Theme = {
-  dark: true,
-  background: "#11151b",
-  surface: "#1a2029",
-  surfaceAlt: "#232b36",
-  border: "#323c4a",
-  text: "#e8ecf1",
-  textMuted: "#a9b3c1",
-  accent: "#7fb2ff",
-  accentText: "#0b1220",
-  warning: "#f2c46d",
-  warningBg: "#3a2f17",
-  danger: "#ff8a80",
-  success: "#7fd6a1",
-};
+const dark: Theme = { ...palettes.dark, dark: true };
+const light: Theme = { ...palettes.light, dark: false };
 
-const light: Theme = {
-  dark: false,
-  background: "#f6f7f9",
-  surface: "#ffffff",
-  surfaceAlt: "#eef1f5",
-  border: "#cfd6df",
-  text: "#141a22",
-  textMuted: "#4d5866",
-  accent: "#1f5fbf",
-  accentText: "#ffffff",
-  warning: "#7a5600",
-  warningBg: "#fff4d6",
-  danger: "#b3261e",
-  success: "#1d6b3d",
-};
-
-/** Dunkles Design bevorzugt; hell nur, wenn das System ausdrücklich hell ist. */
 export function useTheme(): Theme {
   return useColorScheme() === "light" ? light : dark;
 }
 
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
+export function toneColor(theme: Theme, tone: Tone): string {
+  return theme[tone];
+}
+
+export function categoryColor(theme: Theme, category: EntryCategory): string {
+  return theme[categoryTone[category]];
+}
+
+/** Halbtransparente Tönung einer Farbe (#RRGGBB + Alpha). */
+export function tint(hex: string, alpha: number): string {
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex}${a}`;
+}
+
+export const spacing = {
+  xxs: space["0.5"],
+  xs: space["1"],
+  sm: space["2"],
+  md: space["3"],
+  lg: space["4"],
+  xl: space["6"],
+  xxl: space["8"],
+} as const;
+
+export const radius = tokenRadius;
+
+export const type = {
+  timer: { fontSize: typeScale.timer.mobile, lineHeight: typeScale.timer.mobile * 1.05 },
+  remaining: { fontSize: typeScale.remaining.mobile, lineHeight: typeScale.remaining.mobile * 1.1 },
+  nowTitle: { fontSize: typeScale.nowTitle.mobile, lineHeight: typeScale.nowTitle.mobile * 1.15 },
+  pageTitle: {
+    fontSize: typeScale.pageTitle.mobile,
+    lineHeight: typeScale.pageTitle.mobile * 1.25,
+  },
+  section: { fontSize: typeScale.section.mobile, lineHeight: typeScale.section.mobile * 1.3 },
+  body: { fontSize: typeScale.body.mobile, lineHeight: typeScale.body.mobile * 1.45 },
+  small: { fontSize: typeScale.small.mobile, lineHeight: typeScale.small.mobile * 1.4 },
+  eyebrow: { fontSize: typeScale.eyebrow.mobile, lineHeight: typeScale.eyebrow.mobile * 1.3 },
+} as const;
+
+/** Mindesthöhe für Bedienelemente (Android ≥ 48 dp, Primäraktionen 56 dp). */
+export const touch = { min: 48, primary: 56 } as const;
+
+/** Monospace für Zeiten und Timer (Systemschrift – keine externen Schriften). */
+export const monoFamily = "monospace";

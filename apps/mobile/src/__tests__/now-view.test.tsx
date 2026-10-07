@@ -1,120 +1,97 @@
-import {
-  type PlanSnapshot,
-  type ScheduleEntry,
-  resolveTimeRange,
-} from "@tagestakt/schedule-schema";
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { LoginView } from "@/components/login-view";
-import { NowView } from "@/components/now-view";
+import { type NowActions, NowView } from "@/components/now-view";
 import { type PlanResult } from "@/lib/plan-status";
 
-const OWNER = "8f14e45f-ceea-4f6a-9d1b-6d2c4f0a9b11";
-const WEEK = "c9f0f895-fb98-4b91-9f5a-1c2d3e4f5a6b";
+import { NOW, businessBlock, session, snapshot } from "./fixtures";
 
-let counter = 0;
-function entry(
-  title: string,
-  category: ScheduleEntry["category"],
-  date: string,
-  start: string,
-  end: string,
-  completion: ScheduleEntry["completion_status"] = "planned",
-): ScheduleEntry {
-  const range = resolveTimeRange(date, start, end, false);
-  counter += 1;
+function actions(): jest.Mocked<NowActions> {
   return {
-    id: `00000000-0000-4000-8000-${String(counter).padStart(12, "0")}`,
-    owner_id: OWNER,
-    schedule_week_id: WEEK,
-    title,
-    category,
-    start_at: range.start.toISOString(),
-    end_at: range.end.toISOString(),
-    location: null,
-    note: null,
-    source: "manual",
-    completion_status: completion,
-    created_at: "2026-10-01T00:00:00+00:00",
-    updated_at: "2026-10-01T00:00:00+00:00",
+    start: jest.fn(),
+    stop: jest.fn(),
+    switchTo: jest.fn(),
+    discard: jest.fn(),
+    setCompletion: jest.fn(),
+    openCorrection: jest.fn(),
+    openGoals: jest.fn(),
   };
 }
 
-function snapshot(fetchedAt: string): PlanSnapshot {
-  return {
-    schemaVersion: 2,
-    fetchedAt,
-    goalTargets: { business: 1200, sport: null, relationship: null },
-    reminderSettings: {
-      minutesBefore: 10,
-      atStart: true,
-      ifNotStarted: false,
-      scope: "important" as const,
-    },
-    sessions: [],
-    timezone: "Europe/Berlin",
-    weeks: [
-      {
-        id: WEEK,
-        owner_id: OWNER,
-        week_start: "2026-10-05",
-        version: 2,
-        status: "published",
-        planning_note: null,
-        published_at: "2026-10-04T18:00:00+00:00",
-        created_at: "2026-10-04T17:00:00+00:00",
-        updated_at: "2026-10-04T18:00:00+00:00",
-        schedule_entries: [
-          entry("Fokusblock (Beispiel)", "business", "2026-10-05", "15:00", "20:00", "completed"),
-          entry("Gewerbe-Block (Beispiel)", "business", "2026-10-06", "15:30", "19:30"),
-          entry("Training (Beispiel)", "sport", "2026-10-06", "19:45", "20:45"),
-        ],
-      },
-    ],
-  };
-}
+const online = (overrides = {}): PlanResult => ({
+  snapshot: snapshot("2026-10-06T14:55:00.000Z", overrides),
+  origin: "network",
+});
 
-// Dienstag, 06.10.2026, 17:00 Uhr Berliner Zeit (= 15:00 UTC)
-const NOW = new Date("2026-10-06T15:00:00Z");
-
-describe("NowView (Smoke-Test der Hauptansicht)", () => {
-  it("zeigt Uhrzeit, laufenden Block, Restzeit und nächsten Block", async () => {
-    const result: PlanResult = {
-      snapshot: snapshot("2026-10-06T14:55:00.000Z"),
-      origin: "network",
-    };
-    await render(<NowView result={result} now={NOW} />);
-
+describe("NowView – Jetzt-Ansicht", () => {
+  it("zeigt den aktuellen Block, die Restzeit und den nächsten Block", async () => {
+    await render(<NowView result={online()} now={NOW} actions={actions()} />);
     expect(screen.getByText("17:00")).toBeOnTheScreen();
-    expect(screen.getByText("Gewerbe-Block (Beispiel)")).toBeOnTheScreen();
-    expect(screen.getByText("15:30–19:30")).toBeOnTheScreen();
-    expect(screen.getByText("noch 2 Std. 30 Min.")).toBeOnTheScreen();
-    expect(screen.getByText("Training (Beispiel)")).toBeOnTheScreen();
-    expect(screen.getByText("beginnt in 2 Std. 45 Min.")).toBeOnTheScreen();
-    expect(screen.queryByText(/Offline/)).toBeNull();
+    expect(screen.getAllByText("Gewerbe-Block (Beispiel)").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("noch 2 Std. 30 Min.")).toBeOnTheScreen();
+    expect(screen.getAllByText("Training (Beispiel)").length).toBeGreaterThan(0);
+    expect(screen.getByText("Noch nicht erfasst.")).toBeOnTheScreen();
   });
 
-  it("berechnet den Fortschritt zum Gewerbeziel von 20 Stunden", async () => {
-    const result: PlanResult = {
-      snapshot: snapshot("2026-10-06T14:55:00.000Z"),
-      origin: "network",
-    };
-    await render(<NowView result={result} now={NOW} />);
-    expect(screen.getByText("9 h von 20 h geplant")).toBeOnTheScreen();
-    expect(screen.getByText(/5 h erledigt/)).toBeOnTheScreen();
+  it("„Fokus starten“ startet das Ziel des aktuellen Blocks mit Verknüpfung", async () => {
+    const a = actions();
+    await render(<NowView result={online()} now={NOW} actions={a} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Fokus starten" }));
+    expect(a.start).toHaveBeenCalledWith("business", businessBlock.id);
   });
 
-  it("zeigt offline einen deutlichen Hinweis mit Zeitpunkt der letzten Aktualisierung", async () => {
+  it("markiert einen Block als erledigt oder ausgelassen", async () => {
+    const a = actions();
+    await render(<NowView result={online()} now={NOW} actions={a} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "„Gewerbe-Block (Beispiel)“ als erledigt markieren" }),
+    );
+    expect(a.setCompletion).toHaveBeenCalledWith(businessBlock.id, "completed");
+  });
+
+  it("zeigt bei laufender Aktivität „Beenden“ und „Zeit korrigieren“", async () => {
+    const a = actions();
+    const running = session("business", "2026-10-06T13:30:00.000Z", null, businessBlock.id);
+    await render(<NowView result={online({ sessions: [running] })} now={NOW} actions={a} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Beenden" }));
+    expect(a.stop).toHaveBeenCalledWith(running.id);
+    await fireEvent.press(screen.getByRole("button", { name: "Zeit korrigieren" }));
+    expect(a.openCorrection).toHaveBeenCalledWith(running.id);
+  });
+
+  it("bietet beim Wechsel drei klare Optionen und wechselt erst nach Bestätigung", async () => {
+    const a = actions();
+    // Sport läuft noch, geplant ist jetzt Gewerbe.
+    const running = session("sport", "2026-10-06T14:40:00.000Z", null);
+    await render(<NowView result={online({ sessions: [running] })} now={NOW} actions={a} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Zu Gewerbe wechseln" }));
+    expect(a.switchTo).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Sport beenden, Gewerbe starten" }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Nur Sport beenden" })).toBeOnTheScreen();
+    expect(
+      screen.getByRole("button", { name: "Abbrechen – Sport läuft weiter" }),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Sport beenden, Gewerbe starten" }));
+    expect(a.switchTo).toHaveBeenCalledWith(running.id, "business", businessBlock.id);
+  });
+
+  it("offline: deutlicher Hinweis, Plan lesbar, Starten gesperrt", async () => {
+    const a = actions();
     const result: PlanResult = {
       snapshot: snapshot("2026-10-06T06:00:00.000Z"),
       origin: "cache",
       errorMessage: "Keine Verbindung zum Server.",
     };
-    await render(<NowView result={result} now={NOW} />);
+    await render(<NowView result={result} now={NOW} actions={a} />);
     expect(screen.getByText("Offline – gespeicherter Plan")).toBeOnTheScreen();
     expect(screen.getByText(/heute, 08:00 Uhr/)).toBeOnTheScreen();
-    // Der gespeicherte Plan wird trotzdem angezeigt.
-    expect(screen.getByText("Gewerbe-Block (Beispiel)")).toBeOnTheScreen();
+    expect(screen.getAllByText("Gewerbe-Block (Beispiel)").length).toBeGreaterThan(0);
+    const start = screen.getByRole("button", { name: "Fokus starten" });
+    expect(start).toBeDisabled();
+    await fireEvent.press(start);
+    expect(a.start).not.toHaveBeenCalled();
   });
 
   it("warnt bei veraltetem Plan auch ohne Netzwerkfehler", async () => {
@@ -122,17 +99,25 @@ describe("NowView (Smoke-Test der Hauptansicht)", () => {
       snapshot: snapshot("2026-10-05T06:00:00.000Z"),
       origin: "network",
     };
-    await render(<NowView result={result} now={NOW} />);
+    await render(<NowView result={result} now={NOW} actions={actions()} />);
     expect(screen.getByText("Plan möglicherweise veraltet")).toBeOnTheScreen();
   });
 
-  it("meldet eine Woche ohne veröffentlichten Plan", async () => {
-    const empty = { ...snapshot("2026-10-06T14:55:00.000Z"), weeks: [] };
-    await render(<NowView result={{ snapshot: empty, origin: "network" }} now={NOW} />);
+  it("meldet eine Woche ohne veröffentlichten Plan und erlaubt spontanes Starten", async () => {
+    const a = actions();
+    await render(<NowView result={online({ weeks: [] })} now={NOW} actions={a} />);
     expect(
       screen.getByText("Für diese Woche ist noch kein Plan veröffentlicht."),
     ).toBeOnTheScreen();
-    expect(screen.getByText("Kein geplanter Block")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Aktivität Laila starten" }));
+    expect(a.start).toHaveBeenCalledWith("relationship", null);
+  });
+
+  it("zeigt den Wochenfortschritt nur aus erfasster Zeit", async () => {
+    const done = session("business", "2026-10-05T13:00:00.000Z", "2026-10-05T18:00:00.000Z");
+    await render(<NowView result={online({ sessions: [done] })} now={NOW} actions={actions()} />);
+    expect(screen.getAllByText(/5 h/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/20 h/).length).toBeGreaterThan(0);
   });
 });
 
@@ -143,10 +128,15 @@ describe("LoginView", () => {
     expect(screen.getByLabelText("Passwort")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: /Registrier/i })).toBeNull();
     expect(
-      screen.getAllByRole("button").map((b) => b.props.accessibilityLabel ?? ""),
-    ).not.toContain("Registrieren");
-    expect(
       screen.getByText("Privater Zugang. Eine Registrierung ist nicht möglich."),
     ).toBeOnTheScreen();
+  });
+
+  it("meldet fehlende Eingaben ohne Anfrage an den Server", async () => {
+    const onSubmit = jest.fn();
+    await render(<LoginView onSubmit={onSubmit} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Anmelden" }));
+    expect(await screen.findByText("Bitte E-Mail und Passwort eingeben.")).toBeOnTheScreen();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

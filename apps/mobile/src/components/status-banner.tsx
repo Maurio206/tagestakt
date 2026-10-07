@@ -1,8 +1,8 @@
 import { formatLocalDateShort, formatTime, toLocalDate } from "@tagestakt/schedule-schema";
-import { StyleSheet, Text, View } from "react-native";
 
 import { type PlanOrigin, isFetchedAtStale } from "@/lib/plan-status";
-import { type Theme, spacing, useTheme } from "@/theme";
+
+import { Notice } from "./ui";
 
 function describeFetchedAt(fetchedAt: string, now: Date): string {
   const date = new Date(fetchedAt);
@@ -12,7 +12,10 @@ function describeFetchedAt(fetchedAt: string, now: Date): string {
     : `${formatLocalDateShort(toLocalDate(date))} ${formatTime(date)} Uhr`;
 }
 
-/** Deutlicher Hinweis, wenn offline der zwischengespeicherte oder ein veralteter Plan angezeigt wird. */
+/**
+ * Deutlicher Hinweis, wenn offline der gespeicherte oder ein veralteter Plan angezeigt wird –
+ * mit Stand und Folge („Starten … erst wieder mit Verbindung“).
+ */
 export function StatusBanner({
   origin,
   fetchedAt,
@@ -24,36 +27,18 @@ export function StatusBanner({
   now: Date;
   errorMessage?: string;
 }) {
-  const theme = useTheme();
   const stale = isFetchedAtStale(fetchedAt, now);
   if (origin === "network" && !stale) return null;
-
-  const title =
-    origin === "cache" ? "Offline – gespeicherter Plan" : "Plan möglicherweise veraltet";
+  if (origin === "cache") {
+    return (
+      <Notice tone="warning" title="Offline – gespeicherter Plan">
+        {`Zuletzt aktualisiert: ${describeFetchedAt(fetchedAt, now)}.${errorMessage ? ` ${errorMessage}` : ""} Starten, Beenden und Bearbeiten sind erst wieder mit Verbindung möglich; ein laufender Timer zählt weiter.`}
+      </Notice>
+    );
+  }
   return (
-    <View accessibilityRole="alert" style={[styles.banner, bannerColors(theme)]}>
-      <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-      <Text style={{ color: theme.text }}>
-        Zuletzt aktualisiert: {describeFetchedAt(fetchedAt, now)}.
-        {errorMessage ? ` ${errorMessage}` : ""}
-      </Text>
-    </View>
+    <Notice tone="warning" title="Plan möglicherweise veraltet">
+      {`Zuletzt aktualisiert: ${describeFetchedAt(fetchedAt, now)}. Zum Aktualisieren nach unten ziehen.`}
+    </Notice>
   );
 }
-
-function bannerColors(theme: Theme) {
-  return { backgroundColor: theme.warningBg, borderColor: theme.warning };
-}
-
-const styles = StyleSheet.create({
-  banner: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  title: {
-    fontWeight: "700",
-    fontSize: 16,
-  },
-});

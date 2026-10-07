@@ -1,12 +1,22 @@
-import { Body, Button, Card, Eyebrow, Muted } from "./ui";
+import { RefreshCw } from "lucide-react-native";
+import { StyleSheet, View } from "react-native";
 
+import { spacing } from "@/theme";
+
+import { Button, Notice } from "./ui";
+
+/** Fehlerzustand ohne gespeicherten Plan: Ursache in Alltagssprache und „Erneut versuchen“. */
 export function PlanError({ message, onRetry }: { message?: string; onRetry: () => void }) {
   return (
-    <Card>
-      <Eyebrow>Kein Plan verfügbar</Eyebrow>
-      <Body>{message ?? "Der Plan konnte nicht geladen werden."}</Body>
-      <Muted>Es ist noch kein Plan auf diesem Gerät gespeichert. Bitte Verbindung prüfen.</Muted>
-      <Button label="Erneut versuchen" onPress={onRetry} variant="secondary" />
-    </Card>
+    <View style={styles.container}>
+      <Notice tone="error" title="Kein Plan verfügbar">
+        {`${message ?? "Der Plan konnte nicht geladen werden."} Auf diesem Gerät ist noch kein Plan gespeichert – bitte Verbindung prüfen.`}
+      </Notice>
+      <Button label="Erneut versuchen" icon={RefreshCw} onPress={onRetry} />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { gap: spacing.lg },
+});

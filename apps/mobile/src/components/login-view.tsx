@@ -9,9 +9,12 @@ import {
   View,
 } from "react-native";
 
-import { spacing, useTheme } from "@/theme";
+import { LogIn } from "lucide-react-native";
 
-import { Button, Muted } from "./ui";
+import { spacing, type, useTheme } from "@/theme";
+
+import { BrandMark } from "./brand";
+import { Button, Muted, Notice } from "./ui";
 
 /** Anmeldung mit E-Mail und Passwort. Bewusst ohne Registrierung. */
 export function LoginView({
@@ -39,27 +42,26 @@ export function LoginView({
 
   const inputStyle = [
     styles.input,
-    { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface },
+    { color: theme.text, borderColor: theme.lineStrong, backgroundColor: theme.surface2 },
   ];
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: theme.bg }]}
     >
       <View style={styles.form}>
-        <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          TagesTakt
-        </Text>
+        <View style={styles.brand}>
+          <BrandMark size={44} />
+          <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+            TagesTakt
+          </Text>
+        </View>
         <Muted>Privater Zugang. Eine Registrierung ist nicht möglich.</Muted>
 
-        {error ? (
-          <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>
-            {error}
-          </Text>
-        ) : null}
+        {error ? <Notice tone="error" title={error} /> : null}
 
-        <Text style={[styles.label, { color: theme.text }]} nativeID="login-email">
+        <Text style={[styles.label, { color: theme.textMuted }]} nativeID="login-email">
           E-Mail
         </Text>
         <TextInput
@@ -76,7 +78,7 @@ export function LoginView({
           style={inputStyle}
         />
 
-        <Text style={[styles.label, { color: theme.text }]} nativeID="login-password">
+        <Text style={[styles.label, { color: theme.textMuted }]} nativeID="login-password">
           Passwort
         </Text>
         <TextInput
@@ -94,9 +96,16 @@ export function LoginView({
         />
 
         {pending ? (
-          <ActivityIndicator color={theme.accent} accessibilityLabel="Anmeldung läuft" />
+          <ActivityIndicator color={theme.text} accessibilityLabel="Anmeldung läuft" />
         ) : null}
-        <Button label="Anmelden" onPress={() => void submit()} disabled={pending} />
+        <Button
+          label="Anmelden"
+          icon={LogIn}
+          variant="primary"
+          size="lg"
+          onPress={() => void submit()}
+          disabled={pending}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -111,23 +120,17 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.md,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-  },
+  brand: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
+  title: { ...type.pageTitle, fontWeight: "700" },
   label: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
   },
   input: {
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: spacing.md,
     fontSize: 17,
-  },
-  error: {
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

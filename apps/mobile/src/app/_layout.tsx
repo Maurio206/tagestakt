@@ -17,19 +17,21 @@ function RootNavigator() {
 
   if (initializing) {
     return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.accent} accessibilityLabel="Wird geladen" />
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator color={theme.text} accessibilityLabel="Wird geladen" />
       </View>
     );
   }
 
   return (
-    <Stack
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }}
-    >
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
       {/* Ohne gültige Session ist ausschließlich die Anmeldung erreichbar. */}
       <Stack.Protected guard={Boolean(session)}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="ziele" />
+        <Stack.Screen name="wochenbilanz" />
+        <Stack.Screen name="bearbeiten" />
+        <Stack.Screen name="korrigieren" options={{ presentation: "modal" }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="login" />
@@ -41,7 +43,7 @@ function RootNavigator() {
 function ConfigError({ message }: { message: string }) {
   const theme = useTheme();
   return (
-    <View style={[styles.center, { backgroundColor: theme.background }]}>
+    <View style={[styles.center, { backgroundColor: theme.bg }]}>
       <Text style={[styles.title, { color: theme.text }]}>Konfiguration fehlt</Text>
       <Text style={{ color: theme.textMuted }}>{message}</Text>
       <Text style={{ color: theme.textMuted }}>
@@ -79,8 +81,5 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.md,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
+  title: { fontSize: 22, fontWeight: "700" },
 });

@@ -21,3 +21,45 @@ jest.mock("expo-secure-store", () => {
     }),
   };
 });
+
+// Lucide-Symbole: schlichte Platzhalter (Darstellung ist nicht Gegenstand der Tests).
+jest.mock("lucide-react-native", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return new Proxy(
+    { __esModule: true },
+    {
+      get: (target, name) => {
+        if (name in target) return target[name];
+        if (typeof name !== "string") return undefined;
+        const Icon = (props) => React.createElement(View, { testID: `icon-${name}`, ...props });
+        Icon.displayName = name;
+        target[name] = Icon;
+        return Icon;
+      },
+    },
+  );
+});
+
+// react-native-svg: einfache Host-Komponenten.
+jest.mock("react-native-svg", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const make = (name) => {
+    const Component = ({ children }) =>
+      React.createElement(View, { testID: `svg-${name}` }, children);
+    Component.displayName = name;
+    return Component;
+  };
+  return {
+    __esModule: true,
+    default: make("Svg"),
+    Svg: make("Svg"),
+    Path: make("Path"),
+    Rect: make("Rect"),
+    Circle: make("Circle"),
+    G: make("G"),
+    Line: make("Line"),
+  };
+});
+
