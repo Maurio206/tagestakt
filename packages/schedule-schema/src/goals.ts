@@ -351,5 +351,6 @@ export function getWeekSummarySentence(goals: readonly GoalProgress[]): string {
       ? "Das Wochenziel ist erreicht."
       : "Alle festgelegten Wochenziele sind erreicht.";
   }
+  if (withTarget.length === 1) return "Das Wochenziel ist noch nicht erreicht.";
   return `${done.length} von ${withTarget.length} Wochenzielen erreicht.`;
 }

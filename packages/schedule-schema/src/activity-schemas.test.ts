@@ -9,8 +9,10 @@ import {
   activityStartInputSchema,
   goalSettingsInputSchema,
   parseHoursInput,
+  recurringCommitmentBatchInputSchema,
   reminderSettingsInputSchema,
   resolveActivityTimes,
+  splitRecurringBatch,
   validateActivityTimes,
 } from "./schemas";
 
@@ -188,5 +190,31 @@ describe("Aktivitätszeilen und Fehlercodes", () => {
     expect(isActivityErrorCode("TT001")).toBe(true);
     expect(isActivityErrorCode("23505")).toBe(false);
     expect(ACTIVITY_ERROR_MESSAGES.TT004).toContain("überschneidet");
+  });
+});
+
+describe("Wiederholungen für mehrere Wochentage", () => {
+  it("zerlegt Werktage in einzelne Wiederholungen", () => {
+    const parsed = recurringCommitmentBatchInputSchema.parse({
+      title: "Dienst (Beispiel)",
+      category: "duty",
+      weekdays: ["5", "1", "2", "3", "4", "1"],
+      startTime: "07:00",
+      endTime: "16:30",
+    });
+    const items = splitRecurringBatch(parsed);
+    expect(items.map((i) => i.weekday)).toEqual([1, 2, 3, 4, 5]);
+    expect(items[0]).toMatchObject({ title: "Dienst (Beispiel)", active: true, location: null });
+  });
+
+  it("verlangt mindestens einen Wochentag", () => {
+    const result = recurringCommitmentBatchInputSchema.safeParse({
+      title: "x",
+      category: "duty",
+      weekdays: [],
+      startTime: "07:00",
+      endTime: "08:00",
+    });
+    expect(result.success).toBe(false);
   });
 });

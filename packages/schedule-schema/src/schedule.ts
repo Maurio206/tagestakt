@@ -338,3 +338,30 @@ export function expandRecurringCommitments(
     .filter((e) => Date.parse(e.end_at) > Date.parse(e.start_at));
   return sortEntries(expanded);
 }
+
+/** Kürzeste Blockdauer beim Verkürzen über die Schrittknöpfe. */
+export const MIN_ADJUSTED_ENTRY_MINUTES = 5;
+
+/**
+ * Verschiebt einen Block (Beginn und Ende) bzw. ändert seine Dauer (nur Ende) um echte
+ * Minuten. Über eine Zeitumstellung hinweg bleibt die tatsächliche Dauer erhalten.
+ */
+export function adjustEntryTimes(
+  entry: TimedBlock,
+  change: { moveMinutes?: number; resizeMinutes?: number },
+): { ok: true; start_at: string; end_at: string } | { ok: false; message: string } {
+  const move = (change.moveMinutes ?? 0) * 60_000;
+  const resize = (change.resizeMinutes ?? 0) * 60_000;
+  const start = startMs(entry) + move;
+  const end = endMs(entry) + move + resize;
+  if (end - start < MIN_ADJUSTED_ENTRY_MINUTES * 60_000) {
+    return {
+      ok: false,
+      message: `Ein Block muss mindestens ${MIN_ADJUSTED_ENTRY_MINUTES} Minuten dauern.`,
+    };
+  }
+  if (end - start > MAX_ENTRY_DURATION_MINUTES * 60_000) {
+    return { ok: false, message: "Ein Block darf höchstens 24 Stunden dauern." };
+  }
+  return { ok: true, start_at: new Date(start).toISOString(), end_at: new Date(end).toISOString() };
+}

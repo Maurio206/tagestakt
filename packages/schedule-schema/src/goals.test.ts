@@ -305,6 +305,9 @@ describe("Zielfortschritt und Sätze", () => {
     expect(getWeekSummarySentence(goals.slice(2))).toBe(
       "Für diese Woche sind noch keine Wochenziele festgelegt.",
     );
+    expect(getWeekSummarySentence(goals.slice(0, 1))).toBe(
+      "Das Wochenziel ist noch nicht erreicht.",
+    );
   });
 });
 

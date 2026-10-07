@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CompletionStatus, EntryCategory } from "./constants";
 import {
   type RecurringTemplate,
+  adjustEntryTimes,
   completedBusinessMinutes,
   detectOverlaps,
   expandRecurringCommitments,
@@ -284,5 +285,44 @@ describe("Wiederholungen", () => {
       "2026-10-24T07:00:00.000Z",
       "2026-10-25T08:00:00.000Z",
     ]);
+  });
+});
+
+describe("adjustEntryTimes", () => {
+  const block = { start_at: "2026-10-12T15:00:00.000Z", end_at: "2026-10-12T17:00:00.000Z" };
+
+  it("verschiebt Beginn und Ende gemeinsam", () => {
+    expect(adjustEntryTimes(block, { moveMinutes: 15 })).toEqual({
+      ok: true,
+      start_at: "2026-10-12T15:15:00.000Z",
+      end_at: "2026-10-12T17:15:00.000Z",
+    });
+    expect(adjustEntryTimes(block, { moveMinutes: -30 })).toMatchObject({
+      start_at: "2026-10-12T14:30:00.000Z",
+    });
+  });
+
+  it("ändert nur das Ende bei Dauer ±", () => {
+    expect(adjustEntryTimes(block, { resizeMinutes: 30 })).toMatchObject({
+      start_at: "2026-10-12T15:00:00.000Z",
+      end_at: "2026-10-12T17:30:00.000Z",
+    });
+  });
+
+  it("verhindert zu kurze und zu lange Blöcke", () => {
+    expect(adjustEntryTimes(block, { resizeMinutes: -118 })).toMatchObject({ ok: false });
+    expect(adjustEntryTimes(block, { resizeMinutes: 22 * 60 + 1 })).toMatchObject({ ok: false });
+  });
+
+  it("behält über das Ende der Sommerzeit die echte Dauer", () => {
+    // Sonntag 25.10.2026 01:30–02:30 Sommerzeit (UTC+2) um 60 Min. verschieben
+    const night = { start_at: "2026-10-24T23:30:00.000Z", end_at: "2026-10-25T00:30:00.000Z" };
+    const moved = adjustEntryTimes(night, { moveMinutes: 60 });
+    expect(moved).toMatchObject({ ok: true });
+    if (moved.ok) {
+      expect(Date.parse(moved.end_at) - Date.parse(moved.start_at)).toBe(3_600_000);
+      // 01:30 + eine echte Stunde = 02:30 Sommerzeit (das erste 02:30 vor der Umstellung)
+      expect(toLocalTime(new Date(moved.start_at))).toBe("02:30");
+    }
   });
 });

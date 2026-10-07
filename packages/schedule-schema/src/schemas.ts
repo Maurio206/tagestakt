@@ -302,6 +302,35 @@ export const recurringCommitmentInputSchema = z
 export type RecurringCommitmentInput = z.input<typeof recurringCommitmentInputSchema>;
 export type RecurringCommitmentInputParsed = z.output<typeof recurringCommitmentInputSchema>;
 
+/** Neue Wiederholung für mehrere Wochentage auf einmal (z. B. „Werktage“ Mo–Fr). */
+export const recurringCommitmentBatchInputSchema = z
+  .object({
+    title: requiredTitle,
+    category: entryCategorySchema,
+    weekdays: z
+      .array(isoWeekdaySchema, { error: "Bitte mindestens einen Wochentag wählen" })
+      .min(1, { error: "Bitte mindestens einen Wochentag wählen" })
+      .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
+    startTime: timeOfDaySchema,
+    endTime: timeOfDaySchema,
+    location: optionalText(LOCATION_MAX_LENGTH, "Der Ort"),
+    note: optionalText(NOTE_MAX_LENGTH, "Die Notiz"),
+    active: z.boolean().default(true),
+  })
+  .refine((v) => v.startTime !== v.endTime, {
+    path: ["endTime"],
+    error: "Start- und Endzeit dürfen nicht gleich sein",
+  });
+export type RecurringCommitmentBatchInput = z.input<typeof recurringCommitmentBatchInputSchema>;
+
+/** Zerlegt eine Mehrfach-Eingabe in einzelne Wiederholungen (eine je Wochentag). */
+export function splitRecurringBatch(
+  input: z.output<typeof recurringCommitmentBatchInputSchema>,
+): RecurringCommitmentInputParsed[] {
+  const { weekdays, ...rest } = input;
+  return weekdays.map((weekday) => ({ ...rest, weekday }));
+}
+
 // ---------------------------------------------------------------------------
 // Wochenziele und Erinnerungen
 // ---------------------------------------------------------------------------

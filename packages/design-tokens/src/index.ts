@@ -120,7 +120,7 @@ export const toneIcon: Readonly<Record<Tone, string>> = {
   business: "briefcase",
   sport: "dumbbell",
   relationship: "heart",
-  duty: "building-2",
+  duty: "building",
   violet: "calendar",
   neutral: "circle",
 };
