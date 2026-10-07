@@ -80,3 +80,33 @@ export function formatHours(totalMinutes: number): string {
   const hours = Math.round((totalMinutes / 60) * 10) / 10;
   return `${String(hours).replace(".", ",")} h`;
 }
+
+/** Timer-Ziffern: „04:07“ unter einer Stunde, sonst „1:04:07“. */
+export function formatElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const two = (n: number) => String(n).padStart(2, "0");
+  return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${two(minutes)}:${two(seconds)}`;
+}
+
+/** Ausgeschrieben für Screenreader, minutengenau: „1 Stunde 4 Minuten“. */
+export function formatDurationSpoken(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.floor(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const h = hours === 1 ? "1 Stunde" : `${hours} Stunden`;
+  const m = rest === 1 ? "1 Minute" : `${rest} Minuten`;
+  if (hours === 0) return m;
+  if (rest === 0) return h;
+  return `${h} ${m}`;
+}
+
+/** Vorzeichenbehaftete Differenz in Stunden: „+1,5 h“, „−2 h“, „±0 h“. */
+export function formatSignedHours(totalMinutes: number): string {
+  const rounded = Math.round((totalMinutes / 60) * 10) / 10;
+  if (rounded === 0) return "±0 h";
+  const value = String(Math.abs(rounded)).replace(".", ",");
+  return `${rounded > 0 ? "+" : "−"}${value} h`;
+}

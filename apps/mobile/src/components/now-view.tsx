@@ -36,7 +36,7 @@ export function NowView({ result, now }: { result: PlanResult; now: Date }) {
   const currentWeek = snapshot.weeks.find((week) => week.week_start === getWeekStart(now));
   const progress = getBusinessProgress(
     currentWeek?.schedule_entries ?? [],
-    snapshot.weeklyBusinessTargetMinutes,
+    snapshot.goalTargets.business ?? 0,
   );
 
   return (

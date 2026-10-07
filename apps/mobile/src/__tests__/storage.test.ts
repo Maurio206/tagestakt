@@ -55,9 +55,16 @@ describe("secureSessionStorage", () => {
 
 describe("Plan-Cache", () => {
   const snapshot = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     fetchedAt: "2026-10-06T10:00:00.000Z",
-    weeklyBusinessTargetMinutes: 1200,
+    goalTargets: { business: 1200, sport: null, relationship: null },
+    reminderSettings: {
+      minutesBefore: 10,
+      atStart: true,
+      ifNotStarted: false,
+      scope: "important" as const,
+    },
+    sessions: [],
     timezone: "Europe/Berlin",
     weeks: [],
   };

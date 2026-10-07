@@ -1,6 +1,6 @@
 "use server";
 
-import { formatHours, userSettingsInputSchema } from "@tagestakt/schedule-schema";
+import { formatHours, goalSettingsInputSchema } from "@tagestakt/schedule-schema";
 import { revalidatePath } from "next/cache";
 
 import { type ActionState, formValues, hoursToMinutes, readString } from "@/lib/form";
@@ -15,7 +15,7 @@ export async function saveSettingsAction(
   const values = formValues(formData);
   return handleAction(async () => {
     const minutes = hoursToMinutes(readString(formData, "weeklyBusinessTargetHours"));
-    const parsed = userSettingsInputSchema.safeParse({ weeklyBusinessTargetMinutes: minutes });
+    const parsed = goalSettingsInputSchema.shape.weeklyBusinessTargetMinutes.safeParse(minutes);
     if (!parsed.success || Number.isNaN(minutes)) {
       return {
         status: "error",
@@ -30,13 +30,13 @@ export async function saveSettingsAction(
         values,
       };
     }
-    await saveWeeklyTarget(parsed.data.weeklyBusinessTargetMinutes);
+    await saveWeeklyTarget(parsed.data);
     revalidatePath("/");
     revalidatePath("/einstellungen");
     revalidatePath("/wochenplan");
     return {
       status: "success",
-      message: `Wochenziel auf ${formatHours(parsed.data.weeklyBusinessTargetMinutes)} gesetzt.`,
+      message: `Wochenziel auf ${formatHours(parsed.data)} gesetzt.`,
     };
   }, values);
 }

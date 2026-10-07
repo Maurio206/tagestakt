@@ -36,7 +36,7 @@ export type EntryCategory = (typeof ENTRY_CATEGORIES)[number];
 export const CATEGORY_LABELS: Readonly<Record<EntryCategory, string>> = {
   duty: "Dienst",
   business: "Gewerbe",
-  relationship: "Zweisamkeit",
+  relationship: "Laila",
   sport: "Sport",
   shopping: "Einkaufen",
   meal: "Essen",
@@ -118,3 +118,77 @@ export const WEEKDAY_SHORT_LABELS: Readonly<Record<IsoWeekday, string>> = {
   6: "Sa",
   7: "So",
 };
+
+// ---------------------------------------------------------------------------
+// Wochenziele und Zeiterfassung
+// ---------------------------------------------------------------------------
+
+/** Ziele mit Plan-vs-Ist-Erfassung. Schlüssel entsprechen den Kategorien. */
+export const GOAL_KEYS = ["business", "sport", "relationship"] as const;
+export type GoalKey = (typeof GOAL_KEYS)[number];
+
+export const GOAL_LABELS: Readonly<Record<GoalKey, string>> = {
+  business: "Gewerbe",
+  sport: "Sport",
+  relationship: "Laila",
+};
+
+/** Obergrenze für jedes Wochenziel: 7 × 24 h (wie in der Datenbank). */
+export const MAX_WEEKLY_GOAL_MINUTES = MAX_WEEKLY_BUSINESS_TARGET_MINUTES;
+
+export const GOAL_STATUSES = ["unset", "on_track", "at_risk", "reached", "over", "below"] as const;
+export type GoalStatus = (typeof GOAL_STATUSES)[number];
+
+/** Statuswörter – sachlich, ohne Wertung. „Unter Ziel“ nur für abgeschlossene Wochen. */
+export const GOAL_STATUS_LABELS: Readonly<Record<GoalStatus, string>> = {
+  unset: "Ziel noch festlegen",
+  on_track: "Im Plan",
+  at_risk: "Gefährdet",
+  reached: "Erreicht",
+  over: "Über Ziel",
+  below: "Unter Ziel",
+};
+
+/** Eine Aktivität darf höchstens 24 Stunden dauern (wie in der Datenbank). */
+export const MAX_ACTIVITY_DURATION_MINUTES = 24 * 60;
+/** Ab dieser Laufzeit weist die Oberfläche auf eine vermutlich vergessene Aktivität hin. */
+export const FORGOTTEN_ACTIVITY_MINUTES = 12 * 60;
+
+// ---------------------------------------------------------------------------
+// Lokale Erinnerungen
+// ---------------------------------------------------------------------------
+
+export const REMINDER_SCOPES = ["goals", "important", "all"] as const;
+export type ReminderScope = (typeof REMINDER_SCOPES)[number];
+
+export const REMINDER_SCOPE_LABELS: Readonly<Record<ReminderScope, string>> = {
+  goals: "Nur Ziele (Gewerbe, Sport, Laila)",
+  important: "Ziele, Dienst und Termine",
+  all: "Alle Planblöcke",
+};
+
+export const DEFAULT_REMINDER_MINUTES_BEFORE = 10;
+export const MAX_REMINDER_MINUTES_BEFORE = 240;
+/** Auswahl in den Einstellungen; die Datenbank erlaubt 1–240 Minuten. */
+export const REMINDER_LEAD_OPTIONS = [5, 10, 15, 30, 60] as const;
+/** „Noch nicht gestartet“ erinnert so viele Minuten nach dem geplanten Beginn. */
+export const NOT_STARTED_GRACE_MINUTES = 10;
+
+/**
+ * Fehlercodes (SQLSTATE) der Aktivitäts-RPCs → Texte für die Oberfläche.
+ * Siehe supabase/migrations/20261007120000_focus_tracking_and_goals.sql.
+ */
+export const ACTIVITY_ERROR_MESSAGES = {
+  TT001: "Es läuft bereits eine Aktivität. Bitte zuerst beenden.",
+  TT002: "Es läuft keine Aktivität mehr. Die Ansicht wurde aktualisiert.",
+  TT003:
+    "Die Aktivität läuft seit über 24 Stunden. Bitte das Ende über „Zeit korrigieren“ eintragen.",
+  TT004: "Die Zeit überschneidet sich mit einer anderen erfassten Aktivität.",
+  TT005: "Der Planblock passt nicht (nicht veröffentlicht oder anderes Ziel).",
+  TT006: "Die Zeitangabe ist ungültig (Zukunft, Reihenfolge oder über 24 Stunden).",
+} as const;
+export type ActivityErrorCode = keyof typeof ACTIVITY_ERROR_MESSAGES;
+
+export function isActivityErrorCode(code: unknown): code is ActivityErrorCode {
+  return typeof code === "string" && Object.hasOwn(ACTIVITY_ERROR_MESSAGES, code);
+}

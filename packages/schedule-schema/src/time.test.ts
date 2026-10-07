@@ -58,7 +58,8 @@ describe("zonedDateTimeToInstant (Europe/Berlin)", () => {
         expect(toLocalTime(instant)).toBe(time);
       }
     }
-  });
+    // ~35 000 Umrechnungen über Intl: unter Last (parallele Testdateien) dauert das länger als 5 s.
+  }, 30_000);
 });
 
 describe("Zeitzonenversatz", () => {

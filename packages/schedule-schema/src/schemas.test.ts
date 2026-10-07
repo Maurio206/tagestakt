@@ -15,7 +15,7 @@ import {
   scheduleEntryInputSchema,
   scheduleWeekWithEntriesSchema,
   toEntryColumns,
-  userSettingsInputSchema,
+  goalSettingsInputSchema,
   weekStartSchema,
 } from "./schemas";
 
@@ -129,18 +129,17 @@ describe("weitere Eingabeschemas", () => {
   });
 
   it("begrenzt das Wochenziel", () => {
-    expect(userSettingsInputSchema.safeParse({ weeklyBusinessTargetMinutes: 1200 }).success).toBe(
-      true,
-    );
-    expect(userSettingsInputSchema.safeParse({ weeklyBusinessTargetMinutes: -1 }).success).toBe(
-      false,
-    );
-    expect(userSettingsInputSchema.safeParse({ weeklyBusinessTargetMinutes: 10081 }).success).toBe(
-      false,
-    );
-    expect(userSettingsInputSchema.safeParse({ weeklyBusinessTargetMinutes: 10.5 }).success).toBe(
-      false,
-    );
+    const goals = (weeklyBusinessTargetMinutes: number) =>
+      goalSettingsInputSchema.safeParse({
+        weeklyBusinessTargetMinutes,
+        weeklySportTargetMinutes: null,
+        weeklyRelationshipTargetMinutes: null,
+      }).success;
+    expect(goals(1200)).toBe(true);
+    expect(goals(0)).toBe(true);
+    expect(goals(-1)).toBe(false);
+    expect(goals(10081)).toBe(false);
+    expect(goals(10.5)).toBe(false);
   });
 });
 
@@ -195,9 +194,16 @@ describe("Datenbankzeilen", () => {
 
   it("lehnt einen Cache mit unveröffentlichter Woche ab", () => {
     const result = planSnapshotSchema.safeParse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       fetchedAt: "2026-10-06T10:00:00.000Z",
-      weeklyBusinessTargetMinutes: 1200,
+      goalTargets: { business: 1200, sport: null, relationship: null },
+      reminderSettings: {
+        minutesBefore: 10,
+        atStart: true,
+        ifNotStarted: false,
+        scope: "important",
+      },
+      sessions: [],
       timezone: "Europe/Berlin",
       weeks: [
         {

@@ -42,9 +42,16 @@ function entry(
 
 function snapshot(fetchedAt: string): PlanSnapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     fetchedAt,
-    weeklyBusinessTargetMinutes: 1200,
+    goalTargets: { business: 1200, sport: null, relationship: null },
+    reminderSettings: {
+      minutesBefore: 10,
+      atStart: true,
+      ifNotStarted: false,
+      scope: "important" as const,
+    },
+    sessions: [],
     timezone: "Europe/Berlin",
     weeks: [
       {
