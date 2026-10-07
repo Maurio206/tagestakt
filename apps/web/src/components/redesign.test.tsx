@@ -1,6 +1,6 @@
 /**
  * Tests der neuen Oberfläche: Wochenwahl (Datumsfeld bleibt synchron), Timer, Ziele,
- * Jetzt-Fläche, Zeitraster und Wiederholungen mit mehreren Wochentagen.
+ * Zeitraster und Wiederholungen mit mehreren Wochentagen (Fokusfläche: focus-stage.test.tsx).
  */
 import {
   type ActivitySession,
@@ -21,7 +21,6 @@ vi.mock("next/navigation", () => ({
 const { GoalList, GoalTable } = await import("./goal-progress");
 const { LiveTimer } = await import("./live-timer");
 const { MainNav } = await import("./main-nav");
-const { NowPanel } = await import("./now-panel");
 const { RecurringForm } = await import("./recurring-form");
 const { WeekGrid, placeSegments } = await import("./week-grid");
 const { WeekPicker } = await import("./week-picker");
@@ -75,18 +74,6 @@ function session(
     updated_at: startedAt,
   };
 }
-
-/** Platzhalter-Actions: Komponenten erhalten Server Actions ausschließlich als Props. */
-const stubAction = vi.fn(async () => ({ status: "idle" as const }));
-const stubActions = {
-  start: () => stubAction,
-  stop: () => stubAction,
-  discard: () => stubAction,
-  switchTo: () => stubAction,
-  setCompletion: () => stubAction,
-};
-
-const FORBIDDEN_WORDS = /einloggen|ausloggen|einstempeln|ausstempeln/i;
 
 describe("WeekPicker", () => {
   const props = (weekStart: string) => ({
@@ -166,114 +153,6 @@ describe("Ziele", () => {
     ).toEqual(["20 h", "2 h", "3 h", "−17 h", "Gefährdet"]);
     const sport = screen.getByRole("row", { name: /Sport/ });
     expect(within(sport).getAllByRole("cell")[0]).toHaveTextContent("–");
-  });
-});
-
-describe("NowPanel", () => {
-  const now = new Date("2026-10-12T15:30:00Z"); // Mo 17:30 Berlin
-  const business = entry(
-    "b1",
-    "Kundenprojekt (Beispiel)",
-    "business",
-    "2026-10-12",
-    "17:00",
-    "20:00",
-  );
-  const sport = entry("s1", "Krafttraining (Beispiel)", "sport", "2026-10-12", "17:00", "18:00");
-  const duty = entry("d1", "Dienst (Beispiel)", "duty", "2026-10-12", "07:00", "18:00");
-
-  it("Zielblock ohne Aktivität: „Fokus starten“ und Hinweis „Noch nicht erfasst“", () => {
-    render(
-      <NowPanel
-        now={now}
-        running={null}
-        current={business}
-        next={undefined}
-        trackedEntryIds={new Set()}
-        actions={stubActions}
-      />,
-    );
-    expect(screen.getByRole("button", { name: /Fokus starten/ })).toBeInTheDocument();
-    expect(screen.getByText("Noch nicht erfasst.")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "„Kundenprojekt (Beispiel)“ als erledigt markieren" }),
-    ).toBeInTheDocument();
-  });
-
-  it("anderer Block: kein Fokus-Knopf, Status-Aktionen bleiben", () => {
-    render(
-      <NowPanel
-        now={now}
-        running={null}
-        current={duty}
-        next={undefined}
-        trackedEntryIds={new Set()}
-        actions={stubActions}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: /Fokus starten/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /als ausgelassen markieren/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Aktivität Sport starten" })).toBeInTheDocument();
-  });
-
-  it("freie Zeit: Aktivität für Gewerbe, Sport oder Laila starten", () => {
-    render(
-      <NowPanel
-        now={now}
-        running={null}
-        current={undefined}
-        next={undefined}
-        trackedEntryIds={new Set()}
-        actions={stubActions}
-      />,
-    );
-    expect(screen.getByText("Gerade nichts geplant")).toBeInTheDocument();
-    for (const label of ["Gewerbe", "Sport", "Laila"]) {
-      expect(
-        screen.getByRole("button", { name: `Aktivität ${label} starten` }),
-      ).toBeInTheDocument();
-    }
-  });
-
-  it("laufende Aktivität: Timer, Beenden, Zeit korrigieren, Abbrechen und Wechsel", () => {
-    const running = session("business", "2026-10-12T15:00:00Z", null, business.id);
-    const { container } = render(
-      <NowPanel
-        now={now}
-        running={running}
-        current={sport}
-        next={undefined}
-        trackedEntryIds={new Set()}
-        actions={stubActions}
-      />,
-    );
-    expect(screen.getByRole("timer")).toHaveTextContent("30:00");
-    expect(screen.getByRole("button", { name: /Beenden/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Zeit korrigieren" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("korrigieren="),
-    );
-    expect(screen.getByRole("button", { name: /Abbrechen/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Gewerbe beenden, Sport starten" }),
-    ).toBeInTheDocument();
-    expect(container.textContent ?? "").not.toMatch(FORBIDDEN_WORDS);
-  });
-
-  it("über 24 Stunden: Beenden nur über „Zeit korrigieren“", () => {
-    const old = session("sport", "2026-10-11T10:00:00Z", null);
-    render(
-      <NowPanel
-        now={now}
-        running={old}
-        current={undefined}
-        next={undefined}
-        trackedEntryIds={new Set()}
-        actions={stubActions}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: /^Beenden/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Vermutlich vergessen/)).toBeInTheDocument();
   });
 });
 
