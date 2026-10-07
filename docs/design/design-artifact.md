@@ -36,6 +36,33 @@ W03 Wocheneditor schmal (390 px) · W04 Planblock bearbeiten (Seitenbereich, Ver
 W05 Wiederholungen (Wochenstruktur, Mehrfach-Wochentage) · W06 Ziel- und Zeitauswertung ·
 W07 Einstellungen · W08 Login · W09 Leerer Zustand · W10 Fehler/Offline.
 
+### Erweiterung: Fokusfläche und Tagesnotiz (Artefakt-Version 29)
+
+Vor der Umsetzung ergänzt (gleiche Kennung, gleiche Beispielwoche KW 42, Mittwoch 14.10.2026).
+Mobbin wurde dafür **nicht** erneut abgefragt; als abstrakte Referenz dienten die Muster aus
+[mobbin-research.md](mobbin-research.md) (Agenda mit aktuellem Eintrag, Fokus-Timer, schlichtes
+Notizfeld) – keine Bildschirme wurden nachgebaut.
+
+| Nr. | Ansicht                                                                                                     | Datei                           |
+| --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| W11 | Übersicht: Fokusblock mittig, Dienst davor und Abendessen danach unscharf                                   | `w11-fokus.dc.html`             |
+| W12 | Übersicht: freie Zeit („Freie Zeit“, Countdown, Als Nächstes)                                               | `w12-fokus-frei.dc.html`        |
+| W13 | Übersicht: laufende Aktivität hat Vorrang                                                                   | `w13-fokus-laeuft.dc.html`      |
+| W14 | Fokus-Zustände: vor dem ersten / nach dem letzten Block, Block ohne Ziel, Überschneidung, kein Plan, Fehler | `w14-fokus-zustaende.dc.html`   |
+| W15 | Tagesnotiz: leer, geändert, speichert, gespeichert, Speicherfehler, Konflikt                                | `w15-tagesnotiz.dc.html`        |
+| W16 | Wochenplan mit Notiz-Markierungen und Abschnitt „Tagesnotiz“ (Tagesauswahl + ein Editor)                    | `w16-wochenplan-notiz.dc.html`  |
+| W17 | Übersicht bei 390 px                                                                                        | `w17-uebersicht-schmal.dc.html` |
+| W18 | Übersicht hell                                                                                              | `w18-uebersicht-hell.dc.html`   |
+| M16 | Jetzt: Fokusblock mit Nachbarn, kompakter Notizzugang                                                       | `m16-jetzt-fokus.dc.html`       |
+| M17 | Tag mit Tagesnotiz (Vorschau, „Notiz bearbeiten“)                                                           | `m17-tag-notiz.dc.html`         |
+| M18 | Tagesnotiz mit geöffneter Tastatur (Tastaturfläche nur als beschrifteter Platzhalter)                       | `m18-notiz-tastatur.dc.html`    |
+| M19 | Tag offline: Notiz nicht verfügbar, nichts vorgetäuscht                                                     | `m19-notiz-offline.dc.html`     |
+| M20 | Jetzt hell mit laufender Aktivität                                                                          | `m20-jetzt-hell.dc.html`        |
+
+Notizen im Artefakt sind erfundene Beispieltexte („… (Beispiel)“). Die Haftnotizen
+`fokusUebergang` und `notizMobileHinweis` in `canvas.json` beschreiben Übergang und
+mobile Besonderheiten.
+
 ## Zentrale Layoutentscheidungen
 
 1. **Jetzt-Fläche statt Kartenraster.** Oben genau eine Aussage (aktueller Block oder laufende
@@ -48,6 +75,12 @@ W07 Einstellungen · W08 Login · W09 Leerer Zustand · W10 Fehler/Offline.
 5. **Timer nur einmal groß.** Überall sonst kompakte Timer-Leiste (Mobile) bzw. Seitenleisten-Karte (Web).
 6. **Web als Planungstisch:** Seitenleiste + breite Arbeitsfläche, Zeitraster nur auf breiten
    Bildschirmen, schmal eine Tagesliste.
+7. **Fokusfläche wie ein Kalenderausschnitt:** Der aktuelle Block groß und scharf, Nachbarn klein,
+   unscharf und angeschnitten (nur Dekoration). Wechsel an der Blockgrenze ruhig eingeblendet,
+   bei „Bewegung reduzieren“ ohne Bewegung.
+8. **Tagesnotiz zurückhaltend:** auf der Übersicht bzw. „Jetzt“ nur eine Zeile, im Wochenplan
+   genau ein Editor mit Tagesauswahl, in der App „Tag“ eine Vorschau und ein eigener
+   Editor-Bildschirm.
 
 ## Navigationsmodell
 
@@ -60,7 +93,8 @@ W07 Einstellungen · W08 Login · W09 Leerer Zustand · W10 Fehler/Offline.
 
 | Artefakt              | Web (`apps/web/src/components`)                                                            | Mobile (`apps/mobile/src/components`)  |
 | --------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| Jetzt-Fläche          | `now-panel.tsx`                                                                            | `now-view.tsx`                         |
+| Fokusfläche           | `focus-stage.tsx` (Minutentakt: `use-clock.tsx`)                                           | `now-view.tsx`                         |
+| Tagesnotiz            | `daily-note-editor.tsx`, `today-note.tsx`, `day-notes.tsx`                                 | `note-editor.tsx`, `note-card.tsx`     |
 | Timer (Ziffern)       | `live-timer.tsx`                                                                           | `focus-timer.tsx`                      |
 | Timer-Leiste/-Karte   | `active-session.tsx` (`ActiveSessionCard`)                                                 | `timer-bar.tsx`                        |
 | Zielzeile/-balken     | `goal-progress.tsx`                                                                        | `goal-progress.tsx`                    |

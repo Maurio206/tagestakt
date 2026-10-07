@@ -4,23 +4,25 @@ Private Wochenplanung für **genau einen Benutzer**. Die mobile App zeigt auf de
 Smartphone, was gerade ansteht, was als Nächstes kommt und wie die Woche aufgebaut ist.
 Geplant wird über eine geschützte Verwaltungswebsite.
 
-> Status: MVP plus Designsystem und Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
-> Sport und Laila). Ein späterer Claude-Agent, der Wochenpläne als Entwurf hochlädt, ist
+> Status: MVP plus Designsystem, Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
+> Sport und Laila), Fokusfläche auf der Startseite und Tagesnotiz (reiner Text je Kalendertag;
+> Ausbau zu Notizbüchern nur als Konzept: [docs/notes-roadmap.md](docs/notes-roadmap.md)). Ein späterer Claude-Agent, der Wochenpläne als Entwurf hochlädt, ist
 > konzipiert ([docs/agent-integration.md](docs/agent-integration.md)), aber **nicht** implementiert.
 
 ## Architektur auf einen Blick
 
 ```
-apps/web     Next.js (App Router) – Verwaltungswebsite: Login, Übersicht mit Fokus-Timer,
-             Wocheneditor, Wiederholungen, Auswertung, Einstellungen.
+apps/web     Next.js (App Router) – Verwaltungswebsite: Login, Übersicht mit Fokusfläche
+             und Tagesnotiz, Wocheneditor (mit Tagesnotizen), Wiederholungen, Auswertung,
+             Einstellungen.
              Server-seitige Auth + zentrale Data-Access-Schicht.
-apps/mobile  Expo / React Native (Expo Router) – Jetzt, Tag, Woche, Mehr; Fokus starten/
-             beenden, Zeit korrigieren, Plan bearbeiten (Entwurf), Ziele, Wochenbilanz,
-             optionale App-Sperre, lokale Erinnerungen. Session in SecureStore,
+apps/mobile  Expo / React Native (Expo Router) – Jetzt (Fokusfläche), Tag (mit Tagesnotiz),
+             Woche, Mehr; Fokus starten/beenden, Zeit korrigieren, Plan bearbeiten (Entwurf),
+             Ziele, Wochenbilanz, optionale App-Sperre, lokale Erinnerungen. Session in SecureStore,
              Offline-Cache des zuletzt veröffentlichten Plans (offline nur lesen).
 packages/schedule-schema
              Gemeinsame Zod-Schemas, Typen, Konstanten, Zeitlogik (Europe/Berlin),
-             Zielberechnung und Erinnerungsplanung.
+             Zielberechnung, Erinnerungsplanung, Fokuszustand, Tagesnotiz-Editorlogik.
 packages/design-tokens
              Gemeinsames Designsystem (Farben, Typografie, Abstände) für Web und App.
 packages/config

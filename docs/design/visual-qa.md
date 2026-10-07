@@ -63,6 +63,46 @@ Repositorys.
 Kategorien und Zielstatus stehen immer zusätzlich als Text (bzw. Symbol + Text) – Farbe ist nie
 der einzige Träger einer Information.
 
+## Erweiterung: Fokusfläche und Tagesnotiz (W11–W18, M16–M20)
+
+Stand: 07.10.2026 abends, gleiches Verfahren (lokale Website, lokales Supabase mit Seed-Daten,
+Edge headless über CDP). **Kontrollierte Testzeit:** Die Browser-Uhr wurde je Aufnahme auf 12:10,
+16:30 bzw. 19:35 Uhr (Europe/Berlin) gestellt – die Fokusfläche übernimmt nach dem Laden die
+Geräteuhr, der Server blieb unverändert. Der Zustand „Aktivität läuft“ wurde mit echter Zeit über
+„Fokus starten“ erzeugt. Notizen nur mit erfundenem Text („Testnotiz (Beispiel)“); Testdaten
+wurden danach per `pnpm db:reset` entfernt. Bildschirmfotos liegen nur lokal, nicht im Repository.
+
+| Ansicht (Zustand)                           | 1440 | 1024 | 390 | 720 (≈ 200 % Zoom) | Hell | Horiz. Scrollen | Fokus ohne Scrollen sichtbar | Nachbarn verborgen + `inert` |
+| ------------------------------------------- | ---- | ---- | --- | ------------------ | ---- | --------------- | ---------------------------- | ---------------------------- |
+| Übersicht – Fokusblock (16:30)              | ✓    | ✓    | ✓   | ✓                  | ✓    | nein            | ja                           | ja                           |
+| Übersicht – freie Zeit (19:35)              | ✓    | –    | ✓   | –                  | ✓    | nein            | ja                           | ja                           |
+| Übersicht – Überschneidung (12:10)          | ✓    | –    | –   | –                  | –    | nein            | ja                           | ja                           |
+| Übersicht – Aktivität läuft                 | ✓    | –    | ✓   | –                  | ✓    | nein            | ja                           | ja                           |
+| Übersicht – „Bewegung reduzieren“           | ✓    | –    | –   | –                  | –    | nein            | ja (`data-motion=reduced`)   | ja                           |
+| Übersicht – Tagesnotiz aufgeklappt/geändert | –    | –    | ✓   | –                  | ✓    | nein            | ja                           | ja                           |
+| Wochenplan – Tagesnotiz gespeichert         | ✓    | ✓    | ✓   | –                  | ✓    | nein            | –                            | –                            |
+| Wochenplan – anderer Tag ohne Notiz         | –    | –    | ✓   | –                  | ✓    | nein            | –                            | –                            |
+| Wochenplan – Markierung „Notiz“ im Raster   | ✓    | –    | –   | –                  | –    | nein            | –                            | –                            |
+
+In allen Aufnahmen: keine Konsolenfehler oder Hydration-Warnungen, keine Bedienelemente unter
+44 px, genau ein Notiz-Editor je Seite.
+
+**Gefunden und behoben**
+
+| Befund                                                                                                        | Korrektur                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Wochenplan bei 390 px horizontal scrollbar (waagerechte Tagesauswahl verbreiterte die Grid-Spalte)            | `.daynotes` mit `minmax(0, 1fr)` und `min-width: 0` für die Kinder                                    |
+| Tagesauswahl: Links unterstrichen, bei 390 px dreizeilig umbrochen („Mi 07.10. · heute“)                      | ohne Unterstreichung, einzeilig (`white-space: nowrap`) in der waagerechten Liste                     |
+| Code-Review vor der Prüfung: Übernahme der Geräteuhr hing am Grenz-Timer und hätte sich ständig neu ausgelöst | getrennte Effekte: Uhr nur beim Laden/Tabwechsel, Grenz-Timer je Fokuszustand                         |
+| Unabhängige Code-Review: Markierung „Notiz“ im Zeitraster nur ca. 36 px Trefferfläche                         | `min-height: 44px` mit negativem Rand (optisch klein); Nachmessung ohne Ausnahme: keine Ziele < 44 px |
+
+**Nicht geprüft / Abweichungen:** Die App (M16–M20) konnte mangels Emulator/Gerät nicht visuell
+geprüft werden – abgedeckt durch Komponententests (Nachbarn verborgen, automatischer Wechsel,
+„Bewegung reduzieren“, Tastatur-Abstand, offline, Konflikt). Unschärfe der Nachbarn in der App nur
+unter Android (React Native `filter: blur`); iOS zeigt sie nur blass und angeschnitten. Große
+Systemschrift, TalkBack und Tastaturverhalten auf dem Gerät stehen in der Checkliste von
+[../mobile-preview-build.md](../mobile-preview-build.md).
+
 ## App: Abgleich mit dem Artefakt (M01–M15)
 
 | Ansicht | Umsetzung                                                | Abweichung / Hinweis                                                                                     |

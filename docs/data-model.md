@@ -112,6 +112,30 @@ mit passendem Ziel, keine Überschneidung mit anderen erfassten Aktivitäten (pe
 `on delete set null (schedule_entry_id)` erfordert **PostgreSQL ≥ 15** (lokal: 17). Wird ein
 Planblock gelöscht, bleibt die erfasste Zeit erhalten und verliert nur den Bezug.
 
+### `daily_notes` (Tagesnotiz, eine pro Benutzer und Kalendertag)
+
+Seit Migration `20261008120000_daily_notes.sql`. Die Notiz gehört zum **Kalendertag**, nicht zu
+einer Planversion: Sie ist weder Teil von Wiederholungen noch von `schedule_weeks`, bleibt beim
+Anlegen eines Entwurfs und beim Veröffentlichen unverändert und wird nicht in den Offline-Cache der
+App übernommen.
+
+| Spalte     | Typ         | Regel                                                                                   |
+| ---------- | ----------- | --------------------------------------------------------------------------------------- |
+| id         | uuid, PK    |                                                                                         |
+| owner_id   | uuid        | `auth.uid()`, `→ auth.users on delete cascade`; unveränderlich                          |
+| note_date  | date        | Kalendertag in Europe/Berlin, 2000-01-01 bis 2099-12-31; unveränderlich                 |
+| content    | text        | reiner Text, 1–10 000 Zeichen, nicht nur Leerraum (leerer Inhalt = Notiz wird gelöscht) |
+| revision   | integer     | beginnt bei 1, bei jeder Änderung +1 (Bearbeitungsstand für Konflikterkennung)          |
+| created_at | timestamptz | Serverzeit, unveränderlich                                                              |
+| updated_at | timestamptz | Serverzeit, vom Trigger gesetzt                                                         |
+
+Eindeutigkeit `(owner_id, note_date)` (dient zugleich als Index auf `owner_id`). Trigger
+`private.guard_daily_note` setzt `revision`, `created_at` und `updated_at` serverseitig und
+verhindert Änderungen an `id`, `owner_id` und `note_date`. Geschrieben wird über die RPC
+`save_daily_note` (siehe unten); direkte Schreibrechte bestehen ebenfalls nur über RLS für den
+Eigentümer. Ordner, Seiten, Notizbücher oder Anhänge gibt es bewusst **nicht** – siehe
+[notes-roadmap.md](notes-roadmap.md).
+
 ## Kategorien
 
 `duty` Dienst · `business` Gewerbe · `relationship` Laila · `sport` Sport ·
@@ -127,19 +151,21 @@ Planblock gelöscht, bleibt die erfasste Zeit erhalten und verliert nur den Bezu
 - `guard_schedule_entry` – Wochenplan muss für den Aufrufer sichtbar sein und demselben Eigentümer
   gehören; Beginn innerhalb der Woche; Inhalte nur in Entwürfen änderbar, in veröffentlichten
   Plänen nur `completion_status`; Einträge nicht in andere Wochen verschiebbar.
+- `guard_daily_note` – Tagesnotiz: Revision, `created_at`/`updated_at` serverseitig; Eigentümer,
+  ID und Datum unveränderlich.
 
 ## RPC-Funktionen (SECURITY INVOKER – RLS gilt)
 
-| Funktion                                                                            | Zweck                                                                                                    |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `create_schedule_draft(p_week_start date)`                                          | Liefert den Entwurf der Woche oder legt die nächste Version an (Kopie der veröffentlichten). Idempotent. |
-| `publish_schedule_week(p_week_id uuid)`                                             | Archiviert die bisherige Veröffentlichung und veröffentlicht den Entwurf – atomar.                       |
-| `add_schedule_entries(p_week_id uuid, p_entries jsonb, p_replace_existing boolean)` | Fügt mehrere Einträge atomar in einen Entwurf ein (optional nach Leeren).                                |
-
-| `start_activity_session(p_goal_category text, p_title text, p_schedule_entry_id uuid)` | Startet mit Serverzeit; optional verknüpft mit einem veröffentlichten Planblock. |
-| `stop_activity_session(p_session_id uuid)` | Beendet mit Serverzeit (ohne ID: die laufende). Über 24 h nur per Korrektur. |
-| `correct_activity_session(p_session_id uuid, p_started_at timestamptz, p_ended_at timestamptz)` | „Zeit korrigieren“; ohne Ende läuft die Aktivität weiter. |
-| `switch_activity_session(p_session_id uuid, p_goal_category text, p_title text, p_schedule_entry_id uuid)` | Atomarer Wechsel: beendet die laufende Aktivität `p_session_id` und startet die neue mit demselben Serverzeitpunkt in einer Transaktion (gleiche Advisory-Sperre wie Start/Trigger). Scheitert der Start (TT005/22023), bleibt die alte Aktivität unverändert; veralteter Stand → TT002. |
+| Funktion                                                                                                   | Zweck                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create_schedule_draft(p_week_start date)`                                                                 | Liefert den Entwurf der Woche oder legt die nächste Version an (Kopie der veröffentlichten). Idempotent.                                                                                                                                                                                                                                   |
+| `publish_schedule_week(p_week_id uuid)`                                                                    | Archiviert die bisherige Veröffentlichung und veröffentlicht den Entwurf – atomar.                                                                                                                                                                                                                                                         |
+| `add_schedule_entries(p_week_id uuid, p_entries jsonb, p_replace_existing boolean)`                        | Fügt mehrere Einträge atomar in einen Entwurf ein (optional nach Leeren).                                                                                                                                                                                                                                                                  |
+| `start_activity_session(p_goal_category text, p_title text, p_schedule_entry_id uuid)`                     | Startet mit Serverzeit; optional verknüpft mit einem veröffentlichten Planblock.                                                                                                                                                                                                                                                           |
+| `stop_activity_session(p_session_id uuid)`                                                                 | Beendet mit Serverzeit (ohne ID: die laufende). Über 24 h nur per Korrektur.                                                                                                                                                                                                                                                               |
+| `correct_activity_session(p_session_id uuid, p_started_at timestamptz, p_ended_at timestamptz)`            | „Zeit korrigieren“; ohne Ende läuft die Aktivität weiter.                                                                                                                                                                                                                                                                                  |
+| `switch_activity_session(p_session_id uuid, p_goal_category text, p_title text, p_schedule_entry_id uuid)` | Atomarer Wechsel: beendet die laufende Aktivität `p_session_id` und startet die neue mit demselben Serverzeitpunkt in einer Transaktion (gleiche Advisory-Sperre wie Start/Trigger). Scheitert der Start (TT005/22023), bleibt die alte Aktivität unverändert; veralteter Stand → TT002.                                                   |
+| `save_daily_note(p_note_date date, p_content text, p_expected_id uuid, p_expected_revision integer)`       | Tagesnotiz anlegen, ändern oder (bei leerem Inhalt) löschen – atomar unter einer Advisory-Sperre je Benutzer und Tag. Geschrieben wird nur, wenn der übergebene Bearbeitungsstand (ID + Revision bzw. „noch keine Notiz“) dem gespeicherten entspricht; sonst `TT007`. Liefert die gespeicherte Zeile (bzw. keine Zeile nach dem Löschen). |
 
 Ausführungsrechte: nur `authenticated` (und `service_role`), nicht `anon`/`PUBLIC`.
 
@@ -154,23 +180,28 @@ deutsche Meldungen übersetzen (`ACTIVITY_ERROR_MESSAGES`):
 | `TT004` | Überschneidung mit einer anderen Aktivität             |
 | `TT005` | Planblock ungültig (nicht veröffentlicht/anderes Ziel) |
 | `TT006` | Ungültige Zeitangabe                                   |
+| `TT007` | Tagesnotiz inzwischen an anderer Stelle geändert       |
 
 ## Fachliche Berechnungen (`packages/schedule-schema`)
 
-| Funktion                      | Bedeutung                                                                                    |
-| ----------------------------- | -------------------------------------------------------------------------------------------- |
-| `getWeekStart`                | Montag der Woche in Europe/Berlin (auch für Zeitpunkte kurz nach Mitternacht)                |
-| `isEntryWithinWeek`           | Beginn in `[Mo 00:00, nächster Mo 00:00)`, Dauer ≤ 24 h                                      |
-| `detectOverlaps`              | alle sich überschneidenden Paare; aneinandergrenzende Blöcke zählen nicht                    |
-| `plannedBusinessMinutes`      | Gewerbe-Blöcke außer „ausgelassen“, überlappende Zeit nur einmal                             |
-| `completedBusinessMinutes`    | nur als „erledigt“ markierte Gewerbe-Blöcke                                                  |
-| `getCurrentEntry`             | läuft gerade; bei Überschneidung der zuletzt begonnene                                       |
-| `getNextEntry`                | nächster Beginn nach jetzt (auch über den Wochenwechsel)                                     |
-| `getTrackedMinutes`           | erfasste Minuten eines Ziels in der Woche (laufende bis jetzt, an Wochengrenzen geschnitten) |
-| `getPlannedMinutes`           | geplante Minuten eines Ziels (ohne „ausgelassen“, Überlappung einmal)                        |
-| `getGoalStatus`               | `unset` · `on_track` · `at_risk` · `reached` · `over` · `below` (siehe unten)                |
-| `planReminders`               | lokale Erinnerungen (vorher / Beginn / nicht gestartet), Europe/Berlin                       |
-| `trackedEntryIdsFromSessions` | Planblöcke, zu denen bereits Zeit erfasst wird                                               |
+| Funktion                      | Bedeutung                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `getWeekStart`                | Montag der Woche in Europe/Berlin (auch für Zeitpunkte kurz nach Mitternacht)                  |
+| `isEntryWithinWeek`           | Beginn in `[Mo 00:00, nächster Mo 00:00)`, Dauer ≤ 24 h                                        |
+| `detectOverlaps`              | alle sich überschneidenden Paare; aneinandergrenzende Blöcke zählen nicht                      |
+| `plannedBusinessMinutes`      | Gewerbe-Blöcke außer „ausgelassen“, überlappende Zeit nur einmal                               |
+| `completedBusinessMinutes`    | nur als „erledigt“ markierte Gewerbe-Blöcke                                                    |
+| `getCurrentEntry`             | läuft gerade; bei Überschneidung der zuletzt begonnene                                         |
+| `getNextEntry`                | nächster Beginn nach jetzt (auch über den Wochenwechsel)                                       |
+| `getTrackedMinutes`           | erfasste Minuten eines Ziels in der Woche (laufende bis jetzt, an Wochengrenzen geschnitten)   |
+| `getPlannedMinutes`           | geplante Minuten eines Ziels (ohne „ausgelassen“, Überlappung einmal)                          |
+| `getGoalStatus`               | `unset` · `on_track` · `at_risk` · `reached` · `over` · `below` (siehe unten)                  |
+| `planReminders`               | lokale Erinnerungen (vorher / Beginn / nicht gestartet), Europe/Berlin                         |
+| `trackedEntryIdsFromSessions` | Planblöcke, zu denen bereits Zeit erfasst wird                                                 |
+| `getFocusState`               | Fokus der Startseite: laufende Aktivität vor Planblock, Davor/Danach, nächste Zustandsänderung |
+| `msUntilFocusChange`          | Wartezeit bis zur nächsten Blockgrenze (für den Wechsel ohne Neuladen)                         |
+| `normalizeNoteContent`        | Tagesnotiz normalisieren: CRLF → LF, NFC, Steuerzeichen raus, Ränder trimmen                   |
+| `noteEditorReducer`           | Editorzustand (geändert/speichert/gespeichert/Fehler/Konflikt) für Web und App                 |
 
 ### Zielstatus
 

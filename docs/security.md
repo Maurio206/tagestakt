@@ -7,6 +7,10 @@ Orte, gemeinsame Zeit zu zweit, Gewohnheiten). Daraus lassen sich Anwesenheit,
 Abwesenheit und Routinen ableiten – die Daten sind deshalb vertraulich zu behandeln, auch wenn
 sie keine „besonderen Kategorien“ im Sinne der DSGVO sind.
 
+Seit den **Tagesnotizen** kommen frei formulierte Texte hinzu. Sie können deutlich persönlicher
+sein als Termine (Gedanken, Gesundheit, andere Menschen) und werden deshalb noch strenger
+behandelt: nie protokolliert, nie im Offline-Cache, nie in Benachrichtigungen, nie im Repository.
+
 ## Bedrohungsmodell
 
 | Angreifer / Risiko                 | Beispiel                                                                           | Gegenmaßnahmen                                                                                                                                                                                                                             |
@@ -38,11 +42,13 @@ sie keine „besonderen Kategorien“ im Sinne der DSGVO sind.
   einem fremden Wochenplan zugeordnet wird – unabhängig von Policies.
 - Zusammengesetzter Fremdschlüssel `(schedule_entry_id, owner_id)` bindet erfasste Zeit
   (`activity_sessions`) ausschließlich an eigene Planblöcke.
-- Prüfungen: `supabase/tests/*.test.sql` (180 pgTAP-Tests) – anonym abgewiesen, fremder
+- Prüfungen: `supabase/tests/*.test.sql` (239 pgTAP-Tests) – anonym abgewiesen, fremder
   Benutzer kann weder lesen noch ändern noch unterschieben, Eigentümer kann bearbeiten,
   Status- und Constraint-Regeln, Fokus-Erfassung (eine laufende Aktivität, keine
-  Überschneidung, Serverzeit, Korrekturkennzeichen, atomarer Wechsel). Gleichzeitige Wechsel
-  und Starts prüft zusätzlich `pnpm db:concurrency-test` mit zwei echten Datenbanksitzungen.
+  Überschneidung, Serverzeit, Korrekturkennzeichen, atomarer Wechsel), Tagesnotizen (eine pro
+  Tag, Länge, Bearbeitungsstand, fremder Benutzer ohne Zugriff, unverändert über
+  Planversionen hinweg). Gleichzeitige Wechsel, Starts und Notiz-Speicherungen prüft zusätzlich
+  `pnpm db:concurrency-test` mit zwei echten Datenbanksitzungen.
 
 ## Publishable Key
 
@@ -97,6 +103,7 @@ den Plan-Cache auch offline.
 | Geräteeinstellungen (App-Sperre an/aus, Sperrzeit, Erinnerungen an/aus, „Titel zeigen“) – keine Inhalte                                                             | SecureStore                                 | Android Keystore; beim Logout gelöscht                                                                                    |
 | Geplante lokale Erinnerungen (Zeitpunkt, kurzer Text, `kind`)                                                                                                       | Benachrichtigungsdienst des Betriebssystems | standardmäßig **ohne** Titel, Ort oder Notiz („Gewerbe in 10 Min.“); beim Logout gelöscht                                 |
 | Abfrage-Zwischenspeicher im Arbeitsspeicher                                                                                                                         | RAM (TanStack Query)                        | nur solange die App läuft; beim Logout geleert                                                                            |
+| **Tagesnotizen** (zuletzt geöffneter Tag)                                                                                                                           | nur RAM (TanStack Query)                    | **nie** in AsyncStorage/SecureStore oder im Plan-Cache; ohne Verbindung nicht verfügbar; beim Logout geleert              |
 
 Auf einem gerooteten oder kompromittierten Gerät kann der Plan-Cache gelesen werden. Eine
 Bildschirmsperre auf dem Gerät ist daher Voraussetzung.
@@ -119,6 +126,29 @@ Stattdessen werden **Notizen und Planungshinweise** gar nicht mehr geladen oder 
 der Notizen enthalten konnte, wird beim nächsten Start gelöscht. Auth-Tokens liegen weiterhin
 ausschließlich in SecureStore. Auf dem Gerät zu prüfen bleibt, dass nach einem Update der alte
 Cache verschwunden ist und Offline-Lesen weiter funktioniert.
+
+## Tagesnotizen
+
+- **Reiner Text**, höchstens 10 000 Zeichen – in der Datenbank per Constraint erzwungen, in Web
+  und App mit demselben Zod-Schema geprüft (`dailyNoteSaveInputSchema`). Normalisiert werden nur
+  Zeilenumbrüche, Unicode (NFC), Steuerzeichen und Leerraum am Rand; HTML wird nie interpretiert
+  (React gibt Text escaped aus, es gibt kein `dangerouslySetInnerHTML`).
+- **RLS wie alle Tabellen** (vier Policies, `anon` ohne Rechte), Schreiben über die
+  SECURITY-INVOKER-RPC `save_daily_note`. Eine ältere Antwort oder ein anderes Gerät kann eine
+  neuere Fassung nicht still überschreiben (Bearbeitungsstand `revision`, Fehler `TT007`); die
+  Oberfläche zeigt den Konflikt und lässt den Benutzer entscheiden.
+- **Keine Inhalte in Logs, Fehlermeldungen oder Telemetrie:** Server Action und Data-Access-
+  Schicht protokollieren nur Fehlercodes; Statustexte des Editors enthalten nie den Notiztext.
+- **App:** nur online; nicht im Offline-Cache, nicht in Erinnerungen. ESLint verbietet, dass
+  `plan-cache.ts`, `plan-api.ts`, `notifications.ts` oder `use-reminder-sync.ts` die
+  Notiz-Module importieren; ein Test prüft das zusätzlich.
+- **Keine KI und keine automatische Auswertung** von Notizen. Ein späterer Agent darf Notizen
+  nur nach ausdrücklicher Freigabe lesen (siehe [notes-roadmap.md](notes-roadmap.md)).
+- **Repository:** `pnpm check:secrets` lehnt private Verknüpfungen (`.url`, `.webloc`, `.lnk`),
+  OneNote-Dateien (`.one`, `.onepkg`, `.onetoc2`), Dokumentexporte (`.docx`, `.mht` …),
+  Notiz-Exporte und JSON/CSV-Datensätze mit `note_date` + `content` ab; Funde nennen nur Datei
+  und Regel, nie Inhalte. Dieselben Muster stehen in `.gitignore`. Seed, Tests und Doku
+  verwenden nur neutrale, erfundene Texte.
 
 ## App-Sperre (optional, Standard: aus)
 
@@ -207,6 +237,10 @@ Zusätzlich denkbar: Supabase-MFA (TOTP) für das Konto.
 - **CSP `style-src 'unsafe-inline'`** (für React-Inline-Styles/Next.js) – Skripte sind dennoch
   nonce-geschützt.
 - **Plan-Cache unverschlüsselt** in der App-Sandbox (siehe oben).
+- **Tagesnotizen ohne Ende-zu-Ende-Verschlüsselung:** Sie liegen wie die Pläne im Klartext in
+  der Datenbank (Supabase verschlüsselt die Speicherung, der Betreiber könnte sie technisch
+  lesen). Für sehr sensible Inhalte ist das zu bedenken; eine clientseitige Verschlüsselung
+  würde Suche und Export erschweren und ist bewusst nicht Teil des MVP.
 - **App-Vorschau im Task-Wechsler ohne App-Sperre:** Nur bei eingeschalteter App-Sperre bleibt
   die Vorschau leer (`FLAG_SECURE`); dann sind auch Screenshots gesperrt (siehe App-Sperre).
 - **`expo-notifications` bringt auf Android die Firebase-Messaging-Bibliothek mit.** Sie bleibt

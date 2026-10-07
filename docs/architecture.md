@@ -6,10 +6,12 @@
                 ┌────────────────────────────── Supabase ──────────────────────────────┐
                 │  Auth (genau 1 Benutzer, keine Registrierung)                          │
                 │  Postgres: user_settings · recurring_commitments ·                     │
-                │            schedule_weeks · schedule_entries · activity_sessions       │
+                │            schedule_weeks · schedule_entries · activity_sessions ·     │
+                │            daily_notes                                                 │
                 │  RLS + Grants: nur owner_id = auth.uid(); anon hat keinerlei Rechte    │
                 │  RPC (SECURITY INVOKER): create_schedule_draft, publish_schedule_week, │
-                │    add_schedule_entries, start/stop/correct_activity_session           │
+                │    add_schedule_entries, start/stop/correct/switch_activity_session,   │
+                │    save_daily_note                                                     │
                 └───────────▲───────────────────────────────────────▲──────────────────┘
                             │ HTTPS, Publishable Key                │ HTTPS, Publishable Key
                             │ + Benutzer-JWT (Cookie, serverseitig) │ + Benutzer-JWT (SecureStore)
@@ -25,7 +27,8 @@
                             │
                packages/schedule-schema (gemeinsam): Zod-Schemas, Typen, Konstanten,
                Zeitlogik Europe/Berlin, Überschneidungen, Ziele (Plan/Ist/Status),
-               Erinnerungsplanung, Jetzt/Als Nächstes
+               Erinnerungsplanung, Jetzt/Als Nächstes, Fokuszustand (focus.ts),
+               Tagesnotiz-Schema und Editorzustand (daily-notes.ts)
                packages/design-tokens (gemeinsam): Farben, Typografie, Abstände, Kategorie-
                und Statusdarstellung für Web (CSS-Variablen) und App (Theme)
 ```
@@ -81,6 +84,28 @@ der Modus gesperrt.
 - Web und App halten **getrennte Sessions** (Web: httpOnly-Cookies auf dem Server, App:
   SecureStore). Abmelden im Web beendet die App-Session nicht und umgekehrt.
 
+**Fokusfläche (Web-Übersicht und App „Jetzt“):**
+
+1. `getFocusState` bestimmt aus veröffentlichten Blöcken und laufender Aktivität den Fokus:
+   laufende Aktivität vor Planblock, sonst laufender Block (bei Überschneidung der zuletzt
+   begonnene), sonst freie Zeit bzw. vor dem ersten / nach dem letzten Block, kein Plan.
+2. Der Zustand liefert `nextChangeAt` (nächster Beginn, Ende des laufenden Blocks, Mitternacht,
+   Hinweisgrenzen einer Aktivität). Web (`FocusStage`) und App (`NowView`) stellen genau dafür
+   einen Timer – der Wechsel passiert ohne Neuladen an der Blockgrenze, dazwischen aktualisieren
+   sich nur Zeitwerte (Minutentakt; Timer einer laufenden Aktivität sekündlich).
+3. Vorheriger und nächster Block erscheinen klein, unscharf und angeschnitten, ohne
+   Bedienelemente und für Screenreader verborgen; „Davor/Danach“ steht als Text im Fokusblock.
+
+**Tagesnotiz (Web und App):**
+
+1. Web: Server Action `saveDailyNoteAction` (Zod-Prüfung) → Data-Access-Schicht → RPC
+   `save_daily_note` mit dem zuletzt gelesenen Bearbeitungsstand. App: direkt dieselbe RPC.
+2. Gleicher Editorzustand (`noteEditorReducer`) in Web und App: höchstens eine Speicherung
+   gleichzeitig, Antworten werden über eine Anfrage-ID zugeordnet, eine ältere Antwort ersetzt nie
+   neuere Eingaben. Konflikte (`TT007`) zeigen beide Fassungen zur Wahl.
+3. Notizen hängen am Kalendertag, nicht an einer Planversion, und werden in der App nur online
+   geladen (kein Offline-Cache, keine Erinnerungen).
+
 ## Offline-Verhalten (App)
 
 - Nach jedem erfolgreichen Laden wird der Snapshot (nur veröffentlichte Pläne, keine Tokens,
@@ -96,6 +121,8 @@ der Modus gesperrt.
   erklären warum. Ein laufender Timer läuft offline sichtbar weiter, weil er nur aus dem
   gespeicherten Beginn rechnet. Eine robuste Offline-Warteschlange wäre ein eigenes Vorhaben
   (Konflikte mit Web-Änderungen, Serverzeit).
+- **Tagesnotizen** sind offline nicht verfügbar: Die App erklärt das („Ohne Verbindung nicht
+  verfügbar“) und zeigt keine gespeicherte oder vorgetäuschte Notiz.
 - Beim Abmelden werden Session, Cache, Geräteeinstellungen und geplante Erinnerungen gelöscht –
   auch offline.
 
@@ -161,3 +188,5 @@ Es gibt keinen Agent-Endpunkt, keinen Agent-Schlüssel und keine Agent-Tabellen.
 | Plan und Ist getrennt            | eigene Tabelle `activity_sessions`             | `completion_status` bleibt Planstatus; Ziele zählen nur tatsächlich erfasste Zeit.                                 |
 | Symbole                          | Lucide (`lucide-react`, `lucide-react-native`) | Einheitlich in Web und App, als Komponenten gebündelt (keine externen Ressourcen, CSP bleibt streng).              |
 | Erinnerungen                     | `expo-notifications`, nur lokal                | Kein Push-Dienst nötig; keine Exact-Alarm-Berechtigung (dafür nicht minutengenau).                                 |
+| Tagesnotiz                       | eigene Tabelle `daily_notes`, eigene Migration | Unabhängig von Planversionen; additive Migration mit eigenem Rollback statt Änderung der Aktivitäts-Migration.     |
+| Unschärfe der Nachbarblöcke      | CSS `filter: blur` bzw. RN `filter` (Android)  | iOS unterstützt `blur` in React Native nicht – dort nur blass und angeschnitten.                                   |

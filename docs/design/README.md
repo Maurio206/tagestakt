@@ -3,13 +3,14 @@
 Diese Phase führt ein verbindliches Designsystem, die Neugestaltung von Website und App sowie die
 Erfassung tatsächlicher Zeit für die drei Lebensziele **Gewerbe, Sport und Laila** ein.
 
-| Dokument                                 | Inhalt                                                          |
-| ---------------------------------------- | --------------------------------------------------------------- |
-| [mobbin-research.md](mobbin-research.md) | Recherche mit Mobbin MCP, Muster, Antworten auf die Leitfragen  |
-| [design-artifact.md](design-artifact.md) | Design-Artefakt (Mobile und Web), Layout- und Navigationsmodell |
-| [design-system.md](design-system.md)     | Markenidee, Tokens (Farben, Typografie, Abstände, Motion …)     |
-| [ui-spec.md](ui-spec.md)                 | Bildschirme, Komponenten, Zustände, Texte, Barrierefreiheit     |
-| [visual-qa.md](visual-qa.md)             | Visuelle Prüfung der Umsetzung gegen das Artefakt               |
+| Dokument                                   | Inhalt                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| [mobbin-research.md](mobbin-research.md)   | Recherche mit Mobbin MCP, Muster, Antworten auf die Leitfragen      |
+| [design-artifact.md](design-artifact.md)   | Design-Artefakt (Mobile und Web), Layout- und Navigationsmodell     |
+| [design-system.md](design-system.md)       | Markenidee, Tokens (Farben, Typografie, Abstände, Motion …)         |
+| [ui-spec.md](ui-spec.md)                   | Bildschirme, Komponenten, Zustände, Texte, Barrierefreiheit         |
+| [visual-qa.md](visual-qa.md)               | Visuelle Prüfung der Umsetzung gegen das Artefakt                   |
+| [../notes-roadmap.md](../notes-roadmap.md) | Konzept für Notizbücher, Import (OneNote), Export – nicht umgesetzt |
 
 ## Bestandsaufnahme vor der Umsetzung (Phase 1)
 
@@ -60,6 +61,8 @@ die pgTAP-Tests, `packages/schedule-schema`, sämtliche Web- und Mobile-Dateien 
 | Website          | Neugestaltung aller Seiten, Fokus-Timer, Auswertung, Ziele und Erinnerungen in den Einstellungen                                                                                                                            |
 | App              | Tabs Jetzt/Tag/Woche/Mehr, Fokus-Erfassung, Plan bearbeiten (Entwurf), Ziele, Wochenbilanz                                                                                                                                  |
 | App, nur lokal   | App-Sperre (Standard aus), lokale Erinnerungen ohne Termininhalte (Standard aus)                                                                                                                                            |
+| Fokusfläche      | Startseite (Web) und „Jetzt“ (App): aktueller Block groß, Nachbarn unscharf, Wechsel an der Blockgrenze ohne Neuladen (`getFocusState`)                                                                                     |
+| Tagesnotiz       | `daily_notes` (eigene Migration `20261008120000`), Web: Übersicht + Wochenplan, App: Tag + Editor; nur online, nie im Cache oder in Erinnerungen                                                                            |
 | Berechtigungen   | neu erlaubt: `USE_BIOMETRIC`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`; weiterhin gesperrt: `USE_FINGERPRINT`; zusätzlich gesperrt: Exact Alarms, Push (`c2dm.RECEIVE`), `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE` |
 
 Visuelle Prüfung: [visual-qa.md](visual-qa.md).

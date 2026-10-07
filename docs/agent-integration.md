@@ -28,6 +28,10 @@ Vertragsschema `agentDraftRequestSchema` in `packages/schedule-schema/src/agent-
 10. **Mobile Bearbeitung ist kein Agent-Weg.** Die App nutzt für „Plan bearbeiten“ dieselben
     Entwurfs-RPCs wie das Web; ein Agent-Entwurf und ein manueller Entwurf derselben Woche sind
     derselbe Entwurf (siehe „Verhalten bei vorhandenem Entwurf“).
+11. **Keine Tagesnotizen.** Ein Agent liest oder schreibt `daily_notes` nicht. Ein späterer
+    Lesezugriff (z. B. „berücksichtige meine Notiz von Mittwoch“) nur nach ausdrücklicher
+    Freigabe im Einzelfall, nie automatisch; aus Notizen entstehen höchstens **Entwürfe**
+    (siehe [notes-roadmap.md](notes-roadmap.md)).
 
 ## Geplanter Ablauf
 

@@ -96,6 +96,28 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - [ ] Flugmodus: Plan und laufender Timer sichtbar, Hinweis „Offline – gespeicherter Plan“,
       Starten/Beenden/Bearbeiten gesperrt mit Erklärung; nach Verbindung wieder möglich.
 
+**Fokusfläche („Jetzt“)**
+
+- [ ] Aktueller Block groß in der Mitte, vorheriger/nächster Block blass und angeschnitten
+      (Android zusätzlich unscharf); Nachbarn reagieren nicht auf Tippen.
+- [ ] Zur Start- bzw. Endzeit eines Blocks wechselt die Fläche ohne Neuladen (App offen lassen).
+- [ ] Freie Zeit: „Freie Zeit“ mit Countdown, nichts startet automatisch.
+- [ ] Laufende Aktivität hat Vorrang vor dem geplanten Block.
+- [ ] TalkBack liest die Nachbarn **nicht** vor, wohl aber „Davor … / Danach …“ im Fokusblock;
+      beim Wechsel wird „Jetzt im Fokus: …“ angesagt.
+- [ ] „Animationen entfernen“ → Wechsel ohne Einblendung oder Bewegung.
+
+**Tagesnotiz**
+
+- [ ] „Tag“: Notiz schreiben → „Gespeichert um …“; Web zeigt dieselbe Notiz (und umgekehrt).
+- [ ] Tastatur offen: Textfeld und „Speichern“ bleiben sichtbar (auch bei Systemschrift 200 %).
+- [ ] Gleichzeitig im Web ändern, dann in der App speichern → Konflikt mit beiden Möglichkeiten.
+- [ ] „Zurück“ bzw. Android-Zurück-Taste mit ungespeicherten Änderungen → Rückfrage.
+- [ ] Flugmodus: „Ohne Verbindung nicht verfügbar“, keine Notiz sichtbar; nach Verbindung
+      „Erneut versuchen“ lädt sie.
+- [ ] Erinnerungen und Sperrbildschirm enthalten **nie** Notizinhalte.
+- [ ] TalkBack: Textfeld beschriftet („Tagesnotiz für …“), Status wird angesagt.
+
 **App-Sperre**
 
 - [ ] Einschalten verlangt Entsperrung; Standard war „aus“.
@@ -141,3 +163,6 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - Die Vorschau im Task-Wechsler ist nur bei eingeschalteter App-Sperre geschützt; dann sind auch
   Screenshots der App gesperrt (Android bietet in Expo keine getrennte Steuerung).
 - Offline werden keine Änderungen vorgemerkt (keine Warteschlange).
+- Tagesnotizen sind nur online verfügbar und werden nicht auf dem Gerät gespeichert.
+- Die Unschärfe der Nachbarblöcke gibt es nur unter Android (React Native `filter: blur`); unter
+  iOS sind sie nur blass und angeschnitten.
