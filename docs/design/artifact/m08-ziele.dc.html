@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ziele</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.gm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.gm div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}
+.gm span{font-size:12px;color:var(--text-3);font-weight:600}
+.gm b{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.gsec{display:flex;flex-direction:column;gap:12px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.gsec h2{font-size:18px;font-weight:650;display:flex;align-items:center;gap:10px}
+.gsec h2 .ic{color:var(--g)}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18M9 16l2 2 4-4"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar" style="justify-content: flex-start">
+    <a class="icon-btn" href="m03-jetzt.dc.html" aria-label="Zurück"><svg class="ic"><use href="#i-chevron-left"></use></svg></a>
+    <div>
+      <h1 style="font-size: 22px">Ziele dieser Woche</h1>
+      <p class="sub num">KW 42 · Stand Mi, 18:05</p>
+    </div>
+  </header>
+  <main class="content" style="gap: 20px; padding-top: 8px">
+    <div class="legend"><span><i class="lg-act"></i>erfasst (tatsächlich)</span><span><i class="lg-plan"></i>geplant</span><span><i class="lg-target"></i>Ziel</span></div>
+    <section class="gsec g-business">
+      <div style="display: flex; align-items: center; justify-content: space-between"><h2><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</h2><span class="status st-risk"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span></div>
+      <div class="gm"><div><span>Ziel</span><b>20 h</b></div><div><span>Geplant</span><b>16 h</b></div><div><span>Erfasst</span><b>5,1 h</b></div></div>
+      <div class="gbar"><span class="plan" style="width: 73%"></span><span class="act" style="width: 23%"></span><span class="target" style="left: 91%"></span></div>
+      <p style="font-size: 15px; line-height: 1.5">Dir fehlen noch <b class="num">14,9 h</b> Gewerbe. Eingeplant sind noch 10,9 h – für 4 h fehlt ein Planblock.</p>
+    </section>
+    <section class="gsec g-sport">
+      <div style="display: flex; align-items: center; justify-content: space-between"><h2><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</h2><span class="status st-ok"><svg class="ic ic-sm"><use href="#i-cal-check"></use></svg>Im Plan</span></div>
+      <div class="gm"><div><span>Ziel</span><b>3 h</b></div><div><span>Geplant</span><b>3,8 h</b></div><div><span>Erfasst</span><b>1,2 h</b></div></div>
+      <div class="gbar"><span class="plan" style="width: 91%"></span><span class="act" style="width: 29%"></span><span class="target" style="left: 73%"></span></div>
+      <p style="font-size: 15px">Sport ist für diese Woche ausreichend eingeplant.</p>
+    </section>
+    <section class="gsec g-relationship" style="border-bottom: 0">
+      <div style="display: flex; align-items: center; justify-content: space-between"><h2><svg class="ic"><use href="#i-heart"></use></svg>Laila</h2><span class="status st-unset"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Kein Ziel</span></div>
+      <div class="gm"><div><span>Ziel</span><b style="color: var(--text-3)">–</b></div><div><span>Geplant</span><b>9,5 h</b></div><div><span>Erfasst</span><b>1,4 h</b></div></div>
+      <p style="font-size: 15px">Für Laila ist noch kein Wochenziel festgelegt.</p>
+      <a class="btn btn-secondary" href="m10-einstellungen.dc.html" style="align-self: flex-start">Ziel festlegen</a>
+    </section>
+  </main>
+  <div class="inset-bottom" style="background: transparent"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

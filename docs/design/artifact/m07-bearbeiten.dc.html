@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Plan bearbeiten – Block</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"></path></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"></path></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar">
+    <div>
+      <p class="eyebrow" style="color: var(--warning)">Plan bearbeiten</p>
+      <h1 style="font-size: 22px">KW 42 · Entwurf Version 2</h1>
+    </div>
+    <button class="icon-btn filled" type="button" aria-label="Bearbeitungsmodus verlassen"><svg class="ic"><use href="#i-x"></use></svg></button>
+  </header>
+  <main class="content" style="gap: 14px; padding-top: 8px">
+    <div class="banner draft"><svg class="ic" style="color: var(--warning)"><use href="#i-pencil"></use></svg><div>Änderungen landen im Entwurf. Die App zeigt weiter Version 1, bis du veröffentlichst.</div></div>
+    <div class="list">
+      <div class="li g-business"><span class="cat"><i class="d"></i></span><span class="grow">Kundenprojekt<small class="num">Mi 17:00–20:00 · Gewerbe</small></span></div>
+      <div class="li g-neutral"><span class="cat"><i class="d"></i></span><span class="grow">Abendessen<small class="num">Mi 20:00–20:45 · Essen</small></span></div>
+    </div>
+  </main>
+  <div class="scrim"></div>
+  <section class="sheet g-business" aria-labelledby="sheet-title" style="top: 150px">
+    <span class="handle"></span>
+    <div style="display: flex; align-items: center; justify-content: space-between"><h2 id="sheet-title">Block bearbeiten</h2><span class="chip">Gewerbe</span></div>
+    <div class="field"><label for="b-title">Titel</label><input id="b-title" class="input" value="Kundenprojekt"></div>
+    <div class="field"><span class="lbl">Kategorie</span><div class="chipset"><span class="opt on">Gewerbe</span><span class="opt">Sport</span><span class="opt">Laila</span><span class="opt">Dienst</span><span class="opt">Weitere …</span></div></div>
+    <div class="field"><span class="lbl">Tag</span><div class="days" style="gap: 6px"><span class="day" style="min-height: 44px">Mo<b style="font-size: 15px">12</b></span><span class="day" style="min-height: 44px">Di<b style="font-size: 15px">13</b></span><span class="day sel" style="min-height: 44px">Mi<b style="font-size: 15px">14</b></span><span class="day" style="min-height: 44px">Do<b style="font-size: 15px">15</b></span><span class="day" style="min-height: 44px">Fr<b style="font-size: 15px">16</b></span><span class="day" style="min-height: 44px">Sa<b style="font-size: 15px">17</b></span><span class="day" style="min-height: 44px">So<b style="font-size: 15px">18</b></span></div></div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div class="field"><span class="lbl">Beginn</span><div class="stepper" style="grid-template-columns: 44px minmax(0, 1fr) 44px"><button class="btn btn-secondary" type="button" aria-label="Beginn 15 Minuten früher">−15</button><span class="val" style="font-size: 18px">17:00</span><button class="btn btn-secondary" type="button" aria-label="Beginn 15 Minuten später">+15</button></div></div>
+      <div class="field"><span class="lbl">Ende</span><div class="stepper" style="grid-template-columns: 44px minmax(0, 1fr) 44px"><button class="btn btn-secondary" type="button" aria-label="Ende 15 Minuten früher">−15</button><span class="val" style="font-size: 18px">20:00</span><button class="btn btn-secondary" type="button" aria-label="Ende 15 Minuten später">+15</button></div></div>
+    </div>
+    <p class="subtle num" style="font-size: 13px; display: flex; gap: 6px; align-items: center"><svg class="ic ic-sm"><use href="#i-info"></use></svg>Dauer 3 Std. · keine Überschneidung</p>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <div class="field"><label for="b-ort">Ort (optional)</label><input id="b-ort" class="input" value="Büro"></div>
+      <div class="field"><label for="b-notiz">Notiz (optional)</label><input id="b-notiz" class="input" value="Angebot fertigstellen"></div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center">
+      <button class="btn btn-danger" type="button" aria-label="Block löschen" style="padding: 0 14px"><svg class="ic"><use href="#i-trash"></use></svg></button>
+      <button class="btn btn-primary btn-lg" type="button" style="flex: 1">Im Entwurf speichern</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

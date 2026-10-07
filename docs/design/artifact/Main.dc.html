@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>TagesTakt Designsystem</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.sw{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-2)}
+.sw i{display:block;width:100%;height:56px;border-radius:10px;border:1px solid var(--line)}
+.sw b{color:var(--text);font-size:13px;font-weight:600}
+.sys-row{display:grid;gap:16px}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20 7 4"></polygon></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4M10 10h4M10 14h4M10 18h4"></path></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></symbol>
+<symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m16 12-4-4-4 4M12 16V8"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+<symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18M9 16l2 2 4-4"></path></symbol>
+<symbol id="i-minus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path></symbol>
+<symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01M8.5 16.43a5 5 0 0 1 7 0M5 12.86a10 10 0 0 1 5.17-2.69M19 12.86a10 10 0 0 0-2-1.52M2 8.82a15 15 0 0 1 4.18-2.64M22 8.82a15 15 0 0 0-11.29-3.76M2 2l20 20"></path></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"></path></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+</defs>
+</svg>
+<div style="width: 1440px; height: 1760px; box-sizing: border-box; padding: 64px 72px; background: #121110; color: #f3efe8; font-family: 'Geist', system-ui, sans-serif; display: flex; flex-direction: column; gap: 48px">
+  <header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; border-bottom: 1px solid #302e2a; padding-bottom: 32px">
+    <div style="display: flex; align-items: center; gap: 18px">
+      <svg width="52" height="52" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>
+      <div>
+        <h1 style="margin: 0; font-size: 40px; font-weight: 650; letter-spacing: -0.02em">TagesTakt</h1>
+        <p style="margin: 4px 0 0; font-size: 18px; color: #bdb6aa">Ruhige Präzision für ein volles Leben.</p>
+      </div>
+    </div>
+    <p style="margin: 0; max-width: 520px; font-size: 15px; color: #bdb6aa; line-height: 1.55">Dark-first, warme Neutraltöne, feine Linien. Farbe trägt Bedeutung (Ziele, Status) und steht nie allein: immer mit Text, Symbol oder Muster.</p>
+  </header>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 class="eyebrow">Neutrale Flächen und Text (dunkel)</h2>
+      <div class="sys-row" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
+        <div class="sw"><i style="background: #121110"></i><b>bg</b>#121110</div>
+        <div class="sw"><i style="background: #1a1917"></i><b>surface-1</b>#1A1917</div>
+        <div class="sw"><i style="background: #211f1d"></i><b>surface-2</b>#211F1D</div>
+        <div class="sw"><i style="background: #2a2825"></i><b>surface-3</b>#2A2825</div>
+        <div class="sw"><i style="background: #302e2a"></i><b>line</b>#302E2A</div>
+        <div class="sw"><i style="background: #f3efe8"></i><b>text · inverse</b>#F3EFE8 · 16,5:1</div>
+        <div class="sw"><i style="background: #bdb6aa"></i><b>text-2</b>#BDB6AA · 9,4:1</div>
+        <div class="sw"><i style="background: #979083"></i><b>text-3</b>#979083 · 6,0:1</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 class="eyebrow">Ziel- und Kategoriefarben – immer mit Symbol und Text</h2>
+      <div class="sys-row" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+        <div class="g-business" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #e2b04a 12%, #1a1917); border: 1px solid color-mix(in srgb, #e2b04a 35%, transparent)"><svg class="ic ic-lg" style="color: #e2b04a"><use href="#i-briefcase"></use></svg><div><b style="display: block">Gewerbe</b><span class="muted" style="font-size: 13px">#E2B04A · Gold</span></div></div>
+        <div class="g-sport" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #5dbe86 12%, #1a1917); border: 1px solid color-mix(in srgb, #5dbe86 35%, transparent)"><svg class="ic ic-lg" style="color: #5dbe86"><use href="#i-dumbbell"></use></svg><div><b style="display: block">Sport</b><span class="muted" style="font-size: 13px">#5DBE86 · Grün</span></div></div>
+        <div class="g-relationship" style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #ec8fa3 12%, #1a1917); border: 1px solid color-mix(in srgb, #ec8fa3 35%, transparent)"><svg class="ic ic-lg" style="color: #ec8fa3"><use href="#i-heart"></use></svg><div><b style="display: block">Laila</b><span class="muted" style="font-size: 13px">#EC8FA3 · Rosé</span></div></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #88a6c6 12%, #1a1917); border: 1px solid color-mix(in srgb, #88a6c6 35%, transparent)"><svg class="ic ic-lg" style="color: #88a6c6"><use href="#i-building"></use></svg><div><b style="display: block">Dienst</b><span class="muted" style="font-size: 13px">#88A6C6 · Stahlblau</span></div></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #a99bd8 12%, #1a1917); border: 1px solid color-mix(in srgb, #a99bd8 35%, transparent)"><svg class="ic ic-lg" style="color: #a99bd8"><use href="#i-calendar"></use></svg><div><b style="display: block">Termin, Freizeit</b><span class="muted" style="font-size: 13px">#A99BD8 · Violett</span></div></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, #a59e92 12%, #1a1917); border: 1px solid color-mix(in srgb, #a59e92 35%, transparent)"><svg class="ic ic-lg" style="color: #a59e92"><use href="#i-circle"></use></svg><div><b style="display: block">Routine</b><span class="muted" style="font-size: 13px">Essen, Einkauf, Schlaf …</span></div></div>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap">
+        <span class="status st-risk"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span>
+        <span class="status st-ok"><svg class="ic ic-sm"><use href="#i-cal-check"></use></svg>Im Plan</span>
+        <span class="status st-reached"><svg class="ic ic-sm"><use href="#i-check-circle"></use></svg>Erreicht</span>
+        <span class="status st-over"><svg class="ic ic-sm"><use href="#i-up"></use></svg>Über Ziel</span>
+        <span class="status st-unset"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Ziel noch festlegen</span>
+        <span class="status st-below"><svg class="ic ic-sm"><use href="#i-minus-circle"></use></svg>Unter Ziel</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 class="eyebrow">Typografie · Web: Geist · Mobile: Systemschrift · Ziffern tabellarisch</h2>
+      <div style="display: flex; flex-direction: column; gap: 14px; padding: 24px; border: 1px solid #302e2a; border-radius: 14px">
+        <p style="font-size: 28px; font-weight: 650; letter-spacing: -0.02em">Seitentitel 28 / 650 – Wochenplan</p>
+        <p style="font-size: 20px; font-weight: 650">Abschnitt 20 / 650 – Wochenziele</p>
+        <p style="font-size: 15px; line-height: 1.5; color: #bdb6aa">Fließtext 15 / 400 – Dir fehlen noch 3 h Gewerbe. Eingeplant sind noch 2 h.</p>
+        <p class="eyebrow">Überzeile 12 / 600 / +0,08 em</p>
+        <div style="display: flex; align-items: baseline; gap: 24px"><span class="mono" style="font-size: 56px; font-weight: 500; letter-spacing: -0.02em">1:24:37</span><span class="subtle" style="font-size: 14px">Timer – Geist Mono 56, tabellarisch</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 class="eyebrow">Abstände, Radien, Bewegung, Ebenen</h2>
+      <table class="tbl" style="color: #f3efe8">
+        <tr><th>Token</th><th>Werte</th></tr>
+        <tr><td>Abstand (4er-Raster)</td><td class="mono">2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64</td></tr>
+        <tr><td>Radius</td><td class="mono">sm 6 · md 10 · lg 14 · xl 20 · Sheet 22 · rund 999</td></tr>
+        <tr><td>Touch-Ziel</td><td class="mono">Web ≥ 44 px · Android ≥ 48 dp</td></tr>
+        <tr><td>Bewegung</td><td class="mono">schnell 120 ms · normal 200 ms · ruhig 320 ms · reduziert: 0</td></tr>
+        <tr><td>Ebenen</td><td class="mono">Inhalt 0 · klebrig 10 · Navigation 20 · Timer 30 · Overlay 40 · Sheet 50 · Toast 60 · Sperre 100</td></tr>
+        <tr><td>Fokus</td><td class="mono">2 px Textfarbe, 3 px Abstand</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 class="eyebrow">Aktionen</h2>
+      <button class="btn btn-primary btn-lg" type="button"><svg class="ic ic-fill"><use href="#i-play"></use></svg>Fokus starten</button>
+      <button class="btn btn-secondary" type="button"><svg class="ic"><use href="#i-pencil"></use></svg>Plan bearbeiten</button>
+      <div style="display: flex; gap: 10px"><button class="btn btn-ghost" type="button">Zeit korrigieren</button><button class="btn btn-danger" type="button">Löschen</button></div>
+      <button class="btn btn-primary focus-demo" type="button">Fokuszustand</button>
+      <button class="btn btn-primary" type="button" disabled>Offline nicht verfügbar</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 class="eyebrow">Ziel: Ziel · geplant · erfasst</h2>
+      <div class="goals">
+        <div class="goal g-business">
+          <div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="vals num"><b>5,1 h</b> erfasst · 16 h geplant · Ziel 20 h</span></div>
+          <div class="gbar"><span class="plan" style="width: 72%"></span><span class="act" style="width: 23%"></span><span class="target" style="left: 90%"></span></div>
+          <p class="msg"><span class="status st-risk"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span>Dir fehlen noch 14,9 h Gewerbe.</p>
+        </div>
+        <div class="goal g-relationship">
+          <div class="top"><span class="name"><svg class="ic"><use href="#i-heart"></use></svg>Laila</span><span class="vals num"><b>1,4 h</b> erfasst · 9,5 h geplant</span></div>
+          <div class="gbar unset"><span class="plan" style="width: 85%"></span><span class="act" style="width: 13%"></span></div>
+          <p class="msg"><span class="status st-unset"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Ziel noch festlegen</span></p>
+        </div>
+        <div class="legend"><span><i class="lg-act"></i>erfasst</span><span><i class="lg-plan"></i>geplant</span><span><i class="lg-target"></i>Ziel</span></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 class="eyebrow">Plan (Absicht) und Ist (Tatsache)</h2>
+      <div class="block g-business"><span class="bt">Kundenprojekt</span><span class="bm"><span class="cat g-business"><i class="d"></i>Gewerbe</span><span class="num">17:00–20:00 · geplant</span></span><span><span class="ist num g-business"><svg class="ic ic-sm"><use href="#i-timer"></use></svg>erfasst 1:01 · läuft</span></span></div>
+      <div class="timerbar g-business" style="margin: 0"><span class="dot"></span><span class="what"><b>Kundenprojekt</b><span class="muted">Gewerbe · seit 17:04</span></span><span class="time">1:01:12</span><button class="stop-btn" type="button" aria-label="Beenden"><svg class="ic ic-fill"><use href="#i-stop"></use></svg></button></div>
+      <div class="banner warn"><svg class="ic"><use href="#i-wifi-off"></use></svg><div><b>Offline – gespeicherter Plan</b>Stand heute, 14:02 Uhr. Starten und Beenden gehen wieder, sobald eine Verbindung besteht.</div></div>
+    </div>
+  </section>
+
+  <section class="light" style="display: grid; grid-template-columns: 1fr 2fr; gap: 32px; padding: 28px; border-radius: 20px; background: var(--bg); color: var(--text)">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h2 class="eyebrow">Helles Erscheinungsbild (Systemeinstellung)</h2>
+      <p style="font-size: 14px; color: var(--text-2); line-height: 1.55">Gleiche Struktur, dunklere Zielfarben für ≥ 4,5:1 auf Weiß. Dunkel bleibt der Standard.</p>
+      <button class="btn btn-primary" type="button" style="align-self: flex-start"><svg class="ic ic-fill"><use href="#i-play"></use></svg>Fokus starten</button>
+    </div>
+    <div class="goals">
+      <div class="goal g-business"><div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="vals num"><b>5,1 h</b> erfasst · 16 h geplant · Ziel 20 h</span></div><div class="gbar"><span class="plan" style="width: 72%"></span><span class="act" style="width: 23%"></span><span class="target" style="left: 90%"></span></div></div>
+      <div class="goal g-sport"><div class="top"><span class="name"><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</span><span class="vals num"><b>1,2 h</b> erfasst · 3,8 h geplant · Ziel 3 h</span></div><div class="gbar"><span class="plan" style="width: 90%"></span><span class="act" style="width: 28%"></span><span class="target" style="left: 72%"></span></div></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

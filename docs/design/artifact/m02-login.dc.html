@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Login</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 28px; padding: 0 28px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <svg width="44" height="44" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.5; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>
+      <div>
+        <p class="eyebrow">TagesTakt</p>
+        <h1 style="font-size: 28px; font-weight: 650; letter-spacing: -0.015em; margin-top: 4px">Anmelden</h1>
+        <p class="muted" style="font-size: 15px; margin-top: 6px">Privater Zugang. Eine Registrierung ist nicht möglich.</p>
+      </div>
+    </div>
+    <div class="banner err"><svg class="ic"><use href="#i-alert"></use></svg><div><b>Anmeldung fehlgeschlagen</b>E-Mail oder Passwort ist falsch.</div></div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div class="field"><label for="m-mail">E-Mail</label><input id="m-mail" class="input" type="email" value="beispiel@tagestakt.test" autocomplete="username"></div>
+      <div class="field"><label for="m-pass">Passwort</label><input id="m-pass" class="input" type="password" value="••••••••••••••" autocomplete="current-password"></div>
+    </div>
+    <button class="btn btn-primary btn-lg btn-block" type="button">Anmelden</button>
+  </div>
+  <div style="padding: 0 28px 28px">
+    <p class="subtle" style="font-size: 12.5px; line-height: 1.5; display: flex; gap: 8px"><svg class="ic ic-sm"><use href="#i-shield"></use></svg>Die Sitzung wird nur im sicheren Gerätespeicher abgelegt. Passwort vergessen? Das Konto wird in Supabase verwaltet.</p>
+  </div>
+  <div class="inset-bottom" style="background: transparent"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

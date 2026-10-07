@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Auswertung</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.gt{display:grid;grid-template-columns:150px minmax(160px,1fr) 80px 80px 80px 90px 140px;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--line);font-size:14px}
+.gt.h{border-top:0;padding:0 0 4px;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.gt .n{display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.gt .n .ic{color:var(--g)}
+.gt .r{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;font-size:12px;border:1px solid var(--line-strong);color:var(--text-2)}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M7 16h8M7 11h12M7 6h3"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18M9 16l2 2 4-4"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></symbol>
+</defs>
+</svg>
+<div class="web">
+  <aside class="side" aria-label="Seitenleiste">
+    <a class="brand" href="w01-uebersicht.dc.html"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <nav class="nav" aria-label="Hauptnavigation" style="display: flex; flex-direction: column; gap: 2px">
+      <a href="w01-uebersicht.dc.html"><svg class="ic"><use href="#i-house"></use></svg>Übersicht</a>
+      <a href="w02-wocheneditor.dc.html"><svg class="ic"><use href="#i-week"></use></svg>Wochenplan</a>
+      <a href="w05-wiederholungen.dc.html"><svg class="ic"><use href="#i-repeat"></use></svg>Wiederholungen</a>
+      <a class="on" href="w06-auswertung.dc.html" aria-current="page"><svg class="ic"><use href="#i-chart"></use></svg>Auswertung</a>
+      <a href="w07-einstellungen.dc.html"><svg class="ic"><use href="#i-more"></use></svg>Einstellungen</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="wrap" style="max-width: 1180px">
+      <header class="ph">
+        <div><p class="eyebrow">Ziele und Zeit</p><h1 class="num">Auswertung · KW 42</h1></div>
+        <nav class="toolbar" aria-label="Woche wechseln"><a class="btn btn-secondary" href="w06-auswertung.dc.html"><svg class="ic ic-sm"><use href="#i-chevron-left"></use></svg>KW 41</a><a class="btn btn-secondary" href="w06-auswertung.dc.html">Diese Woche</a><a class="btn btn-secondary" href="w06-auswertung.dc.html">KW 43<svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></a></nav>
+      </header>
+
+      <section class="section" aria-labelledby="a-bilanz">
+        <div class="section-head"><h2 id="a-bilanz" style="font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text)">Wochenbilanz · läuft, Stand Mi 18:05</h2><div class="legend"><span><i class="lg-act"></i>erfasst</span><span><i class="lg-plan"></i>geplant</span><span><i class="lg-target"></i>Ziel</span></div></div>
+        <div>
+          <div class="gt h"><span>Ziel</span><span>Verlauf</span><span class="r">Ziel</span><span class="r">Geplant</span><span class="r">Erfasst</span><span class="r">Differenz</span><span>Stand</span></div>
+          <div class="gt g-business"><span class="n"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="gbar"><span class="plan" style="width: 73%"></span><span class="act" style="width: 23%"></span><span class="target" style="left: 91%"></span></span><span class="r">20 h</span><span class="r">16 h</span><span class="r"><b>5,1 h</b></span><span class="r">−14,9 h</span><span><span class="status st-risk"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span></span></div>
+          <div class="gt g-sport"><span class="n"><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</span><span class="gbar"><span class="plan" style="width: 91%"></span><span class="act" style="width: 29%"></span><span class="target" style="left: 73%"></span></span><span class="r">3 h</span><span class="r">3,8 h</span><span class="r"><b>1,2 h</b></span><span class="r">−1,8 h</span><span><span class="status st-ok"><svg class="ic ic-sm"><use href="#i-cal-check"></use></svg>Im Plan</span></span></div>
+          <div class="gt g-relationship"><span class="n"><svg class="ic"><use href="#i-heart"></use></svg>Laila</span><span class="gbar unset"><span class="plan" style="width: 91%"></span><span class="act" style="width: 13%"></span></span><span class="r subtle">–</span><span class="r">9,5 h</span><span class="r"><b>1,4 h</b></span><span class="r subtle">–</span><span><span class="status st-unset"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Kein Ziel</span></span></div>
+        </div>
+        <p class="muted" style="font-size: 14px">Dir fehlen noch 14,9 h Gewerbe; eingeplant sind noch 10,9 h. Sport ist für diese Woche ausreichend eingeplant. Für Laila ist noch kein Wochenziel festgelegt.</p>
+      </section>
+
+      <div class="grid-2" style="align-items: start">
+        <section class="panel" aria-labelledby="a-verlauf">
+          <h2 id="a-verlauf">Letzte vier Wochen · erfasst / Ziel</h2>
+          <table class="tbl">
+            <thead><tr><th>Woche</th><th class="r">Gewerbe</th><th class="r">Sport</th><th class="r">Laila</th></tr></thead>
+            <tbody class="num">
+              <tr><td>KW 42 (läuft)</td><td class="r">5,1 / 20 h</td><td class="r">1,2 / 3 h</td><td class="r">1,4 h</td></tr>
+              <tr><td>KW 41</td><td class="r">17,5 / 20 h</td><td class="r">4,5 / 3 h</td><td class="r">7 h</td></tr>
+              <tr><td>KW 40</td><td class="r subtle">keine Erfassung</td><td class="r subtle">–</td><td class="r subtle">–</td></tr>
+              <tr><td>KW 39</td><td class="r subtle">keine Erfassung</td><td class="r subtle">–</td><td class="r subtle">–</td></tr>
+            </tbody>
+          </table>
+          <p class="subtle" style="font-size: 13px">Wenige Daten: bewusst Zahlen statt Diagramm.</p>
+        </section>
+        <section class="panel" aria-labelledby="a-nachtragen">
+          <h2 id="a-nachtragen">Zeit nachtragen</h2>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+            <div class="field"><label for="n-z">Ziel</label><select id="n-z" class="input"><option>Sport</option></select></div>
+            <div class="field"><label for="n-t">Titel</label><input id="n-t" class="input" value="Krafttraining"></div>
+            <div class="field"><label for="n-d">Tag</label><input id="n-d" class="input num" type="date" value="2026-10-13"></div>
+            <div class="field"><span class="lbl">Zeitraum</span><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px"><input class="input num" type="time" value="17:02" aria-label="Beginn"><input class="input num" type="time" value="18:12" aria-label="Ende"></div></div>
+          </div>
+          <div class="toolbar"><button class="btn btn-secondary" type="button"><svg class="ic ic-sm"><use href="#i-plus"></use></svg>Nachtragen</button></div>
+        </section>
+      </div>
+
+      <section class="panel" aria-labelledby="a-liste">
+        <h2 id="a-liste">Erfasste Aktivitäten · KW 42</h2>
+        <table class="tbl">
+          <thead><tr><th>Tag</th><th>Zeitraum</th><th>Titel</th><th>Ziel</th><th class="r">Dauer</th><th class="r">Aktionen</th></tr></thead>
+          <tbody>
+            <tr><td>Mi 14.10.</td><td class="mono">17:04–läuft</td><td>Kundenprojekt <span class="tag">Planblock</span></td><td><span class="cat g-business"><i class="d"></i>Gewerbe</span></td><td class="r mono">1:01</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-primary" type="button">Beenden</button><button class="btn btn-ghost" type="button">Zeit korrigieren</button></div></td></tr>
+            <tr><td>Di 13.10.</td><td class="mono">19:32–21:42</td><td>Kundenprojekt <span class="tag">Planblock</span></td><td><span class="cat g-business"><i class="d"></i>Gewerbe</span></td><td class="r mono">2:10</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-ghost" type="button">Zeit korrigieren</button><button class="btn btn-danger" type="button">Löschen</button></div></td></tr>
+            <tr><td>Di 13.10.</td><td class="mono">17:02–18:12</td><td>Krafttraining <span class="tag">korrigiert</span></td><td><span class="cat g-sport"><i class="d"></i>Sport</span></td><td class="r mono">1:10</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-ghost" type="button">Zeit korrigieren</button><button class="btn btn-danger" type="button">Löschen</button></div></td></tr>
+            <tr><td>Mo 12.10.</td><td class="mono">20:35–22:00</td><td>Gemeinsamer Abend <span class="tag">Planblock</span></td><td><span class="cat g-relationship"><i class="d"></i>Laila</span></td><td class="r mono">1:25</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-ghost" type="button">Zeit korrigieren</button><button class="btn btn-danger" type="button">Löschen</button></div></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

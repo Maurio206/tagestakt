@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wiederholungen</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.rw{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}
+.rc{display:flex;flex-direction:column;gap:8px;min-width:0}
+.rc h3{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding-bottom:6px;border-bottom:1px solid var(--line)}
+.ri{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--g) 10%,var(--s1));border:1px solid color-mix(in srgb,var(--g) 35%,transparent);font-size:12.5px}
+.ri b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ri span{font-family:var(--mono);font-size:11.5px;color:var(--text-2)}
+.ri.off{opacity:.55;border-style:dashed}
+.wdsel{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.wdsel span{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;border:1px solid var(--line-strong);font-weight:600;font-size:14px;color:var(--text-2)}
+.wdsel span.on{background:var(--inverse);color:var(--on-inverse);border-color:var(--inverse)}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M7 16h8M7 11h12M7 6h3"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></symbol>
+</defs>
+</svg>
+<div class="web">
+  <aside class="side" aria-label="Seitenleiste">
+    <a class="brand" href="w01-uebersicht.dc.html"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <nav class="nav" aria-label="Hauptnavigation" style="display: flex; flex-direction: column; gap: 2px">
+      <a href="w01-uebersicht.dc.html"><svg class="ic"><use href="#i-house"></use></svg>Übersicht</a>
+      <a href="w02-wocheneditor.dc.html"><svg class="ic"><use href="#i-week"></use></svg>Wochenplan</a>
+      <a class="on" href="w05-wiederholungen.dc.html" aria-current="page"><svg class="ic"><use href="#i-repeat"></use></svg>Wiederholungen</a>
+      <a href="w06-auswertung.dc.html"><svg class="ic"><use href="#i-chart"></use></svg>Auswertung</a>
+      <a href="w07-einstellungen.dc.html"><svg class="ic"><use href="#i-more"></use></svg>Einstellungen</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="wrap" style="max-width: 1240px">
+      <header class="ph"><div><p class="eyebrow">Vorlagen</p><h1>Wiederholungen</h1></div><p class="muted" style="font-size: 14px; max-width: 460px">Feste Termine einmal anlegen und in jeden Wochenentwurf übernehmen. Veröffentlichte Versionen bleiben unverändert.</p></header>
+
+      <section aria-labelledby="r-woche" class="section">
+        <div class="section-head"><h2 id="r-woche" style="font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text)">Wochenstruktur</h2><span class="subtle" style="font-size: 13px">7 aktiv · 1 inaktiv</span></div>
+        <div class="rw">
+          <div class="rc"><h3>Montag</h3><a class="ri g-duty" href="w05-wiederholungen.dc.html"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a><a class="ri g-business" href="w05-wiederholungen.dc.html"><b>Kundenprojekt</b><span>17:30–19:30</span></a></div>
+          <div class="rc"><h3>Dienstag</h3><a class="ri g-duty" href="w05-wiederholungen.dc.html"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a><a class="ri g-sport" href="w05-wiederholungen.dc.html"><b>Krafttraining</b><span>17:00–18:15</span></a></div>
+          <div class="rc"><h3>Mittwoch</h3><a class="ri g-duty" href="w05-wiederholungen.dc.html"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a></div>
+          <div class="rc"><h3>Donnerstag</h3><a class="ri g-duty" href="w05-wiederholungen.dc.html"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a><a class="ri g-sport" href="w05-wiederholungen.dc.html"><b>Krafttraining</b><span>17:00–18:15</span></a></div>
+          <div class="rc"><h3>Freitag</h3><a class="ri g-duty" href="w05-wiederholungen.dc.html"><b>Dienst Bundeswehr</b><span>07:00–13:00</span></a></div>
+          <div class="rc"><h3>Samstag</h3><a class="ri g-sport off" href="w05-wiederholungen.dc.html"><b>Lauftraining</b><span>09:00–10:00 · inaktiv</span></a></div>
+          <div class="rc"><h3>Sonntag</h3><p class="subtle" style="font-size: 12.5px">Nichts fest geplant.</p></div>
+        </div>
+      </section>
+
+      <div class="grid-2" style="align-items: start">
+        <section class="panel" aria-labelledby="r-neu">
+          <h2 id="r-neu">Neue Wiederholung</h2>
+          <div class="field"><span class="lbl">Wochentage</span><div class="wdsel" role="group" aria-label="Wochentage"><span class="on">Mo</span><span class="on">Di</span><span class="on">Mi</span><span class="on">Do</span><span class="on">Fr</span><span>Sa</span><span>So</span></div><div class="toolbar" style="margin-top: 6px"><button class="btn btn-ghost" type="button">Werktage</button><button class="btn btn-ghost" type="button">Wochenende</button><button class="btn btn-ghost" type="button">Alle</button></div></div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+            <div class="field" style="grid-column: 1 / -1"><label for="r-t">Titel</label><input id="r-t" class="input" value="Dienst Bundeswehr"></div>
+            <div class="field"><label for="r-k">Kategorie</label><select id="r-k" class="input"><option>Dienst</option></select></div>
+            <div class="field"><label for="r-o">Ort (optional)</label><input id="r-o" class="input" value=""></div>
+            <div class="field"><label for="r-s">Beginn</label><input id="r-s" class="input num" type="time" value="07:00"></div>
+            <div class="field"><label for="r-e">Ende</label><input id="r-e" class="input num" type="time" value="16:30"></div>
+          </div>
+          <p class="subtle" style="font-size: 13px">Liegt das Ende vor dem Beginn, endet der Block am Folgetag. Es entstehen 5 einzelne Vorlagen, die du später getrennt ändern kannst.</p>
+          <div class="toolbar"><button class="btn btn-primary" type="button"><svg class="ic ic-sm"><use href="#i-plus"></use></svg>5 Wiederholungen anlegen</button></div>
+        </section>
+        <section class="panel" aria-labelledby="r-apply">
+          <h2 id="r-apply">In Wochenentwurf übernehmen</h2>
+          <div class="field"><label for="r-w">Woche (beliebiger Tag)</label><input id="r-w" class="input num" type="date" value="2026-10-19"></div>
+          <fieldset style="border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 0; display: flex; flex-direction: column; gap: 6px"><legend class="lbl" style="font-size: 13px; font-weight: 600; color: var(--text-2); padding: 0 4px">Vorhandene Einträge</legend><label style="display: flex; gap: 10px; align-items: center; min-height: 40px; font-size: 14px"><input type="radio" name="m" checked>Ergänzen (Doppelte werden übersprungen)</label><label style="display: flex; gap: 10px; align-items: center; min-height: 40px; font-size: 14px"><input type="radio" name="m">Ersetzen (Entwurf wird geleert)</label></fieldset>
+          <label style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px"><input type="checkbox" style="margin-top: 4px">Ich bestätige die Übernahme in den Entwurf von KW 43. Eine veröffentlichte Version bleibt unverändert.</label>
+          <div class="toolbar"><button class="btn btn-secondary" type="button">In Entwurf übernehmen</button></div>
+        </section>
+      </div>
+
+      <section class="panel" aria-labelledby="r-liste">
+        <h2 id="r-liste">Alle Wiederholungen</h2>
+        <table class="tbl">
+          <thead><tr><th>Tag</th><th>Zeit</th><th>Titel</th><th>Kategorie</th><th>Status</th><th class="r">Aktionen</th></tr></thead>
+          <tbody>
+            <tr><td>Montag</td><td class="mono">07:00–16:30</td><td>Dienst Bundeswehr</td><td><span class="cat g-duty"><i class="d"></i>Dienst</span></td><td>Aktiv</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-ghost" type="button">Bearbeiten</button><button class="btn btn-ghost" type="button">Duplizieren</button><button class="btn btn-ghost" type="button">Deaktivieren</button><button class="btn btn-danger" type="button">Löschen</button></div></td></tr>
+            <tr><td>Samstag</td><td class="mono">09:00–10:00</td><td>Lauftraining</td><td><span class="cat g-sport"><i class="d"></i>Sport</span></td><td class="subtle">Inaktiv</td><td class="r"><div class="toolbar" style="justify-content: flex-end"><button class="btn btn-ghost" type="button">Bearbeiten</button><button class="btn btn-ghost" type="button">Duplizieren</button><button class="btn btn-ghost" type="button">Aktivieren</button><button class="btn btn-danger" type="button">Löschen</button></div></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Tag mit Zeitstrahl</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar">
+    <div>
+      <h1 style="font-size: 22px">Mittwoch, 14. Oktober</h1>
+      <p class="sub">Heute · Veröffentlicht, Version 1</p>
+    </div>
+  </header>
+  <div style="padding: 4px 16px 8px">
+    <div class="days" role="tablist" aria-label="Tag wählen">
+      <span class="day" role="tab">Mo<b>12</b><span class="marks"><i class="g-business"></i><i class="g-relationship"></i></span></span>
+      <span class="day" role="tab">Di<b>13</b><span class="marks"><i class="g-business"></i><i class="g-sport"></i></span></span>
+      <span class="day sel" role="tab" aria-selected="true">Mi<b>14</b><span class="marks"><i class="g-business"></i></span></span>
+      <span class="day" role="tab">Do<b>15</b><span class="marks"><i class="g-business"></i><i class="g-sport"></i></span></span>
+      <span class="day" role="tab">Fr<b>16</b><span class="marks"><i class="g-business"></i><i class="g-relationship"></i></span></span>
+      <span class="day" role="tab">Sa<b>17</b><span class="marks"><i class="g-sport"></i><i class="g-relationship"></i></span></span>
+      <span class="day" role="tab">So<b>18</b><span class="marks"><i class="g-business"></i></span></span>
+    </div>
+  </div>
+  <main class="content" style="gap: 0; padding-top: 8px">
+    <ol class="tl" aria-label="Zeitstrahl Mittwoch" style="list-style: none; margin: 0; padding: 0">
+      <li class="tl-item past g-neutral"><span class="tl-time">06:15</span><span class="tl-rail"><span class="tl-dot"></span></span><div class="tl-body"><div class="block"><span class="bt">Duschen</span><span class="bm"><span class="cat"><i class="d"></i>Körperpflege</span><span class="num">06:15–06:45</span></span></div></div></li>
+      <li class="tl-item past g-duty"><span class="tl-time">07:00</span><span class="tl-rail"><span class="tl-dot"></span></span><div class="tl-body"><div class="block"><span class="bt">Dienst Bundeswehr <svg class="ic ic-sm" style="color: var(--success)" aria-label="erledigt"><use href="#i-check"></use></svg></span><span class="bm"><span class="cat"><i class="d"></i>Dienst</span><span class="num">07:00–16:30</span><span>Erledigt</span></span></div></div></li>
+      <li class="tl-item current g-business"><span class="tl-time" style="color: var(--text); font-weight: 600">17:00</span><span class="tl-rail"><span class="tl-dot"></span></span><div class="tl-body"><div class="block"><span class="bt">Kundenprojekt<span class="eyebrow" style="margin-left: auto; color: var(--business)">Jetzt</span></span><span class="bm"><span class="cat"><i class="d"></i>Gewerbe</span><span class="num">17:00–20:00 · geplant</span></span><span style="display: flex; gap: 8px; align-items: center; margin-top: 2px"><span class="ist num g-business"><svg class="ic ic-sm"><use href="#i-timer"></use></svg>erfasst ab 17:04 · läuft</span></span></div></div></li>
+      <li class="now-line" aria-label="Jetzt 18:05"><span class="lbl">18:05</span><span class="ln"></span></li>
+      <li class="tl-item g-neutral"><span class="tl-time">20:00</span><span class="tl-rail"><span class="tl-dot"></span></span><div class="tl-body"><div class="block"><span class="bt">Abendessen<button class="icon-btn" type="button" aria-label="Aktionen für Abendessen" style="margin: -12px -10px -12px auto; width: 44px; height: 44px"><svg class="ic"><use href="#i-dots"></use></svg></button></span><span class="bm"><span class="cat"><i class="d"></i>Essen</span><span class="num">20:00–20:45</span></span></div></div></li>
+      <li class="tl-item g-violet"><span class="tl-time">21:00</span><span class="tl-rail"><span class="tl-dot"></span></span><div class="tl-body"><div class="block"><span class="bt">Freizeit</span><span class="bm"><span class="cat"><i class="d"></i>Freizeit</span><span class="num">21:00–22:00</span></span></div></div></li>
+      <li class="gap-row"><span></span><span class="tl-rail" style="min-height: 34px"></span><span class="txt">Danach nichts geplant.</span></li>
+    </ol>
+  </main>
+  <div class="timerbar g-business"><span class="dot"></span><span class="what"><b>Kundenprojekt</b><span class="muted">Gewerbe · seit 17:04</span></span><span class="time">1:01:12</span><button class="stop-btn" type="button" aria-label="Aktivität beenden"><svg class="ic ic-fill"><use href="#i-stop"></use></svg></button></div>
+  <nav class="tabbar" aria-label="Hauptnavigation">
+    <a class="tab" href="m04-jetzt-timer.dc.html"><span class="pill"><svg class="ic"><use href="#i-timer"></use></svg></span>Jetzt</a>
+    <a class="tab active" href="m05-tag.dc.html" aria-current="page"><span class="pill"><svg class="ic"><use href="#i-sun"></use></svg></span>Tag</a>
+    <a class="tab" href="m06-woche.dc.html"><span class="pill"><svg class="ic"><use href="#i-week"></use></svg></span>Woche</a>
+    <a class="tab" href="m10-einstellungen.dc.html"><span class="pill"><svg class="ic"><use href="#i-more"></use></svg></span>Mehr</a>
+  </nav>
+  <div class="inset-bottom"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

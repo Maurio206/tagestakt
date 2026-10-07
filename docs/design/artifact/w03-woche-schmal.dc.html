@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wocheneditor schmal</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--s1)}
+.dayh{position:sticky;top:0;display:flex;align-items:baseline;justify-content:space-between;padding:12px 0 8px;background:var(--bg);border-bottom:1px solid var(--line);font-weight:650}
+.dayh span{font-size:13px;font-weight:500;color:var(--text-2)}
+.er{display:grid;grid-template-columns:92px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.er .tm{font-family:var(--mono);font-size:13px;color:var(--text-2)}
+.er b{display:block;font-size:15px;font-weight:600}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.63l-19 6.5a.5.5 0 0 0-.02.93l7.93 3.18a2 2 0 0 1 1.11 1.11z"></path><path d="m21.85 2.15-10.94 10.94"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+</defs>
+</svg>
+<div class="web" style="flex-direction: column; flex-wrap: nowrap">
+  <header class="topbar">
+    <a class="brand" href="w01-uebersicht.dc.html" style="padding: 0; font-size: 16px"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <span class="chip g-business num" style="margin-left: auto"><svg class="ic ic-sm ic-fill"><use href="#i-stop"></use></svg>1:01:12</span>
+    <button class="btn btn-secondary" type="button" aria-expanded="false" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-menu"></use></svg>Menü</button>
+  </header>
+  <main style="padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 16px">
+    <div><p class="eyebrow">Wochenplan</p><h1 class="num" style="font-size: 24px; font-weight: 650">KW 42 · 12.–18.10.</h1></div>
+    <nav class="toolbar" aria-label="Woche wechseln" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <a class="btn btn-secondary" href="w03-woche-schmal.dc.html" style="padding: 0 6px; min-height: 44px"><svg class="ic ic-sm"><use href="#i-chevron-left"></use></svg>Vorher</a>
+      <a class="btn btn-secondary" href="w03-woche-schmal.dc.html" style="min-height: 44px">Heute</a>
+      <a class="btn btn-secondary" href="w03-woche-schmal.dc.html" style="padding: 0 6px; min-height: 44px">Folge<svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></a>
+    </nav>
+    <div class="field"><label for="ws-date">Woche wählen (beliebiger Tag)</label><input id="ws-date" class="input num" type="date" value="2026-10-12"></div>
+    <div class="toolbar"><a class="vchip pub" href="w03-woche-schmal.dc.html">V1 · veröffentlicht</a><a class="vchip draft on" href="w03-woche-schmal.dc.html" aria-current="page">V2 · Entwurf</a></div>
+    <div class="banner draft" style="flex-direction: column"><div style="display: flex; gap: 10px"><svg class="ic" style="color: var(--warning)"><use href="#i-pencil"></use></svg><span><b>Entwurf · Version 2</b>Noch nicht in der App sichtbar.</span></div><div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%"><button class="btn btn-secondary" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-plus"></use></svg>Eintrag</button><button class="btn btn-primary" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-send"></use></svg>Veröffentlichen</button></div></div>
+    <section aria-labelledby="d-mo">
+      <h2 id="d-mo" class="dayh">Montag, 12.10.<span>Gewerbe 2 h · Laila 1,5 h</span></h2>
+      <div class="er g-duty"><span class="tm">07:00–16:30</span><span><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Dienst Bundeswehr bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+      <div class="er g-business"><span class="tm">17:30–19:30</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+      <div class="er g-relationship"><span class="tm">20:30–22:00</span><span><b>Gemeinsamer Abend</b><span class="cat"><i class="d"></i>Laila</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Gemeinsamer Abend bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+    </section>
+    <section aria-labelledby="d-di">
+      <h2 id="d-di" class="dayh">Dienstag, 13.10.<span>Gewerbe 2 h · Sport 1,3 h</span></h2>
+      <div class="er g-duty"><span class="tm">07:00–16:30</span><span><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Dienst Bundeswehr bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+      <div class="er g-sport"><span class="tm">17:00–18:15</span><span><b>Krafttraining</b><span class="cat"><i class="d"></i>Sport</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Krafttraining bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+      <div class="er g-business"><span class="tm">19:30–21:30</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+    </section>
+    <section aria-labelledby="d-mi">
+      <h2 id="d-mi" class="dayh">Mittwoch, 14.10. · heute<span>Gewerbe 3 h</span></h2>
+      <div class="er g-business"><span class="tm">17:00–20:00</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+      <div class="er g-neutral"><span class="tm">20:00–20:45</span><span><b>Abendessen</b><span class="cat"><i class="d"></i>Essen</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Abendessen bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

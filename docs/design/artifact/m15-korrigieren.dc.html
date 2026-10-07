@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Zeit korrigieren</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar"><div><h1 style="font-size: 22px">Ziele dieser Woche</h1><p class="sub">KW 42</p></div></header>
+  <main class="content"></main>
+  <div class="scrim"></div>
+  <section class="sheet g-business" role="dialog" aria-modal="true" aria-labelledby="k-title" style="top: 120px">
+    <span class="handle"></span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h2 id="k-title">Zeit korrigieren</h2>
+      <p class="muted" style="font-size: 14px; display: flex; align-items: center; gap: 8px"><span class="chip"><svg class="ic ic-sm"><use href="#i-briefcase"></use></svg>Gewerbe</span>Kundenprojekt · Montag, 12. Oktober</p>
+    </div>
+    <div class="banner warn" style="padding: 12px 14px"><svg class="ic"><use href="#i-alert"></use></svg><div>Diese Aktivität lief über 12 Stunden. Vermutlich wurde Beenden vergessen – bitte die tatsächliche Endzeit eintragen.</div></div>
+    <div class="field"><span class="lbl">Beginn</span><div class="stepper"><button class="btn btn-secondary" type="button" aria-label="Beginn 5 Minuten früher">−5</button><span class="val">17:35</span><button class="btn btn-secondary" type="button" aria-label="Beginn 5 Minuten später">+5</button></div></div>
+    <div class="field"><span class="lbl">Ende</span><div class="stepper"><button class="btn btn-secondary" type="button" aria-label="Ende 5 Minuten früher">−5</button><span class="val">19:30</span><button class="btn btn-secondary" type="button" aria-label="Ende 5 Minuten später">+5</button></div>
+      <div class="chipset" style="margin-top: 4px"><span class="opt">Planende 19:30</span><span class="opt">Gestern</span><span class="opt">Heute</span></div>
+    </div>
+    <p class="num" style="font-size: 15px; display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line)"><span class="muted">Erfasste Dauer</span><b>1 Std. 55 Min.</b></p>
+    <p class="subtle" style="font-size: 13px; display: flex; gap: 8px"><svg class="ic ic-sm"><use href="#i-info"></use></svg>Korrekturen werden als solche markiert. Zeiten in der Zukunft und Überschneidungen mit anderen Aktivitäten sind nicht möglich.</p>
+    <button class="btn btn-primary btn-lg btn-block" type="button">Korrektur speichern</button>
+    <button class="btn btn-ghost btn-block" type="button" style="color: var(--error)">Aktivität löschen …</button>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

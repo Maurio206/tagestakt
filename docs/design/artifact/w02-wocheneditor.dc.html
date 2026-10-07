@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wocheneditor</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M7 16h8M7 11h12M7 6h3"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.63l-19 6.5a.5.5 0 0 0-.02.93l7.93 3.18a2 2 0 0 1 1.11 1.11z"></path><path d="m21.85 2.15-10.94 10.94"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"></path></symbol>
+</defs>
+</svg>
+<div class="web">
+  <aside class="side" aria-label="Seitenleiste">
+    <a class="brand" href="w01-uebersicht.dc.html"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <nav class="nav" aria-label="Hauptnavigation" style="display: flex; flex-direction: column; gap: 2px">
+      <a href="w01-uebersicht.dc.html"><svg class="ic"><use href="#i-house"></use></svg>Übersicht</a>
+      <a class="on" href="w02-wocheneditor.dc.html" aria-current="page"><svg class="ic"><use href="#i-week"></use></svg>Wochenplan</a>
+      <a href="w05-wiederholungen.dc.html"><svg class="ic"><use href="#i-repeat"></use></svg>Wiederholungen</a>
+      <a href="w06-auswertung.dc.html"><svg class="ic"><use href="#i-chart"></use></svg>Auswertung</a>
+      <a href="w07-einstellungen.dc.html"><svg class="ic"><use href="#i-more"></use></svg>Einstellungen</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="side-timer g-business" aria-label="Laufende Aktivität"><span class="chip" style="align-self: flex-start">Gewerbe · läuft</span><b style="font-size: 14px">Kundenprojekt</b><span class="time num">1:01:12</span><button class="btn btn-primary" type="button"><svg class="ic ic-sm ic-fill"><use href="#i-stop"></use></svg>Beenden</button></div>
+  </aside>
+  <main class="main">
+    <div class="wrap" style="max-width: 1260px; gap: 20px">
+      <header class="ph">
+        <div><p class="eyebrow">Wochenplan</p><h1 class="num">KW 42 · 12.–18.10.2026</h1></div>
+        <nav class="toolbar" aria-label="Woche wechseln">
+          <a class="btn btn-secondary" href="w02-wocheneditor.dc.html" aria-label="Vorwoche"><svg class="ic ic-sm"><use href="#i-chevron-left"></use></svg>Vorwoche</a>
+          <a class="btn btn-secondary" href="w02-wocheneditor.dc.html">Heute</a>
+          <a class="btn btn-secondary" href="w02-wocheneditor.dc.html">Folgewoche<svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></a>
+          <label class="sr" for="wk-date">Woche wählen</label><input id="wk-date" class="input num" type="date" value="2026-10-12" style="width: 170px">
+        </nav>
+      </header>
+      <div class="toolbar" aria-label="Versionen"><a class="vchip pub" href="w02-wocheneditor.dc.html">Version 1 · veröffentlicht</a><a class="vchip draft on" href="w02-wocheneditor.dc.html" aria-current="page">Version 2 · Entwurf</a></div>
+      <div class="banner draft" style="align-items: center"><svg class="ic" style="color: var(--warning)"><use href="#i-pencil"></use></svg><div style="flex: 1"><b>Entwurf · Version 2</b>Noch nicht in der App sichtbar. Änderungen werden sofort im Entwurf gespeichert.</div><div class="toolbar"><button class="btn btn-secondary" type="button"><svg class="ic ic-sm"><use href="#i-plus"></use></svg>Eintrag</button><button class="btn btn-primary" type="button"><svg class="ic ic-sm"><use href="#i-send"></use></svg>Veröffentlichen</button><button class="btn btn-danger" type="button">Verwerfen</button></div></div>
+      <div class="banner warn" role="status"><svg class="ic"><use href="#i-alert"></use></svg><div><b>1 Überschneidung</b>„Abendessen“ und „Gemeinsamer Abend“ überschneiden sich am Freitag (45 Min.). Erlaubt – bitte prüfen.</div></div>
+
+      <div class="wk" role="grid" aria-label="Woche als Zeitraster">
+        <div class="wk-corner"></div>
+        <div class="wk-h"><span class="dn">Mo</span><span class="dd">12</span><span class="sum">Gewerbe 2 h</span></div>
+        <div class="wk-h"><span class="dn">Di</span><span class="dd">13</span><span class="sum">Gewerbe 2 h · Sport</span></div>
+        <div class="wk-h today"><span class="dn">Mi · heute</span><span class="dd">14</span><span class="sum">Gewerbe 3 h</span></div>
+        <div class="wk-h"><span class="dn">Do</span><span class="dd">15</span><span class="sum">Gewerbe 2 h · Sport</span></div>
+        <div class="wk-h"><span class="dn">Fr</span><span class="dd">16</span><span class="sum">Gewerbe 4 h · Laila</span></div>
+        <div class="wk-h"><span class="dn">Sa</span><span class="dd">17</span><span class="sum">Sport · Laila 4 h</span></div>
+        <div class="wk-h"><span class="dn">So</span><span class="dd">18</span><span class="sum">Gewerbe 3 h</span></div>
+        <div class="wk-hours" aria-hidden="true"><div>06:00</div><div>07:00</div><div>08:00</div><div>09:00</div><div>10:00</div><div>11:00</div><div>12:00</div><div>13:00</div><div>14:00</div><div>15:00</div><div>16:00</div><div>17:00</div><div>18:00</div><div>19:00</div><div>20:00</div><div>21:00</div><div>22:00</div></div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 10px; height: 20px"><b>Duschen</b></a>
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 430px; height: 20px"><b>Einkaufen</b></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 460px; height: 78px"><b>Kundenprojekt</b><span>17:30–19:30</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 550px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-relationship" href="w04-block.dc.html" style="top: 580px; height: 58px"><b>Gemeinsamer Abend</b><span>20:30–22:00</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 440px; height: 48px"><b>Krafttraining</b><span>17:00–18:15</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 500px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 540px; height: 78px"><b>Kundenprojekt</b><span>19:30–21:30</span></a>
+        </div>
+        <div class="wk-col today" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 440px; height: 118px"><b>Kundenprojekt</b><span>17:00–20:00</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 560px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 600px; height: 38px"><b>Freizeit</b><span>21:00–22:00</span></a>
+          <span class="wk-now" style="top: 483px" aria-label="Jetzt 18:05"></span>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 440px; height: 48px"><b>Krafttraining</b><span>17:00–18:15</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 510px; height: 78px"><b>Kundenprojekt</b><span>18:45–20:45</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 238px"><b>Dienst Bundeswehr</b><span>07:00–13:00</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 320px; height: 158px"><b>Kundenprojekt</b><span>14:00–18:00</span></a>
+          <a class="wb g-relationship warn" href="w04-block.dc.html" style="top: 520px; height: 158px; right: 50%"><b>Gemeinsamer Abend</b><span>19:00–23:00</span></a>
+          <a class="wb g-neutral warn" href="w04-block.dc.html" style="top: 520px; height: 28px; left: 52%"><b>Abendessen</b></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 160px; height: 48px"><b>Krafttraining</b><span>10:00–11:15</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 240px; height: 38px"><b>Einkaufen</b><span>12:00–13:00</span></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 320px; height: 118px"><b>Freizeit</b><span>14:00–17:00</span></a>
+          <a class="wb g-relationship" href="w04-block.dc.html" style="top: 480px; height: 158px"><b>Gemeinsamer Abend</b><span>18:00–22:00</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 160px; height: 118px"><b>Kundenprojekt</b><span>10:00–13:00</span></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 320px; height: 158px"><b>Freizeit</b><span>14:00–18:00</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 500px; height: 38px"><b>Abendessen</b><span>18:30–19:30</span></a>
+        </div>
+      </div>
+      <p class="subtle" style="font-size: 13px">Block öffnen per Klick oder mit <span class="kbd">Tab</span> + <span class="kbd">Enter</span>. Zeiten änderst du im Bearbeitungsbereich – schrittweise oder per Eingabe. Kein Ziehen nötig.</p>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

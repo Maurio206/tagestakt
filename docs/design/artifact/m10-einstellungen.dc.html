@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Einstellungen</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.li .ic{color:var(--text-2)}
+.li.g-business .ic,.li.g-sport .ic,.li.g-relationship .ic{color:var(--g)}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.27 21a2 2 0 0 0 3.46 0"></path><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"></path></symbol>
+<symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"></path><path d="M14 13.12c0 2.38 0 6.38-1 8.88"></path><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"></path><path d="M2 12a10 10 0 0 1 18-6"></path><path d="M2 16h.01"></path><path d="M21.8 16c.2-2 .13-5.35 0-6"></path><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"></path><path d="M8.65 22c.21-.66.45-1.32.57-2"></path><path d="M9 6.8a6 6 0 0 1 9 5.2v2"></path></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar"><div><h1>Mehr</h1><p class="sub">Ziele, Erinnerungen, App-Sperre, Konto</p></div></header>
+  <main class="content" style="gap: 18px; padding-top: 8px">
+    <section class="section" aria-labelledby="s-ziele" style="gap: 8px">
+      <h2 id="s-ziele" class="eyebrow">Wochenziele</h2>
+      <div class="list">
+        <div class="li g-business"><svg class="ic"><use href="#i-briefcase"></use></svg><span class="grow">Gewerbe</span><span class="val num">20 h</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+        <div class="li g-sport"><svg class="ic"><use href="#i-dumbbell"></use></svg><span class="grow">Sport</span><span class="val num">3 h</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+        <div class="li g-relationship"><svg class="ic"><use href="#i-heart"></use></svg><span class="grow">Laila</span><span class="val">Nicht festgelegt</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+      </div>
+    </section>
+    <section class="section" aria-labelledby="s-erinnerungen" style="gap: 8px">
+      <h2 id="s-erinnerungen" class="eyebrow">Erinnerungen auf diesem Gerät</h2>
+      <div class="list">
+        <div class="li"><svg class="ic"><use href="#i-bell"></use></svg><span class="grow">Erinnerungen<small style="display: inline-flex; gap: 6px; align-items: center; color: var(--success)"><svg class="ic ic-sm"><use href="#i-check-circle"></use></svg>Systemberechtigung erteilt</small></span><span class="switch on" role="switch" aria-checked="true" aria-label="Erinnerungen"></span></div>
+        <div class="li"><span class="grow">Vorher erinnern</span><span class="val num">10 Min.</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+        <div class="li"><span class="grow">Zum Beginn</span><span class="switch on" role="switch" aria-checked="true" aria-label="Zum Beginn erinnern"></span></div>
+        <div class="li"><span class="grow">Wenn ein Zielblock nicht gestartet wurde<small>10 Minuten nach Beginn</small></span><span class="switch" role="switch" aria-checked="false" aria-label="Nicht gestartet"></span></div>
+        <div class="li"><span class="grow">Für</span><span class="val">Ziele, Dienst, Termine</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+        <div class="li"><span class="grow">Titel auf dem Sperrbildschirm<small>Aus: nur „Gewerbe in 10 Min.“</small></span><span class="switch" role="switch" aria-checked="false" aria-label="Titel anzeigen"></span></div>
+      </div>
+    </section>
+    <section class="section" aria-labelledby="s-sperre" style="gap: 8px">
+      <h2 id="s-sperre" class="eyebrow">App-Sperre</h2>
+      <div class="list">
+        <div class="li"><svg class="ic"><use href="#i-fingerprint"></use></svg><span class="grow">Mit Biometrie oder PIN sperren<small>Zusätzlich zur Anmeldung, nur auf diesem Gerät</small></span><span class="switch on" role="switch" aria-checked="true" aria-label="App-Sperre"></span></div>
+        <div class="li"><span class="grow">Sperren nach</span><span class="val">1 Min. im Hintergrund</span><svg class="ic ic-sm"><use href="#i-chevron-right"></use></svg></div>
+      </div>
+    </section>
+  </main>
+  <nav class="tabbar" aria-label="Hauptnavigation">
+    <a class="tab" href="m03-jetzt.dc.html"><span class="pill"><svg class="ic"><use href="#i-timer"></use></svg></span>Jetzt</a>
+    <a class="tab" href="m05-tag.dc.html"><span class="pill"><svg class="ic"><use href="#i-sun"></use></svg></span>Tag</a>
+    <a class="tab" href="m06-woche.dc.html"><span class="pill"><svg class="ic"><use href="#i-week"></use></svg></span>Woche</a>
+    <a class="tab active" href="m10-einstellungen.dc.html" aria-current="page"><span class="pill"><svg class="ic"><use href="#i-more"></use></svg></span>Mehr</a>
+  </nav>
+  <div class="inset-bottom"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

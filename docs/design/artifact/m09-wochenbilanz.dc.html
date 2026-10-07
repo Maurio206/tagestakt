@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wochenbilanz</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+.bt-row{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(4,minmax(0,1fr));gap:6px;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.bt-row.h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border-top:0;padding-top:0}
+.bt-row .n{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+.bt-row .n .ic{color:var(--g)}
+.bt-row .r{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m16 12-4-4-4 4M12 16V8"></path></symbol>
+<symbol id="i-minus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+</defs>
+</svg>
+<div class="phone">
+  <div class="inset-top"></div>
+  <header class="appbar" style="justify-content: flex-start">
+    <a class="icon-btn" href="m06-woche.dc.html" aria-label="Zurück"><svg class="ic"><use href="#i-chevron-left"></use></svg></a>
+    <div>
+      <h1 style="font-size: 22px">Wochenbilanz</h1>
+      <p class="sub num">KW 41 · 05.–11.10.2026 · abgeschlossen</p>
+    </div>
+  </header>
+  <main class="content" style="gap: 22px; padding-top: 8px">
+    <div class="seg"><span class="on">KW 41</span><span>KW 42 · läuft</span></div>
+    <p style="font-size: 17px; line-height: 1.5">Gewerbe lag <b class="num">2,5 h</b> unter dem Ziel. Sport lag <b class="num">1,5 h</b> darüber. Für Laila war kein Ziel festgelegt.</p>
+    <section aria-label="Bilanz je Ziel">
+      <div class="bt-row h"><span>Ziel</span><span class="r">Ziel</span><span class="r">Geplant</span><span class="r">Erfasst</span><span class="r">Diff.</span></div>
+      <div class="bt-row g-business"><span class="n"><svg class="ic ic-sm"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="r">20 h</span><span class="r">18 h</span><span class="r"><b>17,5 h</b></span><span class="r">−2,5 h</span></div>
+      <div class="bt-row g-sport"><span class="n"><svg class="ic ic-sm"><use href="#i-dumbbell"></use></svg>Sport</span><span class="r">3 h</span><span class="r">3,8 h</span><span class="r"><b>4,5 h</b></span><span class="r">+1,5 h</span></div>
+      <div class="bt-row g-relationship"><span class="n"><svg class="ic ic-sm"><use href="#i-heart"></use></svg>Laila</span><span class="r subtle">–</span><span class="r">8 h</span><span class="r"><b>7 h</b></span><span class="r subtle">–</span></div>
+    </section>
+    <section class="goals" aria-label="Verlauf">
+      <div class="goal g-business"><div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="status st-below" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-minus-circle"></use></svg>Unter Ziel</span></div><div class="gbar"><span class="plan" style="width: 82%"></span><span class="act" style="width: 80%"></span><span class="target" style="left: 91%"></span></div><p class="subtle num" style="font-size: 13px">97 % des Plans erfasst · 13 Sitzungen, 1 korrigiert</p></div>
+      <div class="goal g-sport"><div class="top"><span class="name"><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</span><span class="status st-over" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-up"></use></svg>Über Ziel</span></div><div class="gbar"><span class="plan" style="width: 76%"></span><span class="act" style="width: 91%"></span><span class="target" style="left: 61%"></span></div><p class="subtle num" style="font-size: 13px">3 Sitzungen · 1 spontan ohne Planblock</p></div>
+      <div class="goal g-relationship"><div class="top"><span class="name"><svg class="ic"><use href="#i-heart"></use></svg>Laila</span><span class="status st-unset" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Kein Ziel</span></div><div class="gbar unset"><span class="plan" style="width: 91%"></span><span class="act" style="width: 80%"></span></div><p class="subtle num" style="font-size: 13px">7 h von 8 h geplanter Zeit erfasst</p></div>
+    </section>
+    <p class="subtle" style="font-size: 13px; line-height: 1.5">Geplante Zeit zählt nie als erfasst. Erfasst wird nur, was mit „Fokus starten“ aufgezeichnet oder nachgetragen wurde.</p>
+  </main>
+  <div class="inset-bottom" style="background: transparent"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
