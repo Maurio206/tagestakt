@@ -5,7 +5,9 @@ import {
   getWeekStart,
   idSchema,
   localDateSchema,
+  recurringCommitmentBatchInputSchema,
   recurringCommitmentInputSchema,
+  splitRecurringBatch,
 } from "@tagestakt/schedule-schema";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,6 +26,7 @@ import {
   applyRecurringToWeek,
   createRecurring,
   deleteRecurring,
+  duplicateRecurring,
   setRecurringActive,
   updateRecurring,
 } from "../data/recurring";
@@ -48,18 +51,57 @@ function recurringInput(formData: FormData) {
   };
 }
 
+const WORKDAYS = ["1", "2", "3", "4", "5"];
+
+/** Wochentage aus Mehrfachauswahl; „Werktage“ ergänzt Montag bis Freitag. */
+function selectedWeekdays(formData: FormData): string[] {
+  const days = formData.getAll("weekdays").filter((v): v is string => typeof v === "string");
+  return readCheckbox(formData, "workdays") ? [...days, ...WORKDAYS] : days;
+}
+
 export async function createRecurringAction(
   _state: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const values = formValues(formData);
+  const values = formValues(formData, ["weekdays"]);
+  values.weekdays = selectedWeekdays(formData).join(",");
   return handleAction(async () => {
-    const parsed = recurringCommitmentInputSchema.safeParse(recurringInput(formData));
+    const input = recurringInput(formData);
+    const parsed = recurringCommitmentBatchInputSchema.safeParse({
+      title: input.title,
+      category: input.category,
+      weekdays: selectedWeekdays(formData),
+      startTime: input.startTime,
+      endTime: input.endTime,
+      location: input.location,
+      note: input.note,
+      active: input.active,
+    });
     if (!parsed.success) return validationError(parsed.error, values);
-    await createRecurring(parsed.data);
+    const items = splitRecurringBatch(parsed.data);
+    await createRecurring(items);
     revalidatePath("/wiederholungen");
-    return { status: "success", message: `„${parsed.data.title}“ wurde angelegt.` };
+    return {
+      status: "success",
+      message:
+        items.length === 1
+          ? `„${parsed.data.title}“ wurde angelegt.`
+          : `„${parsed.data.title}“ wurde für ${items.length} Wochentage angelegt.`,
+    };
   }, values);
+}
+
+export async function duplicateRecurringAction(id: string): Promise<ActionState> {
+  let createdId: string | undefined;
+  const result = await handleAction(async () => {
+    createdId = await duplicateRecurring(parseId(id));
+    revalidatePath("/wiederholungen");
+    return { status: "success" };
+  });
+  if (result.status === "success" && createdId) {
+    redirect(`/wiederholungen?bearbeiten=${createdId}`);
+  }
+  return result;
 }
 
 export async function updateRecurringAction(

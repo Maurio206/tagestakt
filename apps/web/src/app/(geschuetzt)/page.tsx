@@ -1,81 +1,81 @@
 import {
-  type ScheduleEntry,
   addDays,
-  formatDuration,
   formatLocalDateLong,
+  formatLocalDateShort,
   formatTime,
   formatTimeRange,
   formatWeekLabel,
-  getBusinessProgress,
   getCurrentEntry,
   getNextEntry,
-  getRemainingMinutes,
+  getWeekBounds,
+  getWeekGoals,
   getWeekStart,
+  sortEntries,
   toLocalDate,
 } from "@tagestakt/schedule-schema";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { BusinessProgress } from "@/components/business-progress";
 import { CategoryBadge } from "@/components/category-badge";
-import { weekPlanPath } from "@/lib/paths";
+import { GoalLegend, GoalList } from "@/components/goal-progress";
+import { Notice } from "@/components/notice";
+import { NowPanel, type NowPanelActions } from "@/components/now-panel";
+import { evaluationPath, weekPlanPath } from "@/lib/paths";
+import {
+  discardActivityAction,
+  startActivityAction,
+  stopActivityAction,
+  switchActivityAction,
+} from "@/server/actions/activity";
+import { setCompletionAction } from "@/server/actions/schedule";
+import { getRunningSession, listSessions } from "@/server/data/activity";
 import { getPublishedWeeks, listWeekVersions } from "@/server/data/schedule";
 import { getSettings } from "@/server/data/settings";
 
 export const metadata: Metadata = { title: "Übersicht" };
 
-function EntrySummary({
-  entry,
-  now,
-  label,
-  headingId,
-}: {
-  entry: ScheduleEntry;
-  now: Date;
-  label: string;
-  headingId: string;
-}) {
-  const isToday = toLocalDate(new Date(entry.start_at)) === toLocalDate(now);
-  return (
-    <div className="stack-tight">
-      <h2 id={headingId} className="eyebrow">
-        {label}
-      </h2>
-      <p className="now-title">{entry.title}</p>
-      <p className="now-meta">
-        <CategoryBadge category={entry.category} />
-        <span>
-          {isToday ? "" : `${formatLocalDateLong(toLocalDate(new Date(entry.start_at)))}, `}
-          {formatTimeRange(entry.start_at, entry.end_at)}
-        </span>
-      </p>
-      {entry.location ? <p className="muted">Ort: {entry.location}</p> : null}
-    </div>
-  );
-}
+const nowActions: NowPanelActions = {
+  start: (goal, entryId) => startActivityAction.bind(null, goal, entryId),
+  stop: (sessionId) => stopActivityAction.bind(null, sessionId),
+  discard: (sessionId) => discardActivityAction.bind(null, sessionId),
+  switchTo: (runningId, goal, entryId) => switchActivityAction.bind(null, runningId, goal, entryId),
+  setCompletion: (entryId, status) => setCompletionAction.bind(null, entryId, status),
+};
 
 export default async function DashboardPage() {
   const now = new Date();
   const weekStart = getWeekStart(now);
-  const [publishedWeeks, settings, versions] = await Promise.all([
-    getPublishedWeeks([weekStart, addDays(weekStart, 7)]),
+  const bounds = getWeekBounds(weekStart);
+  const [publishedWeeks, settings, versions, sessions, running] = await Promise.all([
+    // Vorwoche für Blöcke über Mitternacht (Sonntag → Montag)
+    getPublishedWeeks([addDays(weekStart, -7), weekStart, addDays(weekStart, 7)]),
     getSettings(),
     listWeekVersions(weekStart),
+    listSessions(bounds.start, bounds.end),
+    getRunningSession(),
   ]);
 
   const currentWeek = publishedWeeks.find((w) => w.week_start === weekStart);
-  const entries = publishedWeeks.flatMap((w) => w.schedule_entries);
+  const entries = sortEntries(publishedWeeks.flatMap((w) => w.schedule_entries));
   const current = getCurrentEntry(entries, now);
+  const upcoming = entries.filter((e) => Date.parse(e.start_at) > now.getTime()).slice(0, 3);
   const next = getNextEntry(entries, now);
-  const progress = getBusinessProgress(
-    currentWeek?.schedule_entries ?? [],
-    settings.weeklyBusinessTargetMinutes,
+  const trackedEntryIds = new Set(
+    sessions.map((s) => s.schedule_entry_id).filter((id): id is string => id !== null),
   );
+  const goals = getWeekGoals({
+    targets: settings.goalTargets,
+    entries: currentWeek?.schedule_entries ?? [],
+    sessions,
+    weekStart,
+    now,
+  });
   const draft = versions.find((v) => v.status === "draft");
+  const today = toLocalDate(now);
 
   return (
-    <div className="stack-loose">
+    <>
       <AutoRefresh intervalSeconds={60} />
       <header className="page-header">
         <div>
@@ -83,83 +83,91 @@ export default async function DashboardPage() {
           <h1>Übersicht</h1>
         </div>
         <p className="muted" aria-live="polite">
-          Stand {formatTime(now)} Uhr · {formatLocalDateLong(toLocalDate(now))}
+          {formatLocalDateLong(today)} · Stand {formatTime(now)} Uhr
         </p>
       </header>
 
       {!currentWeek ? (
-        <section className="notice notice--info">
-          Für diese Woche ist noch kein Plan veröffentlicht.{" "}
-          <Link href={weekPlanPath(weekStart)}>Zum Wocheneditor</Link>
-        </section>
+        <Notice tone="info" title="Für diese Woche ist noch kein Plan veröffentlicht.">
+          <p>
+            <Link href={weekPlanPath(weekStart)}>Zum Wochenplan</Link> – Entwurf anlegen oder
+            Wiederholungen übernehmen.
+          </p>
+        </Notice>
       ) : null}
 
+      <section aria-label="Jetzt">
+        <NowPanel
+          now={now}
+          running={running}
+          current={current}
+          next={next}
+          trackedEntryIds={trackedEntryIds}
+          actions={nowActions}
+        />
+      </section>
+
       <div className="grid-2">
-        <section className="card now-card" aria-labelledby="jetzt-titel">
-          {current ? (
-            <>
-              <EntrySummary entry={current} now={now} label="Jetzt" headingId="jetzt-titel" />
-              <p className="now-remaining">
-                noch {formatDuration(getRemainingMinutes(current, now))}
-              </p>
-            </>
+        <section className="section" aria-labelledby="naechstes-titel">
+          <div className="section-head">
+            <h2 id="naechstes-titel">Als Nächstes</h2>
+          </div>
+          {upcoming.length === 0 ? (
+            <p className="muted">Nichts mehr geplant.</p>
           ) : (
-            <div className="stack-tight">
-              <h2 id="jetzt-titel" className="eyebrow">
-                Jetzt
-              </h2>
-              <p className="now-title">Kein geplanter Block</p>
-            </div>
+            <ul className="list">
+              {upcoming.map((entry) => {
+                const date = toLocalDate(new Date(entry.start_at));
+                return (
+                  <li key={entry.id}>
+                    <span className="list-time">
+                      {date === today ? "" : `${formatLocalDateShort(date)} `}
+                      {formatTimeRange(entry.start_at, entry.end_at)}
+                    </span>
+                    <div className="list-main">
+                      <p className="list-title">{entry.title}</p>
+                      <div className="list-meta">
+                        <CategoryBadge category={entry.category} />
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
 
-        <section className="card" aria-labelledby="naechstes-titel">
-          {next ? (
-            <>
-              <EntrySummary
-                entry={next}
-                now={now}
-                label="Als Nächstes"
-                headingId="naechstes-titel"
-              />
-              <p className="muted">
-                beginnt in{" "}
-                {formatDuration(Math.ceil((Date.parse(next.start_at) - now.getTime()) / 60_000))}
-              </p>
-            </>
-          ) : (
-            <div className="stack-tight">
-              <h2 id="naechstes-titel" className="eyebrow">
-                Als Nächstes
-              </h2>
-              <p className="now-title">Nichts mehr geplant</p>
-            </div>
-          )}
+        <section className="section" aria-labelledby="ziele-titel">
+          <div className="section-head">
+            <h2 id="ziele-titel">Diese Woche</h2>
+            <Link href={evaluationPath(weekStart)} className="small">
+              Zur Auswertung
+            </Link>
+          </div>
+          <GoalLegend />
+          <GoalList goals={goals} />
         </section>
       </div>
 
-      <section className="card stack" aria-labelledby="gewerbe-titel">
-        <h2 id="gewerbe-titel">Gewerbe diese Woche</h2>
-        <BusinessProgress progress={progress} />
-      </section>
-
-      <section className="card stack" aria-labelledby="planung-titel">
-        <h2 id="planung-titel">Planung</h2>
-        <p>
+      <section className="section" aria-labelledby="planung-titel">
+        <div className="section-head">
+          <h2 id="planung-titel">Planung</h2>
+        </div>
+        <p className="muted">
           {currentWeek
             ? `Veröffentlicht ist Version ${currentWeek.version} dieser Woche.`
             : "Diese Woche hat noch keine veröffentlichte Version."}{" "}
           {draft ? `Es gibt einen unveröffentlichten Entwurf (Version ${draft.version}).` : ""}
         </p>
         <div className="button-row">
-          <Link className="button button--primary" href={weekPlanPath(weekStart)}>
+          <Link className="btn btn--secondary" href={weekPlanPath(weekStart)}>
             Diese Woche bearbeiten
           </Link>
-          <Link className="button button--secondary" href={weekPlanPath(addDays(weekStart, 7))}>
+          <Link className="btn btn--secondary" href={weekPlanPath(addDays(weekStart, 7))}>
             Nächste Woche planen
           </Link>
         </div>
       </section>
-    </div>
+    </>
   );
 }

@@ -92,7 +92,7 @@ export function EntryForm({
             defaultValue={v("endTime")}
           />
         </Field>
-        <div className="field field--checkbox">
+        <div className="check">
           <input
             id={id("endsNextDay")}
             name="endsNextDay"
@@ -108,7 +108,7 @@ export function EntryForm({
             defaultValue={v("location")}
           />
         </Field>
-        <Field label="Notiz (optional)" id={id("note")} name="note" state={state}>
+        <Field label="Notiz (optional)" id={id("note")} name="note" state={state} wide>
           <textarea
             {...fieldProps(state, id("note"), "note")}
             rows={2}
@@ -120,7 +120,7 @@ export function EntryForm({
       <div className="button-row">
         <SubmitButton>{submitLabel}</SubmitButton>
         {cancelHref ? (
-          <Link href={cancelHref} className="button button--ghost">
+          <Link href={cancelHref} className="btn btn--ghost">
             Abbrechen
           </Link>
         ) : null}

@@ -1,13 +1,23 @@
 "use client";
 
+import { OctagonAlert } from "lucide-react";
+
 export default function ProtectedError({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="card stack" role="alert">
-      <h1>Etwas ist schiefgelaufen</h1>
-      <p>Die Daten konnten nicht geladen werden. Bitte erneut versuchen.</p>
-      <button type="button" className="button button--secondary" onClick={reset}>
-        Erneut versuchen
-      </button>
+    <div className="notice notice--error" role="alert">
+      <OctagonAlert size={20} strokeWidth={1.9} aria-hidden="true" className="icon" />
+      <div className="notice-body">
+        <h1 className="notice-title">Die Daten konnten nicht geladen werden</h1>
+        <p>
+          Vermutlich ist die Verbindung zum Server kurz unterbrochen. Deine Daten sind nicht
+          verloren. Bitte erneut versuchen.
+        </p>
+        <div className="button-row">
+          <button type="button" className="btn btn--secondary" onClick={reset}>
+            Erneut versuchen
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

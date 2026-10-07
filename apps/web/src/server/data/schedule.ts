@@ -3,11 +3,13 @@ import "server-only";
 import {
   type CompletionStatus,
   type LocalDate,
+  type ScheduleEntry,
   type ScheduleEntryInputParsed,
   type ScheduleWeek,
   type ScheduleWeekWithEntries,
   formatWeekLabel,
   isEntryWithinWeek,
+  scheduleEntryRowSchema,
   scheduleWeekRowSchema,
   scheduleWeekWithEntriesSchema,
   sortEntries,
@@ -223,4 +225,41 @@ export async function addEntriesToDraft(
   });
   if (error) throw toUserFacingError("Einträge übernehmen", error);
   return data ?? 0;
+}
+
+export async function getEntry(entryId: string): Promise<ScheduleEntry> {
+  const { supabase } = await authorizedClient();
+  const { data, error } = await supabase
+    .from("schedule_entries")
+    .select("*")
+    .eq("id", entryId)
+    .maybeSingle();
+  if (error) throw toUserFacingError("Eintrag laden", error);
+  if (!data) throw new UserFacingError("Eintrag nicht gefunden.");
+  return scheduleEntryRowSchema.parse(data);
+}
+
+/**
+ * Setzt Beginn und Ende eines Blocks (Verschieben, Dauer ändern, Rückgängig).
+ * Nur im Entwurf; der Block muss in seiner Woche beginnen und höchstens 24 h dauern.
+ */
+export async function setEntryTimes(
+  entryId: string,
+  startAt: string,
+  endAt: string,
+): Promise<void> {
+  const week = await requireDraft(await getEntryWeekId(entryId));
+  if (!isEntryWithinWeek({ start_at: startAt, end_at: endAt }, week.week_start)) {
+    throw new UserFacingError(
+      `Der Block muss in der gewählten Woche (${formatWeekLabel(week.week_start)}) beginnen und höchstens 24 Stunden dauern.`,
+    );
+  }
+  const { supabase } = await authorizedClient();
+  const { data, error } = await supabase
+    .from("schedule_entries")
+    .update({ start_at: startAt, end_at: endAt })
+    .eq("id", entryId)
+    .select("id");
+  if (error) throw toUserFacingError("Eintrag verschieben", error);
+  if (!data || data.length === 0) throw new UserFacingError("Eintrag nicht gefunden.");
 }

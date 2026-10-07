@@ -50,10 +50,5 @@ export function validationError(error: z.ZodError, values: Record<string, string
   };
 }
 
-/** „20“, „20,5“ oder „20.5“ Stunden → Minuten; ungültig → NaN. */
-export function hoursToMinutes(input: string | undefined): number {
-  if (input === undefined) return Number.NaN;
-  const normalized = input.trim().replace(",", ".");
-  if (!/^\d+(\.\d+)?$/.test(normalized)) return Number.NaN;
-  return Math.round(Number(normalized) * 60);
-}
+/** Server Action mit Formularzustand (für `useActionState`). Komponenten erhalten sie als Prop. */
+export type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;

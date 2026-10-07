@@ -4,6 +4,7 @@ import {
   type LocalDate,
   type RecurringCommitment,
   type RecurringCommitmentInputParsed,
+  TITLE_MAX_LENGTH,
   expandRecurringCommitments,
   formatWeekLabel,
   recurringCommitmentRowSchema,
@@ -44,10 +45,45 @@ function toColumns(input: RecurringCommitmentInputParsed) {
   };
 }
 
-export async function createRecurring(input: RecurringCommitmentInputParsed): Promise<void> {
+/** Legt eine oder mehrere Wiederholungen (z. B. je Werktag) in einem Schritt an. */
+export async function createRecurring(
+  inputs: readonly RecurringCommitmentInputParsed[],
+): Promise<void> {
   const { supabase } = await authorizedClient();
-  const { error } = await supabase.from("recurring_commitments").insert(toColumns(input));
+  const { error } = await supabase.from("recurring_commitments").insert(inputs.map(toColumns));
   if (error) throw toUserFacingError("Wiederholung anlegen", error);
+}
+
+/** Kopie einer Wiederholung (gleicher Wochentag); gibt die neue ID zurück. */
+export async function duplicateRecurring(id: string): Promise<string> {
+  const { supabase } = await authorizedClient();
+  const { data, error } = await supabase
+    .from("recurring_commitments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw toUserFacingError("Wiederholung laden", error);
+  if (!data) throw new UserFacingError("Wiederholung nicht gefunden.");
+  const item = recurringCommitmentRowSchema.parse(data);
+  const suffix = " (Kopie)";
+  const title =
+    item.title.length + suffix.length <= TITLE_MAX_LENGTH ? item.title + suffix : item.title;
+  const { data: created, error: insertError } = await supabase
+    .from("recurring_commitments")
+    .insert({
+      title,
+      category: item.category,
+      weekday: item.weekday,
+      start_time: item.start_time,
+      end_time: item.end_time,
+      location: item.location,
+      note: item.note,
+      active: item.active,
+    })
+    .select("id")
+    .single();
+  if (insertError) throw toUserFacingError("Wiederholung duplizieren", insertError);
+  return created.id;
 }
 
 export async function updateRecurring(

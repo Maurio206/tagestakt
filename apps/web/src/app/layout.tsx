@@ -1,3 +1,6 @@
+import { palettes } from "@tagestakt/design-tokens";
+import { GeistMono } from "geist/font/mono";
+import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { type ReactNode } from "react";
@@ -20,8 +23,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: "dark light",
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#11151b" },
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: palettes.dark.bg },
+    { media: "(prefers-color-scheme: light)", color: palettes.light.bg },
   ],
 };
 
@@ -29,7 +32,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Jede Seite wird pro Request gerendert (CSP-Nonce, Anmeldestatus, keine geteilten Caches).
   await connection();
   return (
-    <html lang="de">
+    <html lang="de" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

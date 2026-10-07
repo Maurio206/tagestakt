@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { loginErrorMessage } from "./auth-messages";
 import { getPublicEnv, looksLikeSecretKey } from "./env";
-import { formValues, hoursToMinutes } from "./form";
-import { NOTICES, noticeText, weekPlanPath } from "./paths";
+import { formValues } from "./form";
+import { NOTICES, evaluationPath, noticeText, parseUndoTimes, weekPlanPath } from "./paths";
 import {
   STATIC_SECURITY_HEADERS,
   buildContentSecurityPolicy,
@@ -61,15 +61,6 @@ describe("Schlüsselprüfung", () => {
 });
 
 describe("Formularhilfen", () => {
-  it("rechnet Stunden in Minuten um", () => {
-    expect(hoursToMinutes("20")).toBe(1200);
-    expect(hoursToMinutes("17,5")).toBe(1050);
-    expect(hoursToMinutes("0.25")).toBe(15);
-    expect(hoursToMinutes("zwanzig")).toBeNaN();
-    expect(hoursToMinutes("-3")).toBeNaN();
-    expect(hoursToMinutes(undefined)).toBeNaN();
-  });
-
   it("gibt Passwörter nie zurück", () => {
     const data = new FormData();
     data.set("email", "demo@tagestakt.test");
@@ -103,5 +94,33 @@ describe("Pfade", () => {
     );
     expect(noticeText("veroeffentlicht")).toBe(NOTICES.veroeffentlicht);
     expect(noticeText("<script>")).toBeUndefined();
+  });
+
+  it("baut Rückgängig-Parameter und liest sie nur gültig zurück", () => {
+    const path = weekPlanPath("2026-10-12", {
+      versionId: "v",
+      editEntryId: "e",
+      notice: "verschoben",
+      undo: {
+        entryId: "e",
+        startAt: "2026-10-12T15:00:00.000Z",
+        endAt: "2026-10-12T17:00:00.000Z",
+      },
+    });
+    const params = new URL(path, "http://localhost").searchParams;
+    expect(params.get("rueckgaengig")).toBe("e");
+    expect(parseUndoTimes(params.get("vorher") ?? undefined)).toEqual({
+      startAt: "2026-10-12T15:00:00.000Z",
+      endAt: "2026-10-12T17:00:00.000Z",
+    });
+    expect(parseUndoTimes("kaputt")).toBeUndefined();
+    expect(parseUndoTimes("2026-10-12T15:00:00Z_nein")).toBeUndefined();
+    expect(parseUndoTimes("a_b_c")).toBeUndefined();
+  });
+
+  it("verlinkt die Auswertung mit Korrektur", () => {
+    expect(evaluationPath("2026-10-12", { correctId: "abc" })).toBe(
+      "/auswertung?woche=2026-10-12&korrigieren=abc",
+    );
   });
 });

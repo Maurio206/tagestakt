@@ -1,14 +1,17 @@
 "use server";
 
 import {
+  adjustEntryTimes,
   completionStatusSchema,
   idSchema,
   planningNoteSchema,
   scheduleEntryInputSchema,
+  timestampSchema,
   weekStartSchema,
 } from "@tagestakt/schedule-schema";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 import {
   type ActionState,
@@ -24,9 +27,11 @@ import {
   createEntry,
   deleteDraft,
   deleteEntry,
+  getEntry,
   getOrCreateDraft,
   publishDraft,
   setEntryCompletion,
+  setEntryTimes,
   updateEntry,
   updatePlanningNote,
 } from "../data/schedule";
@@ -176,6 +181,77 @@ export async function deleteDraftAction(weekId: string, weekStart: string): Prom
   });
   if (result.status === "success") {
     redirect(weekPlanPath(weekStart, { notice: "verworfen" }));
+  }
+  return result;
+}
+
+const NUDGE_STEPS = new Set([-30, -15, 15, 30]);
+
+/** Verschieben (±15/±30) bzw. Dauer ändern – mit „Rückgängig“ über die vorherigen Zeiten. */
+export async function nudgeEntryAction(
+  entryId: string,
+  weekStart: string,
+  versionId: string,
+  kind: "move" | "resize",
+  minutes: number,
+): Promise<ActionState> {
+  let undo: { entryId: string; startAt: string; endAt: string } | undefined;
+  const result = await handleAction(async () => {
+    const id = parseId(entryId);
+    parseId(versionId);
+    parseWeekStart(weekStart);
+    if (!NUDGE_STEPS.has(minutes) || (kind !== "move" && kind !== "resize")) {
+      throw new UserFacingError("Ungültige Anfrage.");
+    }
+    const entry = await getEntry(id);
+    const adjusted = adjustEntryTimes(
+      entry,
+      kind === "move" ? { moveMinutes: minutes } : { resizeMinutes: minutes },
+    );
+    if (!adjusted.ok) throw new UserFacingError(adjusted.message);
+    await setEntryTimes(id, adjusted.start_at, adjusted.end_at);
+    undo = { entryId: id, startAt: entry.start_at, endAt: entry.end_at };
+    revalidatePath("/wochenplan");
+    revalidatePath("/");
+    return { status: "success" };
+  });
+  if (result.status === "success" && undo) {
+    redirect(
+      weekPlanPath(weekStart, {
+        versionId,
+        editEntryId: undo.entryId,
+        notice: "verschoben",
+        undo,
+      }),
+    );
+  }
+  return result;
+}
+
+/** „Rückgängig“: stellt die vorherigen Zeiten eines Blocks wieder her. */
+export async function restoreEntryTimesAction(
+  entryId: string,
+  weekStart: string,
+  versionId: string,
+  startAt: string,
+  endAt: string,
+): Promise<ActionState> {
+  const result = await handleAction(async () => {
+    const id = parseId(entryId);
+    parseId(versionId);
+    parseWeekStart(weekStart);
+    const times = z.object({ startAt: timestampSchema, endAt: timestampSchema }).safeParse({
+      startAt,
+      endAt,
+    });
+    if (!times.success) throw new UserFacingError("Ungültige Anfrage.");
+    await setEntryTimes(id, times.data.startAt, times.data.endAt);
+    revalidatePath("/wochenplan");
+    revalidatePath("/");
+    return { status: "success" };
+  });
+  if (result.status === "success") {
+    redirect(weekPlanPath(weekStart, { versionId, editEntryId: entryId, notice: "rueckgaengig" }));
   }
   return result;
 }

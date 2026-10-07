@@ -5,17 +5,19 @@ import {
   ENTRY_CATEGORIES,
   ISO_WEEKDAYS,
   WEEKDAY_LABELS,
+  WEEKDAY_SHORT_LABELS,
 } from "@tagestakt/schedule-schema";
 import Link from "next/link";
 import { useActionState } from "react";
 
 import { type ActionState, initialActionState } from "@/lib/form";
 
-import { Field, FormMessage, SubmitButton, fieldProps } from "./ui";
+import { Field, FieldError, FormMessage, SubmitButton, fieldProps } from "./ui";
 
 export interface RecurringFormDefaults {
   title: string;
   category: string;
+  /** Bearbeiten: ein Wochentag. Neu anlegen: kommagetrennte Liste (z. B. „1,2,3,4,5“). */
   weekday: string;
   startTime: string;
   endTime: string;
@@ -30,12 +32,15 @@ export function RecurringForm({
   submitLabel,
   idPrefix,
   cancelHref,
+  multipleWeekdays = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   defaults: RecurringFormDefaults;
   submitLabel: string;
   idPrefix: string;
   cancelHref?: string;
+  /** Neue Wiederholung für mehrere Wochentage auf einmal anlegen. */
+  multipleWeekdays?: boolean;
 }) {
   const [state, formAction] = useActionState(action, initialActionState);
   // Nach einem Fehler neu mounten, damit auch <select>/Radio-Felder die Eingaben behalten
@@ -46,6 +51,11 @@ export function RecurringForm({
   const id = (name: string) => `${idPrefix}-${name}`;
   const active =
     state.status === "error" && state.values ? state.values.active === "on" : defaults.active;
+  const selectedDays = new Set(
+    (state.status === "error" && state.values ? (state.values.weekdays ?? "") : defaults.weekday)
+      .split(",")
+      .filter(Boolean),
+  );
 
   return (
     <form key={formKey} action={formAction} className="entry-form" noValidate>
@@ -68,15 +78,43 @@ export function RecurringForm({
             ))}
           </select>
         </Field>
-        <Field label="Wochentag" id={id("weekday")} name="weekday" state={state}>
-          <select {...fieldProps(state, id("weekday"), "weekday")} defaultValue={v("weekday")}>
-            {ISO_WEEKDAYS.map((weekday) => (
-              <option key={weekday} value={weekday}>
-                {WEEKDAY_LABELS[weekday]}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {multipleWeekdays ? (
+          <fieldset
+            className="field field--wide"
+            aria-describedby={state.fieldErrors?.weekdays ? id("weekdays-error") : undefined}
+          >
+            <legend>Wochentage</legend>
+            <div className="choice-row">
+              {ISO_WEEKDAYS.map((weekday) => (
+                <label key={weekday} className="choice">
+                  <input
+                    type="checkbox"
+                    name="weekdays"
+                    value={weekday}
+                    defaultChecked={selectedDays.has(String(weekday))}
+                    aria-label={WEEKDAY_LABELS[weekday]}
+                  />
+                  <span aria-hidden="true">{WEEKDAY_SHORT_LABELS[weekday]}</span>
+                </label>
+              ))}
+            </div>
+            <div className="check">
+              <input type="checkbox" id={id("workdays")} name="workdays" />
+              <label htmlFor={id("workdays")}>Werktage (Montag bis Freitag)</label>
+            </div>
+            <FieldError state={state} name="weekdays" id={id("weekdays")} />
+          </fieldset>
+        ) : (
+          <Field label="Wochentag" id={id("weekday")} name="weekday" state={state}>
+            <select {...fieldProps(state, id("weekday"), "weekday")} defaultValue={v("weekday")}>
+              {ISO_WEEKDAYS.map((weekday) => (
+                <option key={weekday} value={weekday}>
+                  {WEEKDAY_LABELS[weekday]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Beginn" id={id("startTime")} name="startTime" state={state}>
           <input
             {...fieldProps(state, id("startTime"), "startTime")}
@@ -106,7 +144,7 @@ export function RecurringForm({
             defaultValue={v("location")}
           />
         </Field>
-        <Field label="Notiz (optional)" id={id("note")} name="note" state={state}>
+        <Field label="Notiz (optional)" id={id("note")} name="note" state={state} wide>
           <textarea
             {...fieldProps(state, id("note"), "note")}
             rows={2}
@@ -114,7 +152,7 @@ export function RecurringForm({
             defaultValue={v("note")}
           />
         </Field>
-        <div className="field field--checkbox">
+        <div className="check">
           <input id={id("active")} name="active" type="checkbox" defaultChecked={active} />
           <label htmlFor={id("active")}>Aktiv</label>
         </div>
@@ -122,7 +160,7 @@ export function RecurringForm({
       <div className="button-row">
         <SubmitButton>{submitLabel}</SubmitButton>
         {cancelHref ? (
-          <Link href={cancelHref} className="button button--ghost">
+          <Link href={cancelHref} className="btn btn--ghost">
             Abbrechen
           </Link>
         ) : null}

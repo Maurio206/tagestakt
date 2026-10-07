@@ -5,16 +5,32 @@ import { useFormStatus } from "react-dom";
 
 import { type ActionState } from "@/lib/form";
 
-/** Absende-Button mit Ladezustand. */
+import { Notice } from "./notice";
+
+export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+
+export function buttonClass(
+  variant: ButtonVariant = "secondary",
+  size: "md" | "lg" | "sm" = "md",
+  extra = "",
+): string {
+  return ["btn", `btn--${variant}`, size === "md" ? "" : `btn--${size}`, extra]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** Absende-Button mit Ladezustand und optionaler Rückfrage. */
 export function SubmitButton({
   children,
   pendingLabel = "Wird gespeichert …",
   variant = "primary",
+  size = "md",
   confirmMessage,
   ...rest
 }: ComponentProps<"button"> & {
   pendingLabel?: string;
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: ButtonVariant;
+  size?: "md" | "lg" | "sm";
   /** Fragt vor dem Absenden nach (z. B. Löschen, Veröffentlichen). */
   confirmMessage?: string;
 }) {
@@ -31,7 +47,7 @@ export function SubmitButton({
       type="submit"
       {...rest}
       onClick={onClick}
-      className={`button button--${variant} ${rest.className ?? ""}`}
+      className={buttonClass(variant, size, rest.className)}
       disabled={pending || rest.disabled}
       aria-busy={pending}
     >
@@ -43,12 +59,12 @@ export function SubmitButton({
 export function FormMessage({ state }: { state: ActionState }) {
   if (state.status === "idle" || !state.message) return null;
   return (
-    <p
-      className={`notice notice--${state.status === "error" ? "error" : "success"}`}
+    <Notice
+      tone={state.status === "error" ? "error" : "success"}
       role={state.status === "error" ? "alert" : "status"}
     >
       {state.message}
-    </p>
+    </Notice>
   );
 }
 
@@ -69,6 +85,7 @@ export function Field({
   state,
   children,
   hint,
+  wide = false,
 }: {
   label: string;
   id: string;
@@ -76,23 +93,37 @@ export function Field({
   state: ActionState;
   children: ReactNode;
   hint?: string;
+  wide?: boolean;
 }) {
   return (
-    <div className="field">
+    <div className={wide ? "field field--wide" : "field"}>
       <label htmlFor={id}>{label}</label>
       {children}
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      {hint ? (
+        <p className="field-hint" id={`${id}-hint`}>
+          {hint}
+        </p>
+      ) : null}
       <FieldError state={state} name={name} id={id} />
     </div>
   );
 }
 
 /** id, name und aria-Attribute für ein Formularfeld. */
-export function fieldProps(state: ActionState, id: string, name: string) {
+export function fieldProps(state: ActionState, id: string, name: string, hasHint = false) {
   const invalid = Boolean(state.fieldErrors?.[name]?.length);
+  const describedBy = [invalid ? `${id}-error` : "", hasHint ? `${id}-hint` : ""]
+    .filter(Boolean)
+    .join(" ");
   return {
     id,
     name,
-    ...(invalid ? { "aria-invalid": true as const, "aria-describedby": `${id}-error` } : {}),
+    ...(invalid ? { "aria-invalid": true as const } : {}),
+    ...(describedBy ? { "aria-describedby": describedBy } : {}),
   };
+}
+
+/** Wert eines Feldes: nach einem Fehler die Eingabe, sonst der Standardwert. */
+export function valueAfterError(state: ActionState, name: string, fallback: string): string {
+  return state.status === "error" && state.values ? (state.values[name] ?? "") : fallback;
 }

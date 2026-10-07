@@ -1,14 +1,14 @@
-import { CATEGORY_COLORS, CATEGORY_LABELS, type EntryCategory } from "@tagestakt/schedule-schema";
-import { type CSSProperties } from "react";
+import { categoryTone } from "@tagestakt/design-tokens";
+import { CATEGORY_LABELS, type EntryCategory } from "@tagestakt/schedule-schema";
 
-/** Kategorie als Text plus zurückhaltender Farbpunkt (Farbe ist nie alleiniger Informationsträger). */
+import { ToneIcon } from "./icons";
+
+/** Kategorie als Text plus Symbol in zurückhaltender Farbe (Farbe ist nie alleiniger Träger). */
 export function CategoryBadge({ category }: { category: EntryCategory }) {
+  const tone = categoryTone[category];
   return (
-    <span
-      className="category-badge"
-      style={{ "--category-color": CATEGORY_COLORS[category] } as CSSProperties}
-    >
-      <span className="category-dot" aria-hidden="true" />
+    <span className={`cat tone-${tone}`}>
+      <ToneIcon tone={tone} size={15} />
       {CATEGORY_LABELS[category]}
     </span>
   );

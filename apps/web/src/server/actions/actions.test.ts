@@ -12,24 +12,38 @@ const scheduleData = vi.hoisted(() => ({
   updateEntry: vi.fn(),
   deleteEntry: vi.fn(),
   deleteDraft: vi.fn(),
+  getEntry: vi.fn(),
   getOrCreateDraft: vi.fn(),
   publishDraft: vi.fn(),
   setEntryCompletion: vi.fn(),
+  setEntryTimes: vi.fn(),
   updatePlanningNote: vi.fn(),
 }));
 const recurringData = vi.hoisted(() => ({
   applyRecurringToWeek: vi.fn(),
   createRecurring: vi.fn(),
   deleteRecurring: vi.fn(),
+  duplicateRecurring: vi.fn(),
   setRecurringActive: vi.fn(),
   updateRecurring: vi.fn(),
 }));
-const settingsData = vi.hoisted(() => ({ saveWeeklyTarget: vi.fn() }));
+const settingsData = vi.hoisted(() => ({
+  saveGoalTargets: vi.fn(),
+  saveReminderSettings: vi.fn(),
+}));
+const activityData = vi.hoisted(() => ({
+  correctSession: vi.fn(),
+  createManualSession: vi.fn(),
+  deleteSession: vi.fn(),
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+}));
 const supabaseAuth = vi.hoisted(() => ({ signInWithPassword: vi.fn(), signOut: vi.fn() }));
 
 vi.mock("../data/schedule", () => scheduleData);
 vi.mock("../data/recurring", () => recurringData);
 vi.mock("../data/settings", () => settingsData);
+vi.mock("../data/activity", () => activityData);
 vi.mock("../supabase", () => ({
   createSupabaseServerClient: async () => ({ auth: supabaseAuth }),
 }));
@@ -44,9 +58,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { loginAction } = await import("./auth");
-const { createEntryAction, publishDraftAction, setCompletionAction } = await import("./schedule");
-const { applyRecurringAction } = await import("./recurring");
-const { saveSettingsAction } = await import("./settings");
+const { createEntryAction, nudgeEntryAction, publishDraftAction, setCompletionAction } =
+  await import("./schedule");
+const { applyRecurringAction, createRecurringAction } = await import("./recurring");
+const { saveGoalsAction, saveRemindersAction } = await import("./settings");
+const {
+  addManualActivityAction,
+  correctActivityAction,
+  startActivityAction,
+  stopActivityAction,
+  switchActivityAction,
+} = await import("./activity");
 const { UserFacingError } = await import("../errors");
 
 const WEEK_ID = "c9f0f895-fb98-4b91-9f5a-1c2d3e4f5a6b";
@@ -176,23 +198,236 @@ describe("applyRecurringAction", () => {
   });
 });
 
-describe("saveSettingsAction", () => {
-  it("speichert Stunden als Minuten", async () => {
-    const state = await saveSettingsAction(
+describe("saveGoalsAction", () => {
+  it("speichert Stunden als Minuten, leere Ziele als null", async () => {
+    const state = await saveGoalsAction(
       initialActionState,
-      form({ weeklyBusinessTargetHours: "17,5" }),
+      form({
+        weeklyBusinessTargetHours: "17,5",
+        weeklySportTargetHours: "",
+        weeklyRelationshipTargetHours: "1:30",
+      }),
     );
     expect(state.status).toBe("success");
-    expect(settingsData.saveWeeklyTarget).toHaveBeenCalledWith(1050);
+    expect(settingsData.saveGoalTargets).toHaveBeenCalledWith({
+      weeklyBusinessTargetMinutes: 1050,
+      weeklySportTargetMinutes: null,
+      weeklyRelationshipTargetMinutes: 90,
+    });
   });
 
-  it("lehnt ungültige Werte ab", async () => {
-    const state = await saveSettingsAction(
+  it("speichert ein leeres Gewerbeziel als 0 (kein Ziel)", async () => {
+    await saveGoalsAction(initialActionState, form({ weeklyBusinessTargetHours: "" }));
+    expect(settingsData.saveGoalTargets).toHaveBeenCalledWith(
+      expect.objectContaining({ weeklyBusinessTargetMinutes: 0 }),
+    );
+  });
+
+  it("markiert ungültige und zu große Werte am Feld", async () => {
+    const state = await saveGoalsAction(
+      initialActionState,
+      form({ weeklyBusinessTargetHours: "20", weeklySportTargetHours: "zwei" }),
+    );
+    expect(state.status).toBe("error");
+    expect(state.fieldErrors?.weeklySportTargetHours?.[0]).toContain("Stunden");
+    expect(settingsData.saveGoalTargets).not.toHaveBeenCalled();
+    const tooLarge = await saveGoalsAction(
       initialActionState,
       form({ weeklyBusinessTargetHours: "200" }),
     );
+    expect(tooLarge.fieldErrors?.weeklyBusinessTargetHours?.[0]).toContain("168");
+  });
+});
+
+describe("saveRemindersAction", () => {
+  it("speichert Vorlauf, Schalter und Umfang", async () => {
+    const state = await saveRemindersAction(
+      initialActionState,
+      form({ reminderMinutesBefore: "15", remindAtStart: "on", reminderScope: "goals" }),
+    );
+    expect(state.status).toBe("success");
+    expect(settingsData.saveReminderSettings).toHaveBeenCalledWith({
+      reminderMinutesBefore: 15,
+      remindAtStart: true,
+      remindIfNotStarted: false,
+      reminderScope: "goals",
+    });
+  });
+
+  it("lehnt einen unbekannten Umfang ab", async () => {
+    const state = await saveRemindersAction(
+      initialActionState,
+      form({ reminderMinutesBefore: "", reminderScope: "alles" }),
+    );
     expect(state.status).toBe("error");
-    expect(settingsData.saveWeeklyTarget).not.toHaveBeenCalled();
+    expect(settingsData.saveReminderSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("Zeiterfassung", () => {
+  const SESSION_ID = "6f1c2d3e-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
+
+  it("startet nur bekannte Ziele, die Zeit setzt der Server", async () => {
+    const rejected = await startActivityAction("duty", null);
+    expect(rejected.status).toBe("error");
+    expect(activityData.startSession).not.toHaveBeenCalled();
+
+    activityData.startSession.mockResolvedValueOnce({ title: "Kundenprojekt (Beispiel)" });
+    const state = await startActivityAction("business", ENTRY_ID);
+    expect(state).toMatchObject({
+      status: "success",
+      message: "„Kundenprojekt (Beispiel)“ läuft.",
+    });
+    expect(activityData.startSession).toHaveBeenCalledWith({
+      goal: "business",
+      title: null,
+      scheduleEntryId: ENTRY_ID,
+    });
+  });
+
+  it("zeigt die Meldung bei einer bereits laufenden Aktivität", async () => {
+    activityData.startSession.mockRejectedValueOnce(
+      new UserFacingError("Es läuft bereits eine Aktivität. Bitte zuerst beenden."),
+    );
+    const state = await startActivityAction("sport", null);
+    expect(state.message).toContain("bereits eine Aktivität");
+    // Ohne Planblock trägt die Aktivität den Zielnamen.
+    expect(activityData.startSession).toHaveBeenCalledWith({
+      goal: "sport",
+      title: "Sport",
+      scheduleEntryId: null,
+    });
+  });
+
+  it("wechselt: erst beenden, dann starten", async () => {
+    const order: string[] = [];
+    activityData.stopSession.mockImplementationOnce(async () => {
+      order.push("stop");
+      return { title: "Alt" };
+    });
+    activityData.startSession.mockImplementationOnce(async () => {
+      order.push("start");
+      return { title: "Neu" };
+    });
+    const state = await switchActivityAction(SESSION_ID, "sport", null);
+    expect(state.status).toBe("success");
+    expect(order).toEqual(["stop", "start"]);
+  });
+
+  it("beendet nur gültige IDs", async () => {
+    const state = await stopActivityAction("keine-uuid");
+    expect(state).toMatchObject({ status: "error", message: "Ungültige Anfrage." });
+    expect(activityData.stopSession).not.toHaveBeenCalled();
+  });
+
+  it("korrigiert in Ortszeit und leitet zur Auswertung zurück", async () => {
+    await expect(
+      correctActivityAction(
+        "2026-10-12",
+        initialActionState,
+        form({ sessionId: SESSION_ID, date: "2026-10-05", startTime: "17:00", endTime: "18:30" }),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(activityData.correctSession).toHaveBeenCalledWith(
+      SESSION_ID,
+      new Date("2026-10-05T15:00:00Z"),
+      new Date("2026-10-05T16:30:00Z"),
+    );
+  });
+
+  it("meldet Fehler beim Korrigieren am Feld", async () => {
+    const state = await correctActivityAction(
+      "2026-10-12",
+      initialActionState,
+      form({ sessionId: SESSION_ID, date: "2026-10-05", startTime: "18:00", endTime: "17:00" }),
+    );
+    expect(state.fieldErrors?.endTime?.[0]).toBe("Das Ende muss nach dem Beginn liegen");
+    expect(activityData.correctSession).not.toHaveBeenCalled();
+  });
+
+  it("trägt vergangene Zeit nach", async () => {
+    const state = await addManualActivityAction(
+      initialActionState,
+      form({
+        goal: "relationship",
+        title: "Spaziergang (Beispiel)",
+        date: "2026-10-05",
+        startTime: "18:00",
+        endTime: "19:00",
+      }),
+    );
+    expect(state.status).toBe("success");
+    expect(activityData.createManualSession).toHaveBeenCalledWith({
+      goal: "relationship",
+      title: "Spaziergang (Beispiel)",
+      startedAt: new Date("2026-10-05T16:00:00Z"),
+      endedAt: new Date("2026-10-05T17:00:00Z"),
+    });
+  });
+});
+
+describe("Verschieben im Wochenplan", () => {
+  const entry = {
+    id: ENTRY_ID,
+    start_at: "2026-10-12T15:00:00.000Z",
+    end_at: "2026-10-12T17:00:00.000Z",
+  };
+
+  it("verschiebt um 15 Minuten und bietet Rückgängig an", async () => {
+    scheduleData.getEntry.mockResolvedValueOnce(entry);
+    let redirectTarget = "";
+    try {
+      await nudgeEntryAction(ENTRY_ID, "2026-10-12", WEEK_ID, "move", 15);
+    } catch (error) {
+      redirectTarget = (error as { digest?: string }).digest ?? "";
+    }
+    expect(scheduleData.setEntryTimes).toHaveBeenCalledWith(
+      ENTRY_ID,
+      "2026-10-12T15:15:00.000Z",
+      "2026-10-12T17:15:00.000Z",
+    );
+    expect(redirectTarget).toContain("hinweis=verschoben");
+    expect(redirectTarget).toContain(`rueckgaengig=${ENTRY_ID}`);
+  });
+
+  it("akzeptiert nur feste Schritte", async () => {
+    const state = await nudgeEntryAction(ENTRY_ID, "2026-10-12", WEEK_ID, "move", 600);
+    expect(state.status).toBe("error");
+    expect(scheduleData.setEntryTimes).not.toHaveBeenCalled();
+  });
+
+  it("verhindert zu kurze Blöcke", async () => {
+    scheduleData.getEntry.mockResolvedValueOnce({ ...entry, end_at: "2026-10-12T15:15:00.000Z" });
+    const state = await nudgeEntryAction(ENTRY_ID, "2026-10-12", WEEK_ID, "resize", -15);
+    expect(state.message).toContain("mindestens");
+    expect(scheduleData.setEntryTimes).not.toHaveBeenCalled();
+  });
+});
+
+describe("createRecurringAction", () => {
+  it("legt eine Wiederholung je gewähltem Wochentag an (Werktage)", async () => {
+    const data = form({
+      title: "Dienst (Beispiel)",
+      category: "duty",
+      startTime: "07:00",
+      endTime: "16:30",
+      active: "on",
+      workdays: "on",
+    });
+    data.append("weekdays", "3");
+    const state = await createRecurringAction(initialActionState, data);
+    expect(state.message).toContain("5 Wochentage");
+    const items = recurringData.createRecurring.mock.calls[0]?.[0] as { weekday: number }[];
+    expect(items.map((i) => i.weekday)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("verlangt mindestens einen Wochentag", async () => {
+    const state = await createRecurringAction(
+      initialActionState,
+      form({ title: "x", category: "duty", startTime: "07:00", endTime: "08:00" }),
+    );
+    expect(state.fieldErrors?.weekdays?.[0]).toContain("Wochentag");
+    expect(recurringData.createRecurring).not.toHaveBeenCalled();
   });
 });
 

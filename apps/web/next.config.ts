@@ -16,8 +16,9 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: monorepoRoot,
   poweredByHeader: false,
   reactStrictMode: true,
-  // Das gemeinsame Paket wird als TypeScript-Quelltext eingebunden.
-  transpilePackages: ["@tagestakt/schedule-schema"],
+  // Gemeinsame Pakete werden als TypeScript-Quelltext eingebunden; geist liefert die
+  // selbst gehosteten Schriftdateien (keine Anfragen an Drittserver).
+  transpilePackages: ["@tagestakt/schedule-schema", "@tagestakt/design-tokens", "geist"],
   async headers() {
     return [
       {

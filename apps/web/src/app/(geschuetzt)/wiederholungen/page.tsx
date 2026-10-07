@@ -1,3 +1,4 @@
+import { categoryTone } from "@tagestakt/design-tokens";
 import {
   ISO_WEEKDAYS,
   type RecurringCommitment,
@@ -6,6 +7,7 @@ import {
   getWeekStart,
   recurringEndsNextDay,
 } from "@tagestakt/schedule-schema";
+import { Copy, Pencil, Repeat, Trash } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -17,6 +19,7 @@ import {
   applyRecurringAction,
   createRecurringAction,
   deleteRecurringAction,
+  duplicateRecurringAction,
   toggleRecurringAction,
   updateRecurringAction,
 } from "@/server/actions/recurring";
@@ -39,6 +42,10 @@ function defaultsFor(item: RecurringCommitment): RecurringFormDefaults {
   };
 }
 
+function timeLabel(item: RecurringCommitment): string {
+  return `${item.start_time}–${item.end_time}${recurringEndsNextDay(item.start_time, item.end_time) ? " (+1 Tag)" : ""}`;
+}
+
 export default async function RecurringPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const editId = typeof params.bearbeiten === "string" ? params.bearbeiten : undefined;
@@ -46,7 +53,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Se
   const nextWeek = addDays(getWeekStart(new Date()), 7);
 
   return (
-    <div className="stack-loose">
+    <>
       <header className="page-header">
         <div>
           <p className="eyebrow">Vorlagen</p>
@@ -54,24 +61,48 @@ export default async function RecurringPage({ searchParams }: { searchParams: Se
         </div>
       </header>
 
-      <section className="card stack" aria-labelledby="uebernehmen-titel">
-        <h2 id="uebernehmen-titel">In einen Wochenentwurf übernehmen</h2>
-        <p className="muted">
-          Aktive Wiederholungen werden als Einträge in den Entwurf der gewählten Woche kopiert. Gibt
-          es nur eine veröffentlichte Version, entsteht ein neuer Entwurf – die veröffentlichte
-          Version bleibt unverändert, bis du den Entwurf veröffentlichst.
-        </p>
-        <ApplyRecurringForm action={applyRecurringAction} defaultWeek={nextWeek} />
+      <section className="section" aria-labelledby="struktur-titel">
+        <div className="section-head">
+          <h2 id="struktur-titel">Wochenstruktur</h2>
+          <p className="small muted">Aktive und inaktive Vorlagen je Wochentag</p>
+        </div>
+        {items.length === 0 ? (
+          <div className="empty">
+            <Repeat size={28} aria-hidden="true" className="icon" />
+            <p>Noch keine Wiederholungen angelegt.</p>
+          </div>
+        ) : (
+          <div className="week-structure">
+            {ISO_WEEKDAYS.map((weekday) => (
+              <section key={weekday} className="ws-day" aria-label={WEEKDAY_LABELS[weekday]}>
+                <p className="eyebrow">{WEEKDAY_LABELS[weekday]}</p>
+                {items
+                  .filter((item) => item.weekday === weekday)
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className={`ws-item tone-${categoryTone[item.category]}${item.active ? "" : " is-inactive"}`}
+                    >
+                      <b>{item.title}</b>
+                      <span>
+                        {timeLabel(item)}
+                        {item.active ? "" : " · inaktiv"}
+                      </span>
+                    </div>
+                  ))}
+              </section>
+            ))}
+          </div>
+        )}
       </section>
 
-      <details className="card" open={items.length === 0}>
-        <summary>
-          <h2>Neue Wiederholung</h2>
-        </summary>
+      <details className="disclosure" open={items.length === 0}>
+        <summary>Neue Wiederholung</summary>
         <RecurringForm
           action={createRecurringAction}
           idPrefix="neu"
           submitLabel="Wiederholung anlegen"
+          multipleWeekdays
           defaults={{
             title: "",
             category: "duty",
@@ -85,20 +116,31 @@ export default async function RecurringPage({ searchParams }: { searchParams: Se
         />
       </details>
 
-      {items.length === 0 ? <p className="muted">Noch keine Wiederholungen angelegt.</p> : null}
+      <section className="section" aria-labelledby="uebernehmen-titel">
+        <div className="section-head">
+          <h2 id="uebernehmen-titel">In einen Wochenentwurf übernehmen</h2>
+        </div>
+        <p className="muted">
+          Aktive Wiederholungen werden als Einträge in den Entwurf der gewählten Woche kopiert. Gibt
+          es nur eine veröffentlichte Version, entsteht ein neuer Entwurf – die veröffentlichte
+          Version bleibt unverändert, bis du den Entwurf veröffentlichst.
+        </p>
+        <ApplyRecurringForm action={applyRecurringAction} defaultWeek={nextWeek} />
+      </section>
 
       {ISO_WEEKDAYS.map((weekday) => {
         const dayItems = items.filter((item) => item.weekday === weekday);
         if (dayItems.length === 0) return null;
         return (
-          <section key={weekday} className="day" aria-labelledby={`wochentag-${weekday}`}>
+          <section key={weekday} className="day-group" aria-labelledby={`wochentag-${weekday}`}>
             <h2 id={`wochentag-${weekday}`} className="day-title">
               {WEEKDAY_LABELS[weekday]}
             </h2>
-            <ul className="entry-list">
+            <ul className="list">
               {dayItems.map((item) =>
                 item.id === editId ? (
-                  <li key={item.id} className="entry entry--editing">
+                  <li key={item.id} className="is-editing">
+                    <h3 className="visually-hidden">„{item.title}“ bearbeiten</h3>
                     <RecurringForm
                       action={updateRecurringAction.bind(null, item.id)}
                       idPrefix={`bearbeiten-${item.id}`}
@@ -108,37 +150,46 @@ export default async function RecurringPage({ searchParams }: { searchParams: Se
                     />
                   </li>
                 ) : (
-                  <li key={item.id} className={`entry${item.active ? "" : " entry--inactive"}`}>
-                    <div className="entry-time">
-                      {item.start_time}–{item.end_time}
-                      {recurringEndsNextDay(item.start_time, item.end_time) ? " (+1 Tag)" : ""}
-                    </div>
-                    <div className="entry-body">
-                      <p className="entry-title">{item.title}</p>
-                      <p className="entry-meta">
+                  <li key={item.id} className={item.active ? undefined : "is-inactive"}>
+                    <span className="list-time">{timeLabel(item)}</span>
+                    <div className="list-main">
+                      <p className="list-title">{item.title}</p>
+                      <div className="list-meta">
                         <CategoryBadge category={item.category} />
                         {!item.active ? <span className="tag">Inaktiv</span> : null}
-                      </p>
-                      {item.location ? <p className="muted">Ort: {item.location}</p> : null}
-                      {item.note ? <p className="muted">{item.note}</p> : null}
+                      </div>
+                      {item.location ? <p className="small muted">Ort: {item.location}</p> : null}
+                      {item.note ? <p className="small muted">{item.note}</p> : null}
                     </div>
-                    <div className="entry-actions">
+                    <div className="list-actions">
                       <Link
-                        className="button button--ghost"
+                        className="btn btn--ghost btn--sm"
                         href={`/wiederholungen?bearbeiten=${item.id}`}
                         aria-label={`„${item.title}“ bearbeiten`}
                       >
+                        <Pencil size={16} aria-hidden="true" />
                         Bearbeiten
                       </Link>
                       <ActionButton
+                        action={duplicateRecurringAction.bind(null, item.id)}
+                        label="Duplizieren"
+                        icon={<Copy size={16} aria-hidden="true" />}
+                        variant="ghost"
+                        size="sm"
+                        ariaLabel={`„${item.title}“ duplizieren`}
+                      />
+                      <ActionButton
                         action={toggleRecurringAction.bind(null, item.id, !item.active)}
                         label={item.active ? "Deaktivieren" : "Aktivieren"}
+                        size="sm"
                         ariaLabel={`„${item.title}“ ${item.active ? "deaktivieren" : "aktivieren"}`}
                       />
                       <ActionButton
                         action={deleteRecurringAction.bind(null, item.id)}
                         label="Löschen"
+                        icon={<Trash size={16} aria-hidden="true" />}
                         variant="danger"
+                        size="sm"
                         ariaLabel={`„${item.title}“ löschen`}
                         confirmMessage={`Wiederholung „${item.title}“ löschen? Bereits übernommene Einträge bleiben erhalten.`}
                       />
@@ -150,6 +201,6 @@ export default async function RecurringPage({ searchParams }: { searchParams: Se
           </section>
         );
       })}
-    </div>
+    </>
   );
 }

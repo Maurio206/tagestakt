@@ -1,6 +1,4 @@
 import {
-  COMPLETION_STATUS_LABELS,
-  ENTRY_SOURCE_LABELS,
   type ScheduleEntry,
   type ScheduleWeek,
   WEEK_STATUS_LABELS,
@@ -8,41 +6,54 @@ import {
   detectOverlaps,
   formatLocalDateLong,
   formatTime,
-  formatTimeRange,
   formatWeekLabel,
-  getBusinessProgress,
+  getWeekBounds,
   getWeekDays,
+  getWeekGoals,
   getWeekStart,
-  groupEntriesByDay,
   isValidLocalDate,
   overlappingEntryIds,
   toLocalDate,
   toLocalTime,
 } from "@tagestakt/schedule-schema";
+import { CalendarPlus, Repeat } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ActionButton } from "@/components/action-button";
-import { BusinessProgress } from "@/components/business-progress";
-import { CategoryBadge } from "@/components/category-badge";
+import { DayList, type DayListActions } from "@/components/day-list";
+import { EntryDetails } from "@/components/entry-details";
+import { EntryEditor } from "@/components/entry-editor";
 import { EntryForm, type EntryFormDefaults } from "@/components/entry-form";
+import { GoalLegend, GoalList } from "@/components/goal-progress";
+import { Notice } from "@/components/notice";
 import { OverlapWarning } from "@/components/overlap-warning";
 import { PlanningNoteForm } from "@/components/planning-note-form";
-import { noticeText, weekPlanPath } from "@/lib/paths";
+import { WeekGrid } from "@/components/week-grid";
+import { WeekPicker } from "@/components/week-picker";
+import { noticeText, parseUndoTimes, weekPlanPath } from "@/lib/paths";
 import {
   createDraftAction,
   createEntryAction,
   deleteDraftAction,
   deleteEntryAction,
+  nudgeEntryAction,
   publishDraftAction,
+  restoreEntryTimesAction,
   savePlanningNoteAction,
   setCompletionAction,
   updateEntryAction,
 } from "@/server/actions/schedule";
+import { listSessions } from "@/server/data/activity";
 import { getWeekWithEntries, listWeekVersions } from "@/server/data/schedule";
 import { getSettings } from "@/server/data/settings";
 
 export const metadata: Metadata = { title: "Wochenplan" };
+
+const dayListActions: DayListActions = {
+  deleteEntry: (entryId) => deleteEntryAction.bind(null, entryId),
+  setCompletion: (entryId, status) => setCompletionAction.bind(null, entryId, status),
+};
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -77,63 +88,88 @@ function entryDefaults(entry: ScheduleEntry): EntryFormDefaults {
 export default async function WeekPlanPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const requestedWeek = single(params.woche);
-  const today = toLocalDate(new Date());
+  const now = new Date();
+  const today = toLocalDate(now);
   const weekStart = getWeekStart(
     requestedWeek && isValidLocalDate(requestedWeek) ? requestedWeek : today,
   );
+  const bounds = getWeekBounds(weekStart);
 
-  const [versions, settings] = await Promise.all([listWeekVersions(weekStart), getSettings()]);
+  const [versions, settings, sessions] = await Promise.all([
+    listWeekVersions(weekStart),
+    getSettings(),
+    listSessions(bounds.start, bounds.end),
+  ]);
   const selectedMeta = pickVersion(versions, single(params.version));
   const week = selectedMeta ? await getWeekWithEntries(selectedMeta.id) : null;
   const draft = versions.find((v) => v.status === "draft");
   const isDraft = week?.status === "draft";
-  const editEntryId = isDraft ? single(params.bearbeiten) : undefined;
-  const notice = noticeText(single(params.hinweis));
-
   const entries = week?.schedule_entries ?? [];
+  // „bearbeiten“: im Entwurf der Bearbeitungsbereich, sonst die Details des Blocks.
+  const selectedEntry = entries.find((e) => e.id === single(params.bearbeiten));
+  const editEntry = isDraft ? selectedEntry : undefined;
+  const notice = noticeText(single(params.hinweis));
+  const undoEntryId = single(params.rueckgaengig);
+  const undoTimes = parseUndoTimes(single(params.vorher));
+
   const overlaps = detectOverlaps(entries);
   const overlapIds = overlappingEntryIds(entries);
-  const progress = getBusinessProgress(entries, settings.weeklyBusinessTargetMinutes);
+  const goals = getWeekGoals({
+    targets: settings.goalTargets,
+    entries,
+    sessions,
+    weekStart,
+    now,
+  });
   const days = getWeekDays(weekStart).map((date) => ({
     value: date,
     label: formatLocalDateLong(date),
   }));
-  const currentPath = week
+  const versionPath = week
     ? weekPlanPath(weekStart, { versionId: week.id })
     : weekPlanPath(weekStart);
+  const editHref = (entry: ScheduleEntry) =>
+    weekPlanPath(weekStart, { versionId: week?.id ?? "", editEntryId: entry.id });
 
   return (
-    <div className="stack-loose">
+    <>
       <header className="page-header">
         <div>
           <p className="eyebrow">Wochenplan</p>
           <h1>{formatWeekLabel(weekStart)}</h1>
         </div>
-        <nav aria-label="Woche wechseln" className="week-nav">
-          <Link className="button button--ghost" href={weekPlanPath(addDays(weekStart, -7))}>
-            ← Vorwoche
-          </Link>
-          <Link className="button button--ghost" href={weekPlanPath(getWeekStart(today))}>
-            Heute
-          </Link>
-          <Link className="button button--ghost" href={weekPlanPath(addDays(weekStart, 7))}>
-            Folgewoche →
-          </Link>
-        </nav>
+        <WeekPicker
+          weekStart={weekStart}
+          previousHref={weekPlanPath(addDays(weekStart, -7))}
+          todayHref={weekPlanPath(getWeekStart(today))}
+          nextHref={weekPlanPath(addDays(weekStart, 7))}
+          action="/wochenplan"
+        />
       </header>
 
-      <form method="get" action="/wochenplan" className="inline-form week-picker">
-        <label htmlFor="woche-auswahl">Kalenderwoche wählen</label>
-        <input id="woche-auswahl" name="woche" type="date" defaultValue={weekStart} required />
-        <button type="submit" className="button button--secondary">
-          Anzeigen
-        </button>
-      </form>
-
       {notice ? (
-        <p className="notice notice--success" role="status">
-          {notice}
-        </p>
+        notice && undoEntryId && undoTimes && isDraft && week ? (
+          <div className="toast" role="status">
+            <span>{notice}</span>
+            <ActionButton
+              action={restoreEntryTimesAction.bind(
+                null,
+                undoEntryId,
+                weekStart,
+                week.id,
+                undoTimes.startAt,
+                undoTimes.endAt,
+              )}
+              label="Rückgängig"
+              size="sm"
+              pendingLabel="…"
+            />
+          </div>
+        ) : (
+          <Notice tone="success" role="status">
+            {notice}
+          </Notice>
+        )
       ) : null}
 
       {versions.length > 0 ? (
@@ -142,7 +178,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
             <Link
               key={version.id}
               href={weekPlanPath(weekStart, { versionId: version.id })}
-              className={`version-chip version-chip--${version.status}`}
+              className={`vchip vchip--${version.status}`}
               aria-current={version.id === week?.id ? "page" : undefined}
             >
               Version {version.version} · {WEEK_STATUS_LABELS[version.status]}
@@ -152,11 +188,11 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
       ) : null}
 
       {!week ? (
-        <section className="card stack">
+        <section className="empty">
+          <CalendarPlus size={28} aria-hidden="true" className="icon" />
           <h2>Noch kein Plan für diese Woche</h2>
-          <p>
-            Lege einen leeren Entwurf an oder übernimm deine{" "}
-            <Link href="/wiederholungen">wiederkehrenden Termine</Link>.
+          <p className="muted">
+            Lege einen leeren Entwurf an oder übernimm deine wiederkehrenden Termine.
           </p>
           <div className="button-row">
             <ActionButton
@@ -164,18 +200,23 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
               label="Entwurf anlegen"
               variant="primary"
             />
+            <Link className="btn btn--secondary" href="/wiederholungen">
+              <Repeat size={18} aria-hidden="true" />
+              Wiederholungen übernehmen
+            </Link>
           </div>
         </section>
       ) : (
         <>
           {week.status === "published" ? (
-            <section className="status-banner status-banner--published stack-tight">
-              <p>
-                <strong>Veröffentlicht</strong> · Version {week.version}
-                {week.published_at
+            <Notice
+              tone="success"
+              title={`Veröffentlicht · Version ${week.version}${
+                week.published_at
                   ? ` · seit ${formatLocalDateLong(toLocalDate(new Date(week.published_at)))}, ${formatTime(week.published_at)} Uhr`
-                  : ""}
-              </p>
+                  : ""
+              }`}
+            >
               <p>
                 Diese Version zeigt die App an. Inhalte sind schreibgeschützt; nur der
                 Erledigt-Status lässt sich ändern.
@@ -183,7 +224,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
               <div className="button-row">
                 {draft ? (
                   <Link
-                    className="button button--secondary"
+                    className="btn btn--secondary"
                     href={weekPlanPath(weekStart, { versionId: draft.id })}
                   >
                     Zum Entwurf (Version {draft.version})
@@ -192,40 +233,34 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
                   <ActionButton
                     action={createDraftAction.bind(null, weekStart)}
                     label="Als neue Version bearbeiten"
+                    confirmMessage={`Version ${week.version} ist veröffentlicht. Zum Ändern wird Version ${week.version + 1} als Entwurf angelegt; die App zeigt weiter Version ${week.version}, bis du veröffentlichst.`}
                   />
                 )}
               </div>
-            </section>
+            </Notice>
           ) : null}
 
           {week.status === "archived" ? (
-            <section className="status-banner status-banner--archived">
-              <p>
-                <strong>Archiviert</strong> · Version {week.version} – nur zur Ansicht.
-              </p>
-            </section>
+            <Notice tone="info" title={`Archiviert · Version ${week.version}`}>
+              <p>Nur zur Ansicht.</p>
+            </Notice>
           ) : null}
 
           {isDraft ? (
-            <section className="status-banner status-banner--draft stack">
+            <Notice tone="draft" title={`Entwurf · Version ${week.version}`}>
               <p>
-                <strong>Entwurf</strong> · Version {week.version} – noch nicht in der App sichtbar.
-                Änderungen werden sofort im Entwurf gespeichert.
+                Noch nicht in der App sichtbar. Änderungen werden sofort im Entwurf gespeichert.
               </p>
-              <PlanningNoteForm
-                action={savePlanningNoteAction.bind(null, week.id)}
-                defaultNote={week.planning_note ?? ""}
-              />
               <div className="button-row">
                 <ActionButton
                   action={publishDraftAction.bind(null, week.id, weekStart)}
-                  label="Entwurf veröffentlichen"
+                  label={`Version ${week.version} veröffentlichen`}
                   variant="primary"
                   pendingLabel="Wird veröffentlicht …"
                   confirmMessage={
                     overlaps.length > 0
-                      ? `Der Entwurf enthält ${overlaps.length} Zeitüberschneidung(en). Trotzdem veröffentlichen? Die bisher veröffentlichte Version wird archiviert.`
-                      : "Entwurf jetzt veröffentlichen? Die bisher veröffentlichte Version wird archiviert."
+                      ? `Version ${week.version} enthält ${overlaps.length} Zeitüberschneidung(en). Trotzdem veröffentlichen? Die bisher veröffentlichte Version wird archiviert.`
+                      : `Version ${week.version} jetzt veröffentlichen? Die bisher veröffentlichte Version wird archiviert.`
                   }
                 />
                 <ActionButton
@@ -235,23 +270,23 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
                   confirmMessage="Entwurf mit allen Einträgen endgültig verwerfen?"
                 />
               </div>
-            </section>
+              <details className="disclosure">
+                <summary>Planungshinweis</summary>
+                <PlanningNoteForm
+                  action={savePlanningNoteAction.bind(null, week.id)}
+                  defaultNote={week.planning_note ?? ""}
+                />
+              </details>
+            </Notice>
           ) : week.planning_note ? (
             <p className="muted">Planungshinweis: {week.planning_note}</p>
           ) : null}
 
           <OverlapWarning overlaps={overlaps} />
 
-          <section className="card stack" aria-labelledby="gewerbe-titel">
-            <h2 id="gewerbe-titel">Gewerbe in dieser Version</h2>
-            <BusinessProgress progress={progress} />
-          </section>
-
           {isDraft ? (
-            <details className="card" open={entries.length === 0}>
-              <summary>
-                <h2>Neuer Eintrag</h2>
-              </summary>
+            <details className="disclosure" open={entries.length === 0}>
+              <summary>Neuer Eintrag</summary>
               <EntryForm
                 action={createEntryAction.bind(null, week.id)}
                 days={days}
@@ -271,120 +306,63 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
             </details>
           ) : null}
 
-          <section aria-label="Tage der Woche" className="days">
-            {groupEntriesByDay(entries, weekStart).map((day) => (
-              <section key={day.date} className="day" aria-labelledby={`tag-${day.date}`}>
-                <h2
-                  id={`tag-${day.date}`}
-                  className={day.date === today ? "day-title day-title--today" : "day-title"}
-                >
-                  {formatLocalDateLong(day.date)}
-                  {day.date === today ? <span className="today-tag">Heute</span> : null}
-                </h2>
-                {day.entries.length === 0 ? (
-                  <p className="muted">Keine Einträge.</p>
-                ) : (
-                  <ul className="entry-list">
-                    {day.entries.map((entry) =>
-                      entry.id === editEntryId ? (
-                        <li key={entry.id} className="entry entry--editing">
-                          <h3 className="visually-hidden">„{entry.title}“ bearbeiten</h3>
-                          <EntryForm
-                            action={updateEntryAction.bind(null, entry.id, weekStart, week.id)}
-                            days={days}
-                            idPrefix={`bearbeiten-${entry.id}`}
-                            submitLabel="Änderungen speichern"
-                            defaults={entryDefaults(entry)}
-                            cancelHref={currentPath}
-                          />
-                        </li>
-                      ) : (
-                        <li
-                          key={entry.id}
-                          className={`entry${overlapIds.has(entry.id) ? " entry--overlap" : ""}`}
-                        >
-                          <div className="entry-time">
-                            {formatTimeRange(entry.start_at, entry.end_at)}
-                          </div>
-                          <div className="entry-body">
-                            <p className="entry-title">{entry.title}</p>
-                            <p className="entry-meta">
-                              <CategoryBadge category={entry.category} />
-                              {entry.source !== "manual" ? (
-                                <span className="tag">{ENTRY_SOURCE_LABELS[entry.source]}</span>
-                              ) : null}
-                              {entry.completion_status !== "planned" ? (
-                                <span className={`tag tag--${entry.completion_status}`}>
-                                  {COMPLETION_STATUS_LABELS[entry.completion_status]}
-                                </span>
-                              ) : null}
-                              {overlapIds.has(entry.id) ? (
-                                <span className="tag tag--warning">Überschneidung</span>
-                              ) : null}
-                            </p>
-                            {entry.location ? <p className="muted">Ort: {entry.location}</p> : null}
-                            {entry.note ? <p className="muted">{entry.note}</p> : null}
-                          </div>
-                          <div className="entry-actions">
-                            {isDraft ? (
-                              <>
-                                <Link
-                                  className="button button--ghost"
-                                  href={weekPlanPath(weekStart, {
-                                    versionId: week.id,
-                                    editEntryId: entry.id,
-                                  })}
-                                  aria-label={`„${entry.title}“ bearbeiten`}
-                                >
-                                  Bearbeiten
-                                </Link>
-                                <ActionButton
-                                  action={deleteEntryAction.bind(null, entry.id)}
-                                  label="Löschen"
-                                  variant="danger"
-                                  ariaLabel={`„${entry.title}“ löschen`}
-                                  confirmMessage={`„${entry.title}“ wirklich löschen?`}
-                                />
-                              </>
-                            ) : null}
-                            {week.status === "published" ? (
-                              <>
-                                {entry.completion_status !== "completed" ? (
-                                  <ActionButton
-                                    action={setCompletionAction.bind(null, entry.id, "completed")}
-                                    label="Erledigt"
-                                    ariaLabel={`„${entry.title}“ als erledigt markieren`}
-                                  />
-                                ) : null}
-                                {entry.completion_status !== "skipped" ? (
-                                  <ActionButton
-                                    action={setCompletionAction.bind(null, entry.id, "skipped")}
-                                    label="Ausgelassen"
-                                    variant="ghost"
-                                    ariaLabel={`„${entry.title}“ als ausgelassen markieren`}
-                                  />
-                                ) : null}
-                                {entry.completion_status !== "planned" ? (
-                                  <ActionButton
-                                    action={setCompletionAction.bind(null, entry.id, "planned")}
-                                    label="Zurücksetzen"
-                                    variant="ghost"
-                                    ariaLabel={`Status von „${entry.title}“ zurücksetzen`}
-                                  />
-                                ) : null}
-                              </>
-                            ) : null}
-                          </div>
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                )}
-              </section>
-            ))}
+          <div className={selectedEntry ? "planner planner--editing" : "planner"}>
+            <div className="stack">
+              <div className="week-grid-wrap">
+                <WeekGrid
+                  weekStart={weekStart}
+                  entries={entries}
+                  overlapIds={overlapIds}
+                  today={today}
+                  now={now}
+                  selectedId={selectedEntry?.id}
+                  editHref={editHref}
+                  linkAction={isDraft ? "bearbeiten" : "Details anzeigen"}
+                />
+              </div>
+              <DayList
+                weekStart={weekStart}
+                entries={entries}
+                overlapIds={overlapIds}
+                status={week.status}
+                today={today}
+                selectedId={selectedEntry?.id}
+                editHref={editHref}
+                actions={dayListActions}
+              />
+            </div>
+            {editEntry ? (
+              <EntryEditor
+                key={editEntry.id + editEntry.updated_at}
+                entry={editEntry}
+                days={days}
+                defaults={entryDefaults(editEntry)}
+                updateAction={updateEntryAction.bind(null, editEntry.id, weekStart, week.id)}
+                nudgeAction={(kind, minutes) =>
+                  nudgeEntryAction.bind(null, editEntry.id, weekStart, week.id, kind, minutes)
+                }
+                deleteAction={deleteEntryAction.bind(null, editEntry.id)}
+                closeHref={versionPath}
+              />
+            ) : selectedEntry ? (
+              <EntryDetails
+                entry={selectedEntry}
+                status={week.status}
+                closeHref={versionPath}
+                setCompletion={dayListActions.setCompletion}
+              />
+            ) : null}
+          </div>
+
+          <section className="section" aria-labelledby="ziele-titel">
+            <div className="section-head">
+              <h2 id="ziele-titel">Ziele in dieser Version</h2>
+            </div>
+            <GoalLegend />
+            <GoalList goals={goals} />
           </section>
         </>
       )}
-    </div>
+    </>
   );
 }

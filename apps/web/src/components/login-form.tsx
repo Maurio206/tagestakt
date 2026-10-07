@@ -33,7 +33,9 @@ export function LoginForm({
           required
         />
       </Field>
-      <SubmitButton pendingLabel="Anmeldung läuft …">Anmelden</SubmitButton>
+      <SubmitButton pendingLabel="Anmeldung läuft …" size="lg" className="btn--block">
+        Anmelden
+      </SubmitButton>
     </form>
   );
 }

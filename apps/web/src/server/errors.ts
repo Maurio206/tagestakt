@@ -1,5 +1,7 @@
 import "server-only";
 
+import { ACTIVITY_ERROR_MESSAGES, isActivityErrorCode } from "@tagestakt/schedule-schema";
+
 /** Fachlicher Fehler mit einer Meldung, die gefahrlos angezeigt werden darf. */
 export class UserFacingError extends Error {
   constructor(message: string) {
@@ -25,6 +27,10 @@ export function toUserFacingError(operation: string, error: DatabaseErrorLike): 
   console.error(`[tagestakt] ${operation} fehlgeschlagen`, { code: error.code ?? "unbekannt" });
 
   const message = error.message ?? "";
+  // Fehlercodes der Aktivitäts-RPCs (TT001–TT006) → feste, geprüfte Texte.
+  if (isActivityErrorCode(error.code)) {
+    return new UserFacingError(ACTIVITY_ERROR_MESSAGES[error.code]);
+  }
   if (error.code && OWN_MESSAGE_CODES.has(error.code) && message) {
     return new UserFacingError(message);
   }

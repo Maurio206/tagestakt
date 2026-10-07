@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { TagesTaktMark } from "@/components/brand";
 import { LoginForm } from "@/components/login-form";
 import { loginAction } from "@/server/actions/auth";
 import { getCurrentUser } from "@/server/auth";
@@ -12,8 +13,9 @@ export default async function LoginPage() {
 
   return (
     <main className="centered">
-      <div className="card stack login-card">
-        <div>
+      <div className="login">
+        <div className="login-head">
+          <TagesTaktMark size={40} />
           <p className="eyebrow">TagesTakt</p>
           <h1>Anmelden</h1>
           <p className="muted">Privater Zugang. Eine Registrierung ist nicht möglich.</p>

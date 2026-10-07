@@ -1,16 +1,10 @@
-import {
-  type ScheduleEntry,
-  detectOverlaps,
-  getBusinessProgress,
-  resolveTimeRange,
-} from "@tagestakt/schedule-schema";
+import { type ScheduleEntry, detectOverlaps, resolveTimeRange } from "@tagestakt/schedule-schema";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { type ActionState } from "@/lib/form";
 
-import { BusinessProgress } from "./business-progress";
 import { EntryForm } from "./entry-form";
 import { LoginForm } from "./login-form";
 import { OverlapWarning } from "./overlap-warning";
@@ -146,18 +140,5 @@ describe("OverlapWarning", () => {
   it("rendert nichts ohne Überschneidungen", () => {
     const { container } = render(<OverlapWarning overlaps={[]} />);
     expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe("BusinessProgress", () => {
-  it("zeigt geplante Stunden im Verhältnis zum 20-Stunden-Ziel", () => {
-    const progress = getBusinessProgress(
-      [{ ...entry("a", "Fokus", "2026-10-05", "08:00", "18:00"), category: "business" }],
-      1200,
-    );
-    render(<BusinessProgress progress={progress} />);
-    expect(screen.getByText(/von 20 h geplant/)).toHaveTextContent("10 h von 20 h geplant");
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
-    expect(screen.getByText("Es fehlen noch 10 h bis zum Wochenziel.")).toBeInTheDocument();
   });
 });

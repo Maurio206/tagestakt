@@ -41,9 +41,9 @@ export function ApplyRecurringForm({
           defaultValue={values?.week ?? defaultWeek}
         />
       </Field>
-      <fieldset className="fieldset">
+      <fieldset className="stack-tight">
         <legend>Vorhandene Einträge im Entwurf</legend>
-        <div className="field field--checkbox">
+        <div className="check">
           <input
             type="radio"
             id="apply-mode-append"
@@ -55,7 +55,7 @@ export function ApplyRecurringForm({
             Ergänzen (identische Einträge werden übersprungen)
           </label>
         </div>
-        <div className="field field--checkbox">
+        <div className="check">
           <input
             type="radio"
             id="apply-mode-replace"
@@ -68,7 +68,7 @@ export function ApplyRecurringForm({
           </label>
         </div>
       </fieldset>
-      <div className="field field--checkbox">
+      <div className="check">
         <input
           type="checkbox"
           id="apply-confirm"
