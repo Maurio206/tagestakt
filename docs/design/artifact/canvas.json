@@ -1,40 +1,409 @@
 {
   "v": 3,
-  "createdOnFiles": { "v": 1, "at": "2026-10-07T12:00:00Z" },
-  "title": "TagesTakt Design",
-  "launch": { "view": "canvas", "page": "mobile" },
-  "pages": [
-    { "id": "system", "name": "Designsystem" },
-    { "id": "mobile", "name": "Mobile App" },
-    { "id": "web", "name": "Website" }
-  ],
+  "attachments": {},
   "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1760, "title": "Designsystem · Tokens und Komponenten", "page": "system" },
-    "m01-sperre.dc.html": { "x": 0, "y": 0, "w": 412, "h": 915, "title": "M01 App-Sperre", "page": "mobile" },
-    "m02-login.dc.html": { "x": 492, "y": 0, "w": 412, "h": 915, "title": "M02 Login", "page": "mobile" },
-    "m03-jetzt.dc.html": { "x": 984, "y": 0, "w": 412, "h": 915, "title": "M03 Jetzt – ohne Aktivität", "page": "mobile" },
-    "m04-jetzt-timer.dc.html": { "x": 1476, "y": 0, "w": 412, "h": 915, "title": "M04 Jetzt – Timer läuft", "page": "mobile" },
-    "m05-tag.dc.html": { "x": 1968, "y": 0, "w": 412, "h": 915, "title": "M05 Tag – Zeitstrahl", "page": "mobile" },
-    "m06-woche.dc.html": { "x": 0, "y": 1035, "w": 412, "h": 915, "title": "M06 Woche", "page": "mobile" },
-    "m07-bearbeiten.dc.html": { "x": 492, "y": 1035, "w": 412, "h": 915, "title": "M07 Plan bearbeiten – Block", "page": "mobile" },
-    "m08-ziele.dc.html": { "x": 984, "y": 1035, "w": 412, "h": 915, "title": "M08 Ziele Gewerbe · Sport · Laila", "page": "mobile" },
-    "m09-wochenbilanz.dc.html": { "x": 1476, "y": 1035, "w": 412, "h": 915, "title": "M09 Wochenbilanz", "page": "mobile" },
-    "m10-einstellungen.dc.html": { "x": 1968, "y": 1035, "w": 412, "h": 915, "title": "M10 Einstellungen", "page": "mobile" },
-    "m11-offline.dc.html": { "x": 0, "y": 2070, "w": 412, "h": 915, "title": "M11 Offline", "page": "mobile" },
-    "m12-leer.dc.html": { "x": 492, "y": 2070, "w": 412, "h": 915, "title": "M12 Leerer Wochenplan", "page": "mobile" },
-    "m13-fehler.dc.html": { "x": 984, "y": 2070, "w": 412, "h": 915, "title": "M13 Fehlerzustand", "page": "mobile" },
-    "m14-wechsel.dc.html": { "x": 1476, "y": 2070, "w": 412, "h": 915, "title": "M14 Aktivität wechseln – Bestätigung", "page": "mobile" },
-    "m15-korrigieren.dc.html": { "x": 1968, "y": 2070, "w": 412, "h": 915, "title": "M15 Zeit korrigieren", "page": "mobile" },
-    "w01-uebersicht.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1180, "title": "W01 Übersicht", "page": "web", "expand": "fill" },
-    "w02-wocheneditor.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1180, "title": "W02 Wocheneditor – Desktop", "page": "web", "expand": "fill" },
-    "w04-block.dc.html": { "x": 0, "y": 1300, "w": 1440, "h": 1180, "title": "W04 Planblock bearbeiten", "page": "web", "expand": "fill" },
-    "w03-woche-schmal.dc.html": { "x": 1520, "y": 1300, "w": 390, "h": 1700, "title": "W03 Wocheneditor – schmal", "page": "web", "expand": "fill" },
-    "w05-wiederholungen.dc.html": { "x": 0, "y": 3120, "w": 1440, "h": 1250, "title": "W05 Wiederholungen", "page": "web", "expand": "fill" },
-    "w06-auswertung.dc.html": { "x": 1520, "y": 3120, "w": 1440, "h": 1250, "title": "W06 Ziel- und Zeitauswertung", "page": "web", "expand": "fill" },
-    "w07-einstellungen.dc.html": { "x": 0, "y": 4490, "w": 1440, "h": 1300, "title": "W07 Einstellungen", "page": "web", "expand": "fill" },
-    "w08-login.dc.html": { "x": 1520, "y": 4490, "w": 1440, "h": 900, "title": "W08 Login", "page": "web", "expand": "fill" },
-    "w09-leer.dc.html": { "x": 0, "y": 5910, "w": 1440, "h": 900, "title": "W09 Leerer Zustand", "page": "web", "expand": "fill" },
-    "w10-fehler.dc.html": { "x": 1520, "y": 5910, "w": 1440, "h": 900, "title": "W10 Fehler und Offline", "page": "web", "expand": "fill" }
+    "Main.dc.html": {
+      "h": 1760,
+      "page": "system",
+      "title": "Designsystem · Tokens und Komponenten",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "m01-sperre.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M01 App-Sperre",
+      "w": 412,
+      "x": 0,
+      "y": 0
+    },
+    "m02-login.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M02 Login",
+      "w": 412,
+      "x": 492,
+      "y": 0
+    },
+    "m03-jetzt.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M03 Jetzt – ohne Aktivität",
+      "w": 412,
+      "x": 984,
+      "y": 0
+    },
+    "m04-jetzt-timer.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M04 Jetzt – Timer läuft",
+      "w": 412,
+      "x": 1476,
+      "y": 0
+    },
+    "m05-tag.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M05 Tag – Zeitstrahl",
+      "w": 412,
+      "x": 1968,
+      "y": 0
+    },
+    "m06-woche.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M06 Woche",
+      "w": 412,
+      "x": 0,
+      "y": 1035
+    },
+    "m07-bearbeiten.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M07 Plan bearbeiten – Block",
+      "w": 412,
+      "x": 492,
+      "y": 1035
+    },
+    "m08-ziele.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M08 Ziele Gewerbe · Sport · Laila",
+      "w": 412,
+      "x": 984,
+      "y": 1035
+    },
+    "m09-wochenbilanz.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M09 Wochenbilanz",
+      "w": 412,
+      "x": 1476,
+      "y": 1035
+    },
+    "m10-einstellungen.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M10 Einstellungen",
+      "w": 412,
+      "x": 1968,
+      "y": 1035
+    },
+    "m11-offline.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M11 Offline",
+      "w": 412,
+      "x": 0,
+      "y": 2070
+    },
+    "m12-leer.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M12 Leerer Wochenplan",
+      "w": 412,
+      "x": 492,
+      "y": 2070
+    },
+    "m13-fehler.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M13 Fehlerzustand",
+      "w": 412,
+      "x": 984,
+      "y": 2070
+    },
+    "m14-wechsel.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M14 Aktivität wechseln – Bestätigung",
+      "w": 412,
+      "x": 1476,
+      "y": 2070
+    },
+    "m15-korrigieren.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M15 Zeit korrigieren",
+      "w": 412,
+      "x": 1968,
+      "y": 2070
+    },
+    "m16-jetzt-fokus.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M16 Jetzt – Fokusblock mit Nachbarblöcken",
+      "w": 412,
+      "x": 0,
+      "y": 3430
+    },
+    "m17-tag-notiz.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M17 Tag – Tagesnotiz",
+      "w": 412,
+      "x": 492,
+      "y": 3430
+    },
+    "m18-notiz-tastatur.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M18 Tagesnotiz – Tastatur geöffnet",
+      "w": 412,
+      "x": 984,
+      "y": 3430
+    },
+    "m19-notiz-offline.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M19 Tagesnotiz – offline",
+      "w": 412,
+      "x": 1476,
+      "y": 3430
+    },
+    "m20-jetzt-hell.dc.html": {
+      "h": 915,
+      "page": "mobile",
+      "title": "M20 Jetzt – hell, Aktivität läuft",
+      "w": 412,
+      "x": 1968,
+      "y": 3430
+    },
+    "w01-uebersicht.dc.html": {
+      "expand": "fill",
+      "h": 1180,
+      "page": "web",
+      "title": "W01 Übersicht",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "w02-wocheneditor.dc.html": {
+      "expand": "fill",
+      "h": 1180,
+      "page": "web",
+      "title": "W02 Wocheneditor – Desktop",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "w03-woche-schmal.dc.html": {
+      "expand": "fill",
+      "h": 1700,
+      "page": "web",
+      "title": "W03 Wocheneditor – schmal",
+      "w": 390,
+      "x": 1520,
+      "y": 1300
+    },
+    "w04-block.dc.html": {
+      "expand": "fill",
+      "h": 1180,
+      "page": "web",
+      "title": "W04 Planblock bearbeiten",
+      "w": 1440,
+      "x": 0,
+      "y": 1300
+    },
+    "w05-wiederholungen.dc.html": {
+      "expand": "fill",
+      "h": 1250,
+      "page": "web",
+      "title": "W05 Wiederholungen",
+      "w": 1440,
+      "x": 0,
+      "y": 3120
+    },
+    "w06-auswertung.dc.html": {
+      "expand": "fill",
+      "h": 1250,
+      "page": "web",
+      "title": "W06 Ziel- und Zeitauswertung",
+      "w": 1440,
+      "x": 1520,
+      "y": 3120
+    },
+    "w07-einstellungen.dc.html": {
+      "expand": "fill",
+      "h": 1300,
+      "page": "web",
+      "title": "W07 Einstellungen",
+      "w": 1440,
+      "x": 0,
+      "y": 4490
+    },
+    "w08-login.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "page": "web",
+      "title": "W08 Login",
+      "w": 1440,
+      "x": 1520,
+      "y": 4490
+    },
+    "w09-leer.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "page": "web",
+      "title": "W09 Leerer Zustand",
+      "w": 1440,
+      "x": 0,
+      "y": 5910
+    },
+    "w10-fehler.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "page": "web",
+      "title": "W10 Fehler und Offline",
+      "w": 1440,
+      "x": 1520,
+      "y": 5910
+    },
+    "w11-fokus.dc.html": {
+      "expand": "fill",
+      "h": 1400,
+      "page": "web",
+      "title": "W11 Übersicht – Fokusblock mit Nachbarblöcken",
+      "w": 1440,
+      "x": 0,
+      "y": 7260
+    },
+    "w12-fokus-frei.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "page": "web",
+      "title": "W12 Übersicht – freie Zeit",
+      "w": 1440,
+      "x": 1520,
+      "y": 7260
+    },
+    "w13-fokus-laeuft.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "page": "web",
+      "title": "W13 Übersicht – laufende Aktivität",
+      "w": 1440,
+      "x": 0,
+      "y": 8780
+    },
+    "w14-fokus-zustaende.dc.html": {
+      "expand": "fill",
+      "h": 2000,
+      "page": "web",
+      "title": "W14 Fokusfläche – Tagesränder und Sonderfälle",
+      "w": 1440,
+      "x": 1520,
+      "y": 8780
+    },
+    "w15-tagesnotiz.dc.html": {
+      "expand": "fill",
+      "h": 1040,
+      "page": "web",
+      "title": "W15 Tagesnotiz – Zustände",
+      "w": 1440,
+      "x": 0,
+      "y": 10900
+    },
+    "w16-wochenplan-notiz.dc.html": {
+      "expand": "fill",
+      "h": 1560,
+      "page": "web",
+      "title": "W16 Wochenplan mit Tagesnotiz",
+      "w": 1440,
+      "x": 1520,
+      "y": 10900
+    },
+    "w17-uebersicht-schmal.dc.html": {
+      "expand": "fill",
+      "h": 1560,
+      "page": "web",
+      "title": "W17 Übersicht – schmal (390 px)",
+      "w": 390,
+      "x": 0,
+      "y": 12580
+    },
+    "w18-uebersicht-hell.dc.html": {
+      "expand": "fill",
+      "h": 1400,
+      "page": "web",
+      "title": "W18 Übersicht – hell",
+      "w": 1440,
+      "x": 470,
+      "y": 12580
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-07T12:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "page": "mobile",
+    "view": "canvas"
+  },
+  "notes": {
+    "mobileTitle": {
+      "kind": "title1",
+      "maxW": 2380,
+      "page": "mobile",
+      "text": "Mobile App · Samsung Galaxy S26 Ultra (412 × 915 dp) · Beispieldaten KW 42",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "systemTitle": {
+      "kind": "title1",
+      "maxW": 1440,
+      "page": "system",
+      "text": "TagesTakt · Ruhige Präzision für ein volles Leben",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "webTitle": {
+      "kind": "title1",
+      "maxW": 2960,
+      "page": "web",
+      "text": "Website · Planungswerkzeug (1440 px und 390 px)",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "fokusWebTitle": {
+      "kind": "title1",
+      "maxW": 2960,
+      "page": "web",
+      "text": "Erweiterung · Fokusfläche und Tagesnotiz (Website)",
+      "w": 240,
+      "x": 0,
+      "y": 7000
+    },
+    "fokusMobileTitle": {
+      "kind": "title1",
+      "maxW": 2380,
+      "page": "mobile",
+      "text": "Erweiterung · Fokusfläche und Tagesnotiz (App)",
+      "w": 240,
+      "x": 0,
+      "y": 3170
+    },
+    "fokusUebergang": {
+      "fill": "blue",
+      "page": "web",
+      "text": "Blockgrenzen: Zur Start- bzw. Endzeit wird der passende Block ohne Neuladen zur Fokusfläche. Übergang 320 ms (Einblenden, 12 px Versatz). Bei „Bewegung reduzieren“ wechselt der Inhalt sofort – ohne Bewegung und ohne Unschärfe-Übergang. Nachbarblöcke sind für Screenreader verborgen und enthalten keine Bedienelemente; „Davor/Danach“ steht zusätzlich als Text im Fokusblock.",
+      "w": 360,
+      "x": 3040,
+      "y": 7260
+    },
+    "notizMobileHinweis": {
+      "fill": "blue",
+      "page": "mobile",
+      "text": "Tastatur: Der Bereich ist nur als Systemfläche angedeutet. Eingabe und „Speichern“ bleiben oberhalb der Tastatur sichtbar. Tagesnotizen werden nicht im Offline-Cache gespeichert und nie in Erinnerungen angezeigt.",
+      "w": 320,
+      "x": 2460,
+      "y": 3430
+    }
   },
   "order": [
     "Main.dc.html",
@@ -53,6 +422,11 @@
     "m13-fehler.dc.html",
     "m14-wechsel.dc.html",
     "m15-korrigieren.dc.html",
+    "m16-jetzt-fokus.dc.html",
+    "m17-tag-notiz.dc.html",
+    "m18-notiz-tastatur.dc.html",
+    "m19-notiz-offline.dc.html",
+    "m20-jetzt-hell.dc.html",
     "w01-uebersicht.dc.html",
     "w02-wocheneditor.dc.html",
     "w04-block.dc.html",
@@ -62,12 +436,29 @@
     "w07-einstellungen.dc.html",
     "w08-login.dc.html",
     "w09-leer.dc.html",
-    "w10-fehler.dc.html"
+    "w10-fehler.dc.html",
+    "w11-fokus.dc.html",
+    "w12-fokus-frei.dc.html",
+    "w13-fokus-laeuft.dc.html",
+    "w14-fokus-zustaende.dc.html",
+    "w15-tagesnotiz.dc.html",
+    "w16-wochenplan-notiz.dc.html",
+    "w17-uebersicht-schmal.dc.html",
+    "w18-uebersicht-hell.dc.html"
   ],
-  "notes": {
-    "mobileTitle": { "x": 0, "y": -300, "text": "Mobile App · Samsung Galaxy S26 Ultra (412 × 915 dp) · Beispieldaten KW 42", "kind": "title1", "maxW": 2380, "page": "mobile" },
-    "webTitle": { "x": 0, "y": -300, "text": "Website · Planungswerkzeug (1440 px und 390 px)", "kind": "title1", "maxW": 2960, "page": "web" },
-    "systemTitle": { "x": 0, "y": -300, "text": "TagesTakt · Ruhige Präzision für ein volles Leben", "kind": "title1", "maxW": 1440, "page": "system" }
-  },
-  "designSystems": []
+  "pages": [
+    {
+      "id": "system",
+      "name": "Designsystem"
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile App"
+    },
+    {
+      "id": "web",
+      "name": "Website"
+    }
+  ],
+  "title": "TagesTakt Design"
 }

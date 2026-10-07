@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Fokusfläche – weitere Zustände</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"></polygon></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+</defs>
+</svg>
+<div class="sheet-page">
+  <header style="display: flex; flex-direction: column; gap: 6px">
+    <p class="eyebrow">Fokusfläche der Startseite</p>
+    <h1 style="font-size: 28px; font-weight: 650; letter-spacing: -0.02em">Tagesränder und Sonderfälle</h1>
+  </header>
+  <div class="states">
+
+    <section class="state" aria-labelledby="s1">
+      <p class="eyebrow num">Vor dem ersten Block · 05:50</p>
+      <div class="stage">
+        <article class="focus is-free">
+          <div class="fhead"><span class="eyebrow">Vor dem ersten Block</span></div>
+          <h2 id="s1" class="ftitle">Noch frei bis 06:15</h2>
+          <div class="fbig"><span class="n">25</span><span class="u">Min. bis zum ersten Block</span></div>
+          <p class="fmeta" style="color: var(--text)"><span>Als Nächstes: <b class="num">06:15</b> Duschen</span><span class="cat g-neutral"><i class="d"></i>Körperpflege · 06:15–06:45</span></p>
+          <p class="around"><span>Davor: heute noch nichts</span><span>Danach: <b class="num">06:15 Duschen</b></span></p>
+        </article>
+        <div class="ghost next g-neutral" aria-hidden="true"><span class="gtime">06:15–06:45</span><span class="gtitle"><b>Duschen</b><span class="cat"><i class="d"></i>Körperpflege</span></span></div>
+      </div>
+    </section>
+
+    <section class="state" aria-labelledby="s2">
+      <p class="eyebrow num">Nach dem letzten Block · 22:40</p>
+      <div class="stage">
+        <div class="ghost prev g-violet" aria-hidden="true"><span class="gtime">21:00–22:00</span><span class="gtitle"><b>Freizeit</b><span class="cat"><i class="d"></i>Freizeit</span></span></div>
+        <article class="focus is-free">
+          <div class="fhead"><span class="eyebrow">Nach dem letzten Block</span></div>
+          <h2 id="s2" class="ftitle">Heute ist nichts mehr geplant.</h2>
+          <p class="fmeta" style="color: var(--text)"><span>Morgen, Donnerstag: <b class="num">06:15</b> Duschen, ab <b class="num">07:00</b> Dienst Bundeswehr</span></p>
+          <p class="around"><span>Davor: <b>Freizeit</b> bis 22:00</span><span>Danach: <b class="num">Do 06:15 Duschen</b></span></p>
+        </article>
+        <div class="ghost next g-neutral" aria-hidden="true" style="opacity: 0.4"><span class="gtime">Do 06:15</span><span class="gtitle"><b>Duschen</b><span class="cat"><i class="d"></i>Körperpflege</span></span></div>
+      </div>
+    </section>
+
+    <section class="state" aria-labelledby="s3">
+      <p class="eyebrow num">Planblock ohne Ziel · 10:00</p>
+      <div class="stage">
+        <div class="ghost prev g-neutral" aria-hidden="true"><span class="gtime">06:15–06:45</span><span class="gtitle"><b>Duschen</b><span class="cat"><i class="d"></i>Körperpflege</span></span></div>
+        <article class="focus g-duty">
+          <div class="fhead"><span class="chip"><svg class="ic ic-sm"><use href="#i-building"></use></svg>Dienst</span><span class="eyebrow num" style="color: var(--duty)">Jetzt · 07:00–16:30</span></div>
+          <h2 id="s3" class="ftitle">Dienst Bundeswehr</h2>
+          <div class="fbig"><span class="n">6:30</span><span class="u">Std. übrig</span></div>
+          <div class="track" role="img" aria-label="Block zu 32 Prozent vorbei"><span style="width: 32%"></span></div>
+          <div class="toolbar"><button class="btn btn-secondary btn-lg" type="button"><svg class="ic ic-sm"><use href="#i-check"></use></svg>Erledigt</button><button class="btn btn-ghost btn-lg" type="button">Ausgelassen</button></div>
+          <p class="around"><span>Davor: <b>Duschen</b> bis 06:45</span><span>Danach: <b class="num">17:00 Kundenprojekt</b></span></p>
+        </article>
+        <div class="ghost next g-business" aria-hidden="true"><span class="gtime">17:00–20:00</span><span class="gtitle"><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span></div>
+      </div>
+    </section>
+
+    <section class="state" aria-labelledby="s4">
+      <p class="eyebrow num">Überschneidung · Freitag, 19:40</p>
+      <div class="stage">
+        <div class="ghost prev g-business" aria-hidden="true"><span class="gtime">14:00–18:00</span><span class="gtitle"><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span></div>
+        <article class="focus g-neutral">
+          <div class="fhead"><span class="cat"><i class="d"></i>Essen</span><span class="eyebrow num">Jetzt · 19:30–20:15</span></div>
+          <h2 id="s4" class="ftitle">Abendessen</h2>
+          <p class="overlap"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Überschneidung: gleichzeitig „Gemeinsamer Abend“ (19:00–23:00)</p>
+          <div class="fbig"><span class="n">35</span><span class="u">Min. übrig</span></div>
+          <div class="toolbar"><button class="btn btn-secondary btn-lg" type="button"><svg class="ic ic-sm" style="color: var(--relationship)"><use href="#i-heart"></use></svg>Fokus für „Gemeinsamer Abend“ starten</button><button class="btn btn-ghost btn-lg" type="button"><svg class="ic ic-sm"><use href="#i-check"></use></svg>Erledigt</button></div>
+          <p class="around"><span>Davor: <b>Kundenprojekt</b> bis 18:00</span><span>Danach: <b>heute nichts mehr</b></span></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="state" aria-labelledby="s5">
+      <p class="eyebrow num">Kein veröffentlichter Plan · KW 43</p>
+      <div class="stage">
+        <article class="focus is-free">
+          <div class="fhead"><span class="eyebrow">Diese Woche</span></div>
+          <h2 id="s5" class="ftitle">Für diese Woche ist kein Plan veröffentlicht.</h2>
+          <p class="fmeta"><span>Lege einen Entwurf an oder übernimm deine Wiederholungen. Erfassen geht trotzdem.</span></p>
+          <div class="toolbar"><a class="btn btn-primary btn-lg" href="w16-wochenplan-notiz.dc.html"><svg class="ic ic-sm"><use href="#i-week"></use></svg>Zum Wochenplan</a></div>
+          <div class="toolbar">
+            <button class="btn btn-ghost" type="button"><svg class="ic ic-sm" style="color: var(--business)"><use href="#i-briefcase"></use></svg>Gewerbe</button>
+            <button class="btn btn-ghost" type="button"><svg class="ic ic-sm" style="color: var(--sport)"><use href="#i-dumbbell"></use></svg>Sport</button>
+            <button class="btn btn-ghost" type="button"><svg class="ic ic-sm" style="color: var(--relationship)"><use href="#i-heart"></use></svg>Laila</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="state" aria-labelledby="s6">
+      <p class="eyebrow">Fehler beim Laden</p>
+      <div class="stage">
+        <article class="focus is-free" role="alert" style="border-color: color-mix(in srgb, var(--error) 55%, var(--line)); border-style: solid">
+          <div class="fhead"><span class="note-status err"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Nicht geladen</span></div>
+          <h2 id="s6" class="ftitle">Der Plan konnte nicht geladen werden.</h2>
+          <p class="fmeta"><span>Bitte die Verbindung prüfen und erneut versuchen. Ziele und Notizen bleiben unverändert.</span></p>
+          <div class="toolbar"><button class="btn btn-secondary btn-lg" type="button"><svg class="ic ic-sm"><use href="#i-rotate"></use></svg>Erneut versuchen</button></div>
+          <p class="subtle num" style="font-size: 12.5px">Fehlercode: PLAN_LOAD</p>
+        </article>
+      </div>
+    </section>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

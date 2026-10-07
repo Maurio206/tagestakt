@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Übersicht – schmal</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"></polygon></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18M9 16l2 2 4-4"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path><path d="M2 6h4M2 10h4M2 14h4M2 18h4"></path><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path></symbol>
+<symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+</defs>
+</svg>
+<div class="web" style="flex-direction: column; flex-wrap: nowrap">
+  <header class="topbar">
+    <a class="brand" href="w17-uebersicht-schmal.dc.html" style="padding: 0; font-size: 16px"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <button class="btn btn-secondary" type="button" aria-expanded="false" style="min-height: 44px; margin-left: auto"><svg class="ic ic-sm"><use href="#i-menu"></use></svg>Menü</button>
+  </header>
+  <main style="display: flex; flex-direction: column; gap: 24px; padding: 20px 16px 48px">
+    <header style="display: flex; flex-direction: column; gap: 4px">
+      <p class="eyebrow num">KW 42 · Mittwoch, 14. Oktober</p>
+      <h1 style="font-size: 26px; font-weight: 650; letter-spacing: -0.02em">Übersicht</h1>
+    </header>
+
+    <section class="stage" aria-labelledby="f-title" style="min-height: 0; gap: 8px">
+      <div class="ghost prev g-duty" aria-hidden="true" style="width: 90%; grid-template-columns: 92px minmax(0, 1fr); padding: 10px 14px"><span class="gtime">07:00–16:30</span><span class="gtitle"><b>Dienst Bundeswehr</b></span></div>
+      <article class="focus g-business" style="padding: 20px; gap: 12px">
+        <div class="fhead"><span class="chip"><svg class="ic ic-sm"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="eyebrow num" style="color: var(--business)">Jetzt · 17:00–20:00</span></div>
+        <h2 id="f-title" class="ftitle" style="font-size: 30px">Kundenprojekt</h2>
+        <div class="fbig"><span class="n" style="font-size: 48px" aria-hidden="true">1:55</span><span class="u" aria-hidden="true">Std. übrig</span><span class="sr">noch 1 Std. 55 Min.</span></div>
+        <div class="track" role="img" aria-label="Block zu 36 Prozent vorbei"><span style="width: 36%"></span></div>
+        <div class="fmeta"><span>Ort: Arbeitszimmer</span><span>Noch nicht erfasst.</span></div>
+        <button class="btn btn-primary btn-lg btn-block" type="button" style="min-height: 52px"><svg class="ic ic-fill"><use href="#i-play"></use></svg>Fokus starten</button>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px"><button class="btn btn-ghost" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-check"></use></svg>Erledigt</button><button class="btn btn-ghost" type="button" style="min-height: 44px">Ausgelassen</button></div>
+        <p class="around"><span>Davor: <b>Dienst</b> bis 16:30</span><span>Danach: <b class="num">20:00 Abendessen</b></span></p>
+      </article>
+      <div class="ghost next g-neutral" aria-hidden="true" style="width: 90%; grid-template-columns: 92px minmax(0, 1fr); padding: 10px 14px"><span class="gtime">20:00–20:45</span><span class="gtitle"><b>Abendessen</b></span></div>
+    </section>
+
+    <details class="note-details">
+      <summary class="noterow"><svg class="ic"><use href="#i-note"></use></svg><span class="grow"><b>Tagesnotiz · heute</b><small>Material für das Kundenprojekt bereitlegen (Beispiel)</small></span><svg class="ic ic-sm"><use href="#i-chev-down"></use></svg></summary>
+    </details>
+
+    <section class="section" aria-labelledby="n-next">
+      <div class="section-head"><h2 id="n-next">Als Nächstes</h2></div>
+      <div class="next g-neutral"><span class="t">20:00</span><span class="b"><b>Abendessen</b><span class="cat"><i class="d"></i>Essen · in 1 Std. 55 Min.</span></span></div>
+      <div class="next g-violet"><span class="t">21:00</span><span class="b"><b>Freizeit</b><span class="cat"><i class="d"></i>Freizeit · 21:00–22:00</span></span></div>
+    </section>
+
+    <section class="section" aria-labelledby="n-ziele">
+      <div class="section-head"><h2 id="n-ziele">Diese Woche</h2><a class="link" style="font-size: 14px" href="w06-auswertung.dc.html">Auswertung</a></div>
+      <div class="goals">
+        <div class="goal g-business"><div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="status st-risk" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span></div><div class="gbar"><span class="plan" style="width: 73%"></span><span class="act" style="width: 19%"></span><span class="target" style="left: 91%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">4,1 h</b> erfasst · 16 h geplant · Ziel 20 h</p></div>
+        <div class="goal g-sport"><div class="top"><span class="name"><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</span><span class="status st-ok" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-cal-check"></use></svg>Im Plan</span></div><div class="gbar"><span class="plan" style="width: 91%"></span><span class="act" style="width: 29%"></span><span class="target" style="left: 73%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">1,2 h</b> erfasst · 3,8 h geplant · Ziel 3 h</p></div>
+        <div class="goal g-relationship"><div class="top"><span class="name"><svg class="ic"><use href="#i-heart"></use></svg>Laila</span><span class="status st-unset" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Ziel festlegen</span></div><div class="gbar unset"><span class="plan" style="width: 91%"></span><span class="act" style="width: 13%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">1,4 h</b> erfasst · 9,5 h geplant</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Tagesnotiz – Zustände</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path><path d="M2 6h4M2 10h4M2 14h4M2 18h4"></path><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle></symbol>
+<symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></symbol>
+<symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></symbol>
+</defs>
+</svg>
+<div class="sheet-page">
+  <header style="display: flex; flex-direction: column; gap: 6px">
+    <p class="eyebrow">Tagesnotiz · ein Kalendertag, reiner Text, höchstens 10 000 Zeichen</p>
+    <h1 style="font-size: 28px; font-weight: 650; letter-spacing: -0.02em">Zustände beim Schreiben und Speichern</h1>
+  </header>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px">
+
+    <div class="state">
+      <p class="eyebrow">Leer</p>
+      <section class="note" aria-labelledby="n1">
+        <div class="note-head"><h2 id="n1">Mittwoch, 14. Oktober</h2><span class="note-count">0 / 10 000</span></div>
+        <label class="sr" for="t1">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t1" class="note-area" placeholder="Was ist heute wichtig? Nur für dich sichtbar."></textarea>
+        <div class="note-foot"><span class="note-status"><svg class="ic ic-sm"><use href="#i-note"></use></svg>Noch keine Notiz für diesen Tag.</span><button class="btn btn-secondary" type="button" disabled>Speichern</button></div>
+      </section>
+    </div>
+
+    <div class="state">
+      <p class="eyebrow">Geändert</p>
+      <section class="note" aria-labelledby="n2">
+        <div class="note-head"><h2 id="n2">Mittwoch, 14. Oktober</h2><span class="note-count">96 / 10 000</span></div>
+        <label class="sr" for="t2">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t2" class="note-area is-focus">Material für das Kundenprojekt bereitlegen (Beispiel).
+Nach dem Dienst kurz einkaufen: Brot, Obst.</textarea>
+        <div class="note-foot"><span class="note-status dirty"><svg class="ic ic-sm"><use href="#i-dot"></use></svg>Nicht gespeicherte Änderungen</span><button class="btn btn-primary" type="button">Speichern</button></div>
+      </section>
+    </div>
+
+    <div class="state">
+      <p class="eyebrow">Wird gespeichert</p>
+      <section class="note" aria-labelledby="n3" aria-busy="true">
+        <div class="note-head"><h2 id="n3">Mittwoch, 14. Oktober</h2><span class="note-count">96 / 10 000</span></div>
+        <label class="sr" for="t3">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t3" class="note-area">Material für das Kundenprojekt bereitlegen (Beispiel).
+Nach dem Dienst kurz einkaufen: Brot, Obst.</textarea>
+        <div class="note-foot"><span class="note-status" role="status"><svg class="ic ic-sm"><use href="#i-loader"></use></svg>Wird gespeichert …</span><button class="btn btn-primary" type="button" disabled>Wird gespeichert …</button></div>
+      </section>
+    </div>
+
+    <div class="state">
+      <p class="eyebrow">Gespeichert</p>
+      <section class="note" aria-labelledby="n4">
+        <div class="note-head"><h2 id="n4">Mittwoch, 14. Oktober</h2><span class="note-count">96 / 10 000</span></div>
+        <label class="sr" for="t4">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t4" class="note-area">Material für das Kundenprojekt bereitlegen (Beispiel).
+Nach dem Dienst kurz einkaufen: Brot, Obst.</textarea>
+        <div class="note-foot"><span class="note-status ok" role="status"><svg class="ic ic-sm"><use href="#i-circle-check"></use></svg>Gespeichert um 18:12 Uhr</span><button class="btn btn-secondary" type="button" disabled>Speichern</button></div>
+      </section>
+    </div>
+
+    <div class="state">
+      <p class="eyebrow">Speicherfehler</p>
+      <section class="note" aria-labelledby="n5">
+        <div class="note-head"><h2 id="n5">Mittwoch, 14. Oktober</h2><span class="note-count">142 / 10 000</span></div>
+        <label class="sr" for="t5">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t5" class="note-area is-error" aria-invalid="true" aria-describedby="e5">Material für das Kundenprojekt bereitlegen (Beispiel).
+Nach dem Dienst kurz einkaufen: Brot, Obst.
+Abends Trainingsplan für Samstag ansehen.</textarea>
+        <div class="note-foot"><span id="e5" class="note-status err" role="alert"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Nicht gespeichert – keine Verbindung. Dein Text bleibt hier erhalten.</span><button class="btn btn-primary" type="button"><svg class="ic ic-sm"><use href="#i-rotate"></use></svg>Erneut speichern</button></div>
+      </section>
+    </div>
+
+    <div class="state">
+      <p class="eyebrow">Anderswo geändert</p>
+      <section class="note" aria-labelledby="n6">
+        <div class="note-head"><h2 id="n6">Mittwoch, 14. Oktober</h2><span class="note-count">142 / 10 000</span></div>
+        <div class="banner warn" role="alert"><svg class="ic"><use href="#i-alert"></use></svg><div><b>Inzwischen an anderer Stelle geändert</b>Dein Text wurde nicht gespeichert und bleibt hier erhalten. Wähle, welche Fassung gelten soll.</div></div>
+        <label class="sr" for="t6">Tagesnotiz für Mittwoch, 14. Oktober</label>
+        <textarea id="t6" class="note-area" style="min-height: 120px">Material für das Kundenprojekt bereitlegen (Beispiel).
+Nach dem Dienst kurz einkaufen: Brot, Obst.
+Abends Trainingsplan für Samstag ansehen.</textarea>
+        <div class="toolbar"><button class="btn btn-primary" type="button">Meine Fassung speichern</button><button class="btn btn-secondary" type="button">Gespeicherte Fassung laden</button></div>
+      </section>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

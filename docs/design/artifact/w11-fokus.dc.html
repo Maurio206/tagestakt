@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Übersicht – Fokusblock</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f3efe8}a:hover{color:#ffffff}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M7 16h8M7 11h12M7 6h3"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"></polygon></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M14.4 14.4 9.6 9.6"></path><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path><path d="m21.5 21.5-1.4-1.4"></path><path d="M3.9 3.9 2.5 2.5"></path><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+<symbol id="i-cal-check" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18M9 16l2 2 4-4"></path></symbol>
+<symbol id="i-dashed" viewBox="0 0 24 24"><path d="M10.1 2.18a10 10 0 0 1 3.8 0M13.9 21.82a10 10 0 0 1-3.8 0M17.61 3.72a10 10 0 0 1 2.69 2.7M2.18 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.82 10.1a10 10 0 0 1 0 3.8M3.72 6.39a10 10 0 0 1 2.7-2.69M6.39 20.28a10 10 0 0 1-2.69-2.7"></path></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path><path d="M2 6h4M2 10h4M2 14h4M2 18h4"></path><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path></symbol>
+<symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+</defs>
+</svg>
+<div class="web">
+  <aside class="side" aria-label="Seitenleiste">
+    <a class="brand" href="w11-fokus.dc.html"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: #f3efe8; stroke-width: 1.6; stroke-linecap: round"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><path d="M8 15.5v-3M12 15.5v-7M16 15.5v-5"></path></svg>TagesTakt</a>
+    <nav class="nav" aria-label="Hauptnavigation" style="display: flex; flex-direction: column; gap: 2px">
+      <a class="on" href="w11-fokus.dc.html" aria-current="page"><svg class="ic"><use href="#i-house"></use></svg>Übersicht</a>
+      <a href="w16-wochenplan-notiz.dc.html"><svg class="ic"><use href="#i-week"></use></svg>Wochenplan</a>
+      <a href="w05-wiederholungen.dc.html"><svg class="ic"><use href="#i-repeat"></use></svg>Wiederholungen</a>
+      <a href="w06-auswertung.dc.html"><svg class="ic"><use href="#i-chart"></use></svg>Auswertung</a>
+      <a href="w07-einstellungen.dc.html"><svg class="ic"><use href="#i-more"></use></svg>Einstellungen</a>
+    </nav>
+    <div class="spacer"></div>
+    <p class="subtle" style="font-size: 12.5px; padding: 0 10px">Privat · nur für dich</p>
+  </aside>
+  <main class="main">
+    <div class="wrap">
+      <header class="ph">
+        <div><p class="eyebrow num">KW 42 · Mittwoch, 14. Oktober</p><h1>Übersicht</h1></div>
+        <p class="subtle num" style="font-size: 13px">18:05 Uhr · wechselt zur Startzeit automatisch zum nächsten Block</p>
+      </header>
+
+      <section class="stage" aria-labelledby="f-title">
+        <div class="ghost prev g-duty" aria-hidden="true"><span class="gtime">07:00–16:30</span><span class="gtitle"><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst</span></span></div>
+        <article class="focus g-business">
+          <div class="fhead"><span class="chip"><svg class="ic ic-sm"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="eyebrow num" style="color: var(--business)">Jetzt · 17:00–20:00</span></div>
+          <h2 id="f-title" class="ftitle">Kundenprojekt</h2>
+          <div class="fbig"><span class="n" aria-hidden="true">1:55</span><span class="u" aria-hidden="true">Std. übrig · endet um 20:00</span><span class="sr">noch 1 Std. 55 Min., endet um 20:00 Uhr</span></div>
+          <div class="track" role="img" aria-label="Block zu 36 Prozent vorbei"><span style="width: 36%"></span></div>
+          <div class="fmeta"><span>Ort: Arbeitszimmer</span><span>Noch nicht erfasst.</span></div>
+          <div class="toolbar"><button class="btn btn-primary btn-lg" type="button"><svg class="ic ic-fill"><use href="#i-play"></use></svg>Fokus starten</button><button class="btn btn-ghost btn-lg" type="button"><svg class="ic ic-sm"><use href="#i-check"></use></svg>Erledigt</button><button class="btn btn-ghost btn-lg" type="button">Ausgelassen</button></div>
+          <p class="around"><span>Davor: <b>Dienst Bundeswehr</b> bis 16:30</span><span>Danach: <b class="num">20:00 Abendessen</b> · in 1 Std. 55 Min.</span></p>
+        </article>
+        <div class="ghost next g-neutral" aria-hidden="true"><span class="gtime">20:00–20:45</span><span class="gtitle"><b>Abendessen</b><span class="cat"><i class="d"></i>Essen</span></span></div>
+      </section>
+
+      <details class="note-details">
+        <summary class="noterow"><svg class="ic"><use href="#i-note"></use></svg><span class="grow"><b>Tagesnotiz · heute</b><small>Material für das Kundenprojekt bereitlegen (Beispiel)</small></span><span class="subtle num" style="font-size: 13px">Gespeichert 08:12</span><svg class="ic ic-sm"><use href="#i-chev-down"></use></svg></summary>
+      </details>
+
+      <div class="grid-2">
+        <section class="section" aria-labelledby="w-next">
+          <div class="section-head"><h2 id="w-next">Als Nächstes</h2><a class="link" style="font-size: 13px" href="w16-wochenplan-notiz.dc.html">Wochenplan</a></div>
+          <div class="next g-neutral"><span class="t">20:00</span><span class="b"><b>Abendessen</b><span class="cat"><i class="d"></i>Essen · 20:00–20:45 · in 1 Std. 55 Min.</span></span></div>
+          <div class="next g-violet"><span class="t">21:00</span><span class="b"><b>Freizeit</b><span class="cat"><i class="d"></i>Freizeit · 21:00–22:00</span></span></div>
+          <div class="next g-duty"><span class="t" style="font-size: 13px">Do 07:00</span><span class="b"><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst · 07:00–16:30</span></span></div>
+        </section>
+        <section class="section" aria-labelledby="w-ziele">
+          <div class="section-head"><h2 id="w-ziele">Diese Woche</h2><a class="link" style="font-size: 13px" href="w06-auswertung.dc.html">Zur Auswertung</a></div>
+          <div class="goals">
+            <div class="goal g-business"><div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="status st-risk" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span></div><div class="gbar"><span class="plan" style="width: 73%"></span><span class="act" style="width: 19%"></span><span class="target" style="left: 91%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">4,1 h</b> erfasst · 16 h geplant · Ziel 20 h</p></div>
+            <div class="goal g-sport"><div class="top"><span class="name"><svg class="ic"><use href="#i-dumbbell"></use></svg>Sport</span><span class="status st-ok" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-cal-check"></use></svg>Im Plan</span></div><div class="gbar"><span class="plan" style="width: 91%"></span><span class="act" style="width: 29%"></span><span class="target" style="left: 73%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">1,2 h</b> erfasst · 3,8 h geplant · Ziel 3 h</p></div>
+            <div class="goal g-relationship"><div class="top"><span class="name"><svg class="ic"><use href="#i-heart"></use></svg>Laila</span><span class="status st-unset" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-dashed"></use></svg>Ziel festlegen</span></div><div class="gbar unset"><span class="plan" style="width: 91%"></span><span class="act" style="width: 13%"></span></div><p class="vals num" style="font-size: 13px; color: var(--text-2)"><b style="color: var(--text)">1,4 h</b> erfasst · 9,5 h geplant</p></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

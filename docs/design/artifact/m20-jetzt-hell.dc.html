@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Jetzt – hell</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tagestakt.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#1a1815}a:hover{color:#000000}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></symbol>
+<symbol id="i-week" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><rect width="20" height="14" x="2" y="6" rx="2"></rect></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path><path d="M2 6h4M2 10h4M2 14h4M2 18h4"></path><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path></symbol>
+<symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"></path></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4M12 17h.01"></path></symbol>
+</defs>
+</svg>
+<div class="phone light">
+  <div class="inset-top"></div>
+  <header class="appbar">
+    <div>
+      <h1 style="font-size: 22px">Mittwoch, 14. Oktober</h1>
+      <p class="sub num">KW 42 · 18:05 Uhr</p>
+    </div>
+  </header>
+  <main class="content" style="gap: 16px">
+    <section class="stage" aria-labelledby="m-f">
+      <div class="ghost prev g-duty" aria-hidden="true"><span class="gtime">07:00–16:30</span><span class="gtitle"><b>Dienst Bundeswehr</b></span></div>
+      <article class="focus is-running g-business">
+        <div class="fhead"><span class="chip"><svg class="ic ic-sm"><use href="#i-briefcase"></use></svg>Gewerbe · Läuft</span><span class="eyebrow num" style="color: var(--business)">Plan bis 20:00</span></div>
+        <h2 id="m-f" class="ftitle">Kundenprojekt</h2>
+        <div class="fbig"><span class="n" role="timer" aria-label="Läuft seit 1 Stunde 1 Minute">1:01:12</span></div>
+        <p class="hint num">seit 17:04 · zum Planblock 17:00–20:00</p>
+        <button class="btn btn-primary btn-lg btn-block" type="button"><svg class="ic ic-fill"><use href="#i-stop"></use></svg>Beenden</button>
+        <div style="display: flex; gap: 8px; justify-content: center"><button class="btn btn-ghost" type="button">Zeit korrigieren</button><button class="btn btn-ghost" type="button">Abbrechen</button></div>
+        <p class="around"><span>Davor: <b>Dienst</b> bis 16:30</span><span>Danach: <b class="num">20:00 Abendessen</b></span></p>
+      </article>
+      <div class="ghost next g-neutral" aria-hidden="true"><span class="gtime">20:00–20:45</span><span class="gtitle"><b>Abendessen</b></span></div>
+    </section>
+
+    <a class="noterow" href="m18-notiz-tastatur.dc.html"><svg class="ic"><use href="#i-note"></use></svg><span class="grow"><b>Tagesnotiz heute</b><small>Noch keine Notiz – tippen zum Schreiben</small></span><svg class="ic ic-sm"><use href="#i-chev-right"></use></svg></a>
+
+    <section class="section" aria-labelledby="woche">
+      <div class="section-head"><h2 id="woche">Diese Woche</h2><a class="link" style="font-size: 14px" href="m08-ziele.dc.html">Ziele</a></div>
+      <div class="goals">
+        <div class="goal g-business">
+          <div class="top"><span class="name"><svg class="ic"><use href="#i-briefcase"></use></svg>Gewerbe</span><span class="status st-risk" style="margin-left: auto"><svg class="ic ic-sm"><use href="#i-alert"></use></svg>Gefährdet</span></div>
+          <div class="gbar"><span class="plan" style="width: 73%"></span><span class="act" style="width: 19%"></span><span class="target" style="left: 91%"></span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <nav class="tabbar" aria-label="Hauptnavigation">
+    <a class="tab active" href="m20-jetzt-hell.dc.html" aria-current="page"><span class="pill"><svg class="ic"><use href="#i-timer"></use></svg></span>Jetzt</a>
+    <a class="tab" href="m17-tag-notiz.dc.html"><span class="pill"><svg class="ic"><use href="#i-sun"></use></svg></span>Tag</a>
+    <a class="tab" href="m06-woche.dc.html"><span class="pill"><svg class="ic"><use href="#i-week"></use></svg></span>Woche</a>
+    <a class="tab" href="m10-einstellungen.dc.html"><span class="pill"><svg class="ic"><use href="#i-more"></use></svg></span>Mehr</a>
+  </nav>
+  <div class="inset-bottom"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
