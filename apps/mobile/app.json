@@ -31,7 +31,9 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.USE_EXACT_ALARM",
-        "com.google.android.c2dm.permission.RECEIVE"
+        "com.google.android.c2dm.permission.RECEIVE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.DETECT_SCREEN_CAPTURE"
       ]
     },
     "ios": {

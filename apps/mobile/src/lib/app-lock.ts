@@ -30,6 +30,58 @@ export function shouldLockOnResume(
   return now - backgroundedAt >= settings.timeoutSeconds * 1000;
 }
 
+/**
+ * Zustand der Sperre: `locked` = Sperrbildschirm, `shielded` = neutrale Schutzfläche, solange
+ * die App nicht im Vordergrund ist (kein lesbarer Inhalt in Vorschauen).
+ */
+export interface LockState {
+  locked: boolean;
+  shielded: boolean;
+  backgroundedAt: number | null;
+}
+
+export type LockEvent =
+  | { type: "background"; at: number }
+  | { type: "inactive" }
+  | { type: "active"; at: number }
+  | { type: "unlocked" };
+
+export function initialLockState(settings: AppLockSettings): LockState {
+  return { locked: shouldLockOnColdStart(settings), shielded: false, backgroundedAt: null };
+}
+
+/**
+ * Reiner Zustandsübergang. Eigene Systemdialoge (`systemPrompt`, z. B. die PIN-Eingabe als
+ * eigene Activity) werden ignoriert – so kann Entsperren nie zu einer erneuten Sperre führen.
+ */
+export function nextLockState(
+  state: LockState,
+  event: LockEvent,
+  settings: AppLockSettings,
+  systemPrompt: boolean,
+): LockState {
+  switch (event.type) {
+    case "background":
+    case "inactive":
+      if (!settings.enabled || systemPrompt) return state;
+      return {
+        ...state,
+        shielded: true,
+        backgroundedAt:
+          event.type === "background" ? (state.backgroundedAt ?? event.at) : state.backgroundedAt,
+      };
+    case "active": {
+      if (!settings.enabled) return { locked: false, shielded: false, backgroundedAt: null };
+      const lockNow =
+        state.backgroundedAt !== null &&
+        shouldLockOnResume(settings, state.backgroundedAt, event.at);
+      return { locked: state.locked || lockNow, shielded: false, backgroundedAt: null };
+    }
+    case "unlocked":
+      return { ...state, locked: false };
+  }
+}
+
 export type LockAvailability = "available" | "no-device-security" | "unavailable";
 
 /**

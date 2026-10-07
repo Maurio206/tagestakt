@@ -98,3 +98,11 @@ jest.mock("expo-notifications", () => {
     }),
   };
 });
+
+// Bildschirmschutz (FLAG_SECURE): festhalten, ob Aufnahmen verhindert werden.
+jest.mock("expo-screen-capture", () => ({
+  preventScreenCaptureAsync: jest.fn(async () => undefined),
+  allowScreenCaptureAsync: jest.fn(async () => undefined),
+  enableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
+  disableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
+}));
