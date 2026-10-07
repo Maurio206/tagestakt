@@ -1,4 +1,5 @@
 import {
+  type LocalDate,
   type ScheduleEntry,
   type ScheduleWeek,
   WEEK_STATUS_LABELS,
@@ -22,6 +23,7 @@ import Link from "next/link";
 
 import { ActionButton } from "@/components/action-button";
 import { DayList, type DayListActions } from "@/components/day-list";
+import { DayNotes } from "@/components/day-notes";
 import { EntryDetails } from "@/components/entry-details";
 import { EntryEditor } from "@/components/entry-editor";
 import { EntryForm, type EntryFormDefaults } from "@/components/entry-form";
@@ -32,6 +34,7 @@ import { PlanningNoteForm } from "@/components/planning-note-form";
 import { WeekGrid } from "@/components/week-grid";
 import { WeekPicker } from "@/components/week-picker";
 import { noticeText, parseUndoTimes, weekPlanPath } from "@/lib/paths";
+import { saveDailyNoteAction } from "@/server/actions/daily-notes";
 import {
   createDraftAction,
   createEntryAction,
@@ -45,8 +48,10 @@ import {
   updateEntryAction,
 } from "@/server/actions/schedule";
 import { listSessions } from "@/server/data/activity";
+import { getDailyNote, listNoteDates } from "@/server/data/daily-notes";
 import { getWeekWithEntries, listWeekVersions } from "@/server/data/schedule";
 import { getSettings } from "@/server/data/settings";
+import { settle } from "@/server/settle";
 
 export const metadata: Metadata = { title: "Wochenplan" };
 
@@ -94,11 +99,23 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
     requestedWeek && isValidLocalDate(requestedWeek) ? requestedWeek : today,
   );
   const bounds = getWeekBounds(weekStart);
+  const weekDays = getWeekDays(weekStart);
+  // Tagesnotiz: gewählter Tag dieser Woche, sonst heute bzw. Montag.
+  const requestedNote = single(params.notiz);
+  const noteDate: LocalDate =
+    requestedNote && weekDays.includes(requestedNote)
+      ? requestedNote
+      : weekDays.includes(today)
+        ? today
+        : weekStart;
 
-  const [versions, settings, sessions] = await Promise.all([
+  const [versions, settings, sessions, noteDates, note] = await Promise.all([
     listWeekVersions(weekStart),
     getSettings(),
     listSessions(bounds.start, bounds.end),
+    // Notizen sind unabhängig vom Plan: Ein Ladefehler blockiert den Wochenplan nicht.
+    settle(listNoteDates(weekStart, addDays(weekStart, 6)), []),
+    settle(getDailyNote(noteDate), null),
   ]);
   const selectedMeta = pickVersion(versions, single(params.version));
   const week = selectedMeta ? await getWeekWithEntries(selectedMeta.id) : null;
@@ -121,7 +138,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
     weekStart,
     now,
   });
-  const days = getWeekDays(weekStart).map((date) => ({
+  const days = weekDays.map((date) => ({
     value: date,
     label: formatLocalDateLong(date),
   }));
@@ -130,6 +147,10 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
     : weekPlanPath(weekStart);
   const editHref = (entry: ScheduleEntry) =>
     weekPlanPath(weekStart, { versionId: week?.id ?? "", editEntryId: entry.id });
+  const dayNotes = {
+    dates: new Set(noteDates.value),
+    href: (date: LocalDate) => weekPlanPath(weekStart, { versionId: week?.id, noteDate: date }),
+  };
 
   return (
     <>
@@ -318,6 +339,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
                   selectedId={selectedEntry?.id}
                   editHref={editHref}
                   linkAction={isDraft ? "bearbeiten" : "Details anzeigen"}
+                  dayNotes={dayNotes}
                 />
               </div>
               <DayList
@@ -329,6 +351,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
                 selectedId={selectedEntry?.id}
                 editHref={editHref}
                 actions={dayListActions}
+                dayNotes={dayNotes}
               />
             </div>
             {editEntry ? (
@@ -363,6 +386,17 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
           </section>
         </>
       )}
+
+      <DayNotes
+        days={weekDays}
+        selected={noteDate}
+        today={today}
+        noteDates={dayNotes.dates}
+        note={note.value}
+        loadError={note.failed}
+        dayHref={dayNotes.href}
+        save={saveDailyNoteAction}
+      />
     </>
   );
 }

@@ -4,6 +4,7 @@ import {
   type LocalDate,
   type ScheduleEntry,
   WEEKDAY_SHORT_LABELS,
+  formatLocalDateLong,
   formatLocalDateShort,
   formatTimeRange,
   getDayBounds,
@@ -14,6 +15,7 @@ import {
   parseTimeOfDay,
   toLocalTime,
 } from "@tagestakt/schedule-schema";
+import { NotebookPen } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_FIRST_HOUR = 6;
@@ -104,6 +106,7 @@ export function WeekGrid({
   selectedId,
   editHref,
   linkAction = "bearbeiten",
+  dayNotes,
 }: {
   weekStart: LocalDate;
   entries: readonly ScheduleEntry[];
@@ -115,6 +118,8 @@ export function WeekGrid({
   editHref?: (entry: ScheduleEntry) => string;
   /** Wortlaut im zugänglichen Namen des Links („bearbeiten“, „Details anzeigen“). */
   linkAction?: string;
+  /** Tage mit Tagesnotiz und Link dorthin (Notizen gehören zum Tag, nicht zur Version). */
+  dayNotes?: { dates: ReadonlySet<string>; href: (date: LocalDate) => string };
 }) {
   const days = getWeekDays(weekStart).map((date) => ({
     date,
@@ -138,6 +143,16 @@ export function WeekGrid({
             <span className="wk-sum">
               {segments.length === 1 ? "1 Block" : `${segments.length} Blöcke`}
             </span>
+            {dayNotes?.dates.has(date) ? (
+              <Link
+                className="wk-note"
+                href={dayNotes.href(date)}
+                aria-label={`Tagesnotiz für ${formatLocalDateLong(date)} öffnen`}
+              >
+                <NotebookPen size={13} aria-hidden="true" className="icon" />
+                Notiz
+              </Link>
+            ) : null}
           </div>
         );
       })}

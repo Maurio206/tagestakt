@@ -1,5 +1,7 @@
 /** URL-Aufbau (nur feste, interne Pfade – keine offenen Redirects). */
 
+import { DAILY_NOTE_ANCHOR } from "./daily-note";
+
 /** Feste Erfolgshinweise; über die URL werden nur diese Schlüssel transportiert. */
 export const NOTICES = {
   veroeffentlicht:
@@ -27,6 +29,8 @@ export function weekPlanPath(
     notice?: NoticeKey;
     /** Rückgängig nach dem Verschieben: Block und vorherige Zeiten. */
     undo?: { entryId: string; startAt: string; endAt: string };
+    /** Tagesnotiz dieses Tages öffnen (springt zum Abschnitt „Tagesnotiz“). */
+    noteDate?: string;
   } = {},
 ): string {
   const params = new URLSearchParams({ woche: weekStart });
@@ -37,7 +41,9 @@ export function weekPlanPath(
     params.set("rueckgaengig", options.undo.entryId);
     params.set("vorher", `${options.undo.startAt}_${options.undo.endAt}`);
   }
-  return `/wochenplan?${params.toString()}`;
+  if (options.noteDate) params.set("notiz", options.noteDate);
+  const anchor = options.noteDate ? `#${DAILY_NOTE_ANCHOR}` : "";
+  return `/wochenplan?${params.toString()}${anchor}`;
 }
 
 export function evaluationPath(

@@ -9,7 +9,7 @@ import {
   formatTimeRange,
   groupEntriesByDay,
 } from "@tagestakt/schedule-schema";
-import { Pencil, Trash } from "lucide-react";
+import { NotebookPen, Pencil, Trash } from "lucide-react";
 import Link from "next/link";
 
 import type { FormAction } from "@/lib/form";
@@ -36,6 +36,7 @@ export function DayList({
   editHref,
   actions,
   responsive = true,
+  dayNotes,
 }: {
   weekStart: LocalDate;
   entries: readonly ScheduleEntry[];
@@ -46,15 +47,31 @@ export function DayList({
   editHref: (entry: ScheduleEntry) => string;
   actions: DayListActions;
   responsive?: boolean;
+  /** Tage mit Tagesnotiz und Link dorthin (für jeden Tag erreichbar). */
+  dayNotes?: { dates: ReadonlySet<string>; href: (date: LocalDate) => string };
 }) {
   return (
     <div className={responsive ? "day-list day-list--responsive" : "day-list"}>
       {groupEntriesByDay(entries, weekStart).map((day) => (
         <section key={day.date} className="day-group" aria-labelledby={`tag-${day.date}`}>
-          <h2 id={`tag-${day.date}`} className="day-title">
-            {formatLocalDateLong(day.date)}
-            {day.date === today ? <span className="today-tag">Heute</span> : null}
-          </h2>
+          <div className="day-head">
+            <h2 id={`tag-${day.date}`} className="day-title">
+              {formatLocalDateLong(day.date)}
+              {day.date === today ? <span className="today-tag">Heute</span> : null}
+            </h2>
+            {dayNotes ? (
+              <Link
+                className="day-note-link"
+                href={dayNotes.href(day.date)}
+                aria-label={`Tagesnotiz für ${formatLocalDateLong(day.date)} ${
+                  dayNotes.dates.has(day.date) ? "öffnen" : "schreiben"
+                }`}
+              >
+                <NotebookPen size={16} aria-hidden="true" className="icon" />
+                {dayNotes.dates.has(day.date) ? "Notiz" : "Notiz schreiben"}
+              </Link>
+            ) : null}
+          </div>
           {day.entries.length === 0 ? (
             <p className="muted small">Keine Einträge.</p>
           ) : (

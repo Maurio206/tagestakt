@@ -39,12 +39,18 @@ const activityData = vi.hoisted(() => ({
   stopSession: vi.fn(),
   switchSession: vi.fn(),
 }));
+const dailyNoteData = vi.hoisted(() => ({
+  getDailyNote: vi.fn(),
+  listNoteDates: vi.fn(),
+  saveDailyNote: vi.fn(),
+}));
 const supabaseAuth = vi.hoisted(() => ({ signInWithPassword: vi.fn(), signOut: vi.fn() }));
 
 vi.mock("../data/schedule", () => scheduleData);
 vi.mock("../data/recurring", () => recurringData);
 vi.mock("../data/settings", () => settingsData);
 vi.mock("../data/activity", () => activityData);
+vi.mock("../data/daily-notes", () => dailyNoteData);
 vi.mock("../supabase", () => ({
   createSupabaseServerClient: async () => ({ auth: supabaseAuth }),
 }));
@@ -70,7 +76,9 @@ const {
   stopActivityAction,
   switchActivityAction,
 } = await import("./activity");
+const { saveDailyNoteAction } = await import("./daily-notes");
 const { UserFacingError } = await import("../errors");
+const { revalidatePath } = await import("next/cache");
 
 const WEEK_ID = "c9f0f895-fb98-4b91-9f5a-1c2d3e4f5a6b";
 const ENTRY_ID = "45c48cce-2e2d-4fbd-8a6c-0d1e2f3a4b5c";
@@ -486,6 +494,108 @@ describe("loginAction", () => {
     });
     await expect(
       loginAction(initialActionState, form({ email: "demo@tagestakt.test", password: "richtig" })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+  });
+});
+
+describe("saveDailyNoteAction", () => {
+  const NOTE_ID = "6f9619ff-8b86-4d01-b42d-00c04fc964ff";
+  const note = {
+    id: NOTE_ID,
+    revision: 2,
+    content: "Material bereitlegen (Beispiel)\nZweite Zeile",
+    updatedAt: "2026-10-14T06:12:00.000Z",
+  };
+
+  it("prüft Datum und Länge mit dem gemeinsamen Schema, bevor gespeichert wird", async () => {
+    expect(await saveDailyNoteAction({ date: "2026-02-30", content: "x", expected: null })).toEqual(
+      { status: "error", message: "Ungültige Anfrage." },
+    );
+    expect(
+      await saveDailyNoteAction({
+        date: "2026-10-14",
+        content: "a".repeat(10_001),
+        expected: null,
+      }),
+    ).toEqual({
+      status: "error",
+      message: "Die Notiz ist zu lang (höchstens 10 000 Zeichen).",
+    });
+    expect(dailyNoteData.saveDailyNote).not.toHaveBeenCalled();
+  });
+
+  it("speichert normalisiert (Zeilenumbrüche bleiben) und aktualisiert Übersicht und Wochenplan", async () => {
+    dailyNoteData.saveDailyNote.mockResolvedValueOnce({ status: "saved", note });
+    const result = await saveDailyNoteAction({
+      date: "2026-10-14",
+      content: "  Material bereitlegen (Beispiel)\r\nZweite Zeile  ",
+      expected: { id: NOTE_ID, revision: 1 },
+    });
+    expect(dailyNoteData.saveDailyNote).toHaveBeenCalledWith({
+      date: "2026-10-14",
+      content: "Material bereitlegen (Beispiel)\nZweite Zeile",
+      expected: { id: NOTE_ID, revision: 1 },
+    });
+    expect(result).toEqual({ status: "saved", note, at: note.updatedAt });
+    expect(revalidatePath).toHaveBeenCalledWith("/wochenplan");
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+  });
+
+  it("leerer Inhalt entfernt die Notiz", async () => {
+    dailyNoteData.saveDailyNote.mockResolvedValueOnce({ status: "saved", note: null });
+    const result = await saveDailyNoteAction({
+      date: "2026-10-14",
+      content: " \n\t ",
+      expected: { id: NOTE_ID, revision: 2 },
+    });
+    expect(dailyNoteData.saveDailyNote).toHaveBeenCalledWith(
+      expect.objectContaining({ content: "" }),
+    );
+    expect(result).toMatchObject({ status: "saved", note: null });
+  });
+
+  it("meldet Konflikte mit dem aktuellen Stand, statt zu überschreiben", async () => {
+    dailyNoteData.saveDailyNote.mockResolvedValueOnce({ status: "conflict", latest: note });
+    const result = await saveDailyNoteAction({
+      date: "2026-10-14",
+      content: "Meine Fassung (Beispiel)",
+      expected: { id: NOTE_ID, revision: 1 },
+    });
+    expect(result).toEqual({ status: "conflict", latest: note });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("Fehler ohne interne Details; Protokoll ohne Notizinhalt", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    dailyNoteData.saveDailyNote.mockRejectedValueOnce(
+      new Error("relation daily_notes … Geheimer Inhalt (Beispiel)"),
+    );
+    const result = await saveDailyNoteAction({
+      date: "2026-10-14",
+      content: "Geheimer Inhalt (Beispiel)",
+      expected: null,
+    });
+    expect(result).toEqual({
+      status: "error",
+      message: "Nicht gespeichert. Bitte erneut versuchen – dein Text bleibt hier erhalten.",
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("Geheimer Inhalt");
+    log.mockRestore();
+
+    dailyNoteData.saveDailyNote.mockRejectedValueOnce(
+      new UserFacingError("Keine Berechtigung für diese Aktion."),
+    );
+    expect(await saveDailyNoteAction({ date: "2026-10-14", content: "x", expected: null })).toEqual(
+      { status: "error", message: "Keine Berechtigung für diese Aktion." },
+    );
+  });
+
+  it("leitet bei abgelaufener Sitzung weiter (Redirect wird nicht verschluckt)", async () => {
+    dailyNoteData.saveDailyNote.mockRejectedValueOnce(
+      Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;/anmelden" }),
+    );
+    await expect(
+      saveDailyNoteAction({ date: "2026-10-14", content: "x", expected: null }),
     ).rejects.toThrow("NEXT_REDIRECT");
   });
 });
