@@ -139,3 +139,37 @@ export function planReminders(
     .sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime() || a.key.localeCompare(b.key))
     .slice(0, maxCount);
 }
+
+/**
+ * Planblöcke, zu denen bereits Zeit erfasst wird oder wurde: direkt verknüpfte Aktivitäten
+ * sowie Aktivitäten desselben Ziels, die bis kurz nach Blockbeginn laufen (z. B. spontan
+ * gestartet). Für diese Blöcke entfällt „noch nicht gestartet“.
+ */
+export function trackedEntryIdsFromSessions(
+  entries: readonly ReminderEntry[],
+  sessions: readonly {
+    goal_category: string;
+    schedule_entry_id: string | null;
+    started_at: string;
+    ended_at: string | null;
+  }[],
+  now: Date,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const session of sessions) {
+    if (session.schedule_entry_id) ids.add(session.schedule_entry_id);
+  }
+  for (const entry of entries) {
+    if (ids.has(entry.id)) continue;
+    const start = Date.parse(entry.start_at);
+    const checkpoint = start + NOT_STARTED_GRACE_MINUTES * MINUTE_MS;
+    const covered = sessions.some((session) => {
+      if (session.goal_category !== entry.category) return false;
+      const sessionStart = Date.parse(session.started_at);
+      const sessionEnd = session.ended_at ? Date.parse(session.ended_at) : now.getTime();
+      return sessionStart <= checkpoint && sessionEnd >= start;
+    });
+    if (covered) ids.add(entry.id);
+  }
+  return ids;
+}

@@ -6,6 +6,7 @@ import {
   type ReminderPreferences,
   isCategoryInReminderScope,
   planReminders,
+  trackedEntryIdsFromSessions,
 } from "./reminders";
 
 function entry(
@@ -131,5 +132,58 @@ describe("planReminders", () => {
     expect(reminders).toHaveLength(5);
     const times = reminders.map((r) => r.fireAt.getTime());
     expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+});
+
+describe("trackedEntryIdsFromSessions", () => {
+  const block = entry("g", "business", "2026-10-12T15:00:00Z", "2026-10-12T18:00:00Z");
+  const now = new Date("2026-10-12T15:05:00Z");
+
+  it("erkennt verknüpfte und laufende Aktivitäten desselben Ziels", () => {
+    expect(
+      trackedEntryIdsFromSessions(
+        [block],
+        [
+          {
+            goal_category: "business",
+            schedule_entry_id: null,
+            started_at: "2026-10-12T14:55:00Z",
+            ended_at: null,
+          },
+        ],
+        now,
+      ),
+    ).toEqual(new Set(["g"]));
+    expect(
+      trackedEntryIdsFromSessions(
+        [block],
+        [
+          {
+            goal_category: "sport",
+            schedule_entry_id: "x",
+            started_at: "2026-10-12T14:55:00Z",
+            ended_at: null,
+          },
+        ],
+        now,
+      ),
+    ).toEqual(new Set(["x"]));
+  });
+
+  it("ignoriert Aktivitäten, die vor Blockbeginn endeten", () => {
+    expect(
+      trackedEntryIdsFromSessions(
+        [block],
+        [
+          {
+            goal_category: "business",
+            schedule_entry_id: null,
+            started_at: "2026-10-12T12:00:00Z",
+            ended_at: "2026-10-12T13:00:00Z",
+          },
+        ],
+        now,
+      ).size,
+    ).toBe(0);
   });
 });
