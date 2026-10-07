@@ -47,6 +47,21 @@ supabase/.env
 plan-export*.json
 private/
 
+# Persönliche Notizen, Verknüpfungen und Exporte (z. B. OneNote) nie ins Repo
+*.url
+*.webloc
+*.lnk
+*.one
+*.onepkg
+*.onetoc2
+*.onebin
+*.mht
+*.mhtml
+*tagesnotiz*.json
+*notiz-export*
+*notes-export*
+onenote-export*/
+
 # OS / Editor
 .DS_Store
 Thumbs.db
