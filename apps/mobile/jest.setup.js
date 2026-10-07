@@ -63,3 +63,9 @@ jest.mock("react-native-svg", () => {
   };
 });
 
+// Biometrie: steuerbarer Ersatz (Standard: Gerät mit Bildschirmsperre, Entsperren erfolgreich).
+jest.mock("expo-local-authentication", () => ({
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+  getEnrolledLevelAsync: jest.fn(async () => 3),
+  authenticateAsync: jest.fn(async () => ({ success: true })),
+}));

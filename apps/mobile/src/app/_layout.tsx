@@ -1,18 +1,37 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/auth/auth-context";
+import { AppLockGate } from "@/components/app-lock";
+import { DeviceSettingsProvider } from "@/hooks/device-settings";
 import { readMobileEnv } from "@/lib/env";
 import { spacing, useTheme } from "@/theme";
 
 const envResult = readMobileEnv();
 
+/** Dienste, die nur mit gültiger Sitzung laufen: Geräteeinstellungen und App-Sperre. */
+function SessionServices({
+  userId,
+  onSignOut,
+  children,
+}: {
+  userId: string;
+  onSignOut: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <DeviceSettingsProvider key={userId}>
+      <AppLockGate onSignOut={onSignOut}>{children}</AppLockGate>
+    </DeviceSettingsProvider>
+  );
+}
+
 function RootNavigator() {
-  const { session, initializing } = useAuth();
+  const { session, initializing, signOut } = useAuth();
   const theme = useTheme();
 
   if (initializing) {
@@ -23,7 +42,7 @@ function RootNavigator() {
     );
   }
 
-  return (
+  const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
       {/* Ohne gültige Session ist ausschließlich die Anmeldung erreichbar. */}
       <Stack.Protected guard={Boolean(session)}>
@@ -37,6 +56,14 @@ function RootNavigator() {
         <Stack.Screen name="login" />
       </Stack.Protected>
     </Stack>
+  );
+
+  return session ? (
+    <SessionServices userId={session.user.id} onSignOut={() => void signOut()}>
+      {stack}
+    </SessionServices>
+  ) : (
+    stack
   );
 }
 

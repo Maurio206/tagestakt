@@ -16,6 +16,7 @@ import {
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/auth/auth-context";
+import { AppLockSettings } from "@/components/app-lock-settings";
 import { GoalSettings } from "@/components/goal-settings";
 import { Screen } from "@/components/screen";
 import { RunningTimerBar } from "@/components/timer-bar";
@@ -65,7 +66,7 @@ export default function MoreScreen() {
   const confirmLogout = () => {
     Alert.alert(
       "Abmelden?",
-      "Die Sitzung und der lokal gespeicherte Plan werden von diesem Gerät gelöscht.",
+      "Die Sitzung, der lokal gespeicherte Plan, die geplanten Erinnerungen und die Geräteeinstellungen werden von diesem Gerät gelöscht.",
       [
         { text: "Abbrechen", style: "cancel" },
         { text: "Abmelden", style: "destructive", onPress: () => void signOut() },
@@ -96,7 +97,9 @@ export default function MoreScreen() {
         {result && !canWrite ? <Muted small>Ändern ist nur mit Verbindung möglich.</Muted> : null}
       </Section>
 
-
+      <Section title="App-Sperre">
+        <AppLockSettings />
+      </Section>
 
       <Section title="Synchronisierung">
         <Body>Letzte erfolgreiche Synchronisierung: {lastSyncText}</Body>
@@ -119,10 +122,10 @@ export default function MoreScreen() {
 
       <Section title="Datenschutz auf diesem Gerät">
         <Muted small>
-          Anmeldedaten liegen verschlüsselt im sicheren Speicher des Geräts (Android Keystore). Der
-          zuletzt geladene veröffentlichte Plan wird für die Offline-Anzeige im geschützten
-          App-Speicher abgelegt und beim Abmelden gelöscht. Keine Analyse, keine Werbung, keine
-          Weitergabe an Dritte.
+          Anmeldedaten und Geräteeinstellungen liegen verschlüsselt im sicheren Speicher des Geräts
+          (Android Keystore). Der zuletzt geladene veröffentlichte Plan wird für die Offline-Anzeige
+          im geschützten App-Speicher abgelegt. Erinnerungen werden nur lokal geplant. Beim Abmelden
+          wird alles davon gelöscht. Keine Analyse, keine Werbung, keine Weitergabe an Dritte.
         </Muted>
       </Section>
     </Screen>
