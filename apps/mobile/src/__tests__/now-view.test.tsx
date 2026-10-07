@@ -1,10 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import {
+  act,
+  fireEvent,
+  isHiddenFromAccessibility,
+  render,
+  screen,
+  within,
+} from "@testing-library/react-native";
+import { AccessibilityInfo, StyleSheet } from "react-native";
 
 import { LoginView } from "@/components/login-view";
 import { type NowActions, NowView } from "@/components/now-view";
 import { type PlanResult } from "@/lib/plan-status";
 
-import { NOW, businessBlock, session, snapshot } from "./fixtures";
+import { NOW, businessBlock, entry, session, snapshot } from "./fixtures";
 
 function actions(): jest.Mocked<NowActions> {
   return {
@@ -15,6 +23,7 @@ function actions(): jest.Mocked<NowActions> {
     setCompletion: jest.fn(),
     openCorrection: jest.fn(),
     openGoals: jest.fn(),
+    openNote: jest.fn(),
   };
 }
 
@@ -138,5 +147,129 @@ describe("LoginView", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Anmelden" }));
     expect(await screen.findByText("Bitte E-Mail und Passwort eingeben.")).toBeOnTheScreen();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("NowView – Fokusfläche", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it("Nachbarblöcke sind blass, ohne Bedienelemente und für Screenreader verborgen", async () => {
+    // 19:35 Berlin: Gewerbe ist vorbei, Training beginnt um 19:45.
+    const at = new Date("2026-10-06T17:35:00Z");
+    await render(<NowView result={online()} now={at} actions={actions()} />);
+    for (const id of ["focus-ghost-prev", "focus-ghost-next"]) {
+      const ghost = screen.getByTestId(id, { includeHiddenElements: true });
+      expect(isHiddenFromAccessibility(ghost)).toBe(true);
+      expect(ghost.props.pointerEvents).toBe("none");
+      expect(ghost.props.importantForAccessibility).toBe("no-hide-descendants");
+      expect(within(ghost).queryAllByRole("button", { includeHiddenElements: true })).toHaveLength(
+        0,
+      );
+    }
+    // Davor/Danach stehen zusätzlich als zugänglicher Text im Fokusblock.
+    expect(screen.getByText(/Davor:/)).toHaveTextContent(
+      "Davor: Gewerbe-Block (Beispiel) bis 19:30",
+    );
+    expect(screen.getByText(/Danach:/)).toHaveTextContent(
+      "Danach: 19:45 Training (Beispiel) · in 10 Min.",
+    );
+  });
+
+  it("freie Zeit: Überschrift, Countdown zum nächsten Block, nichts startet automatisch", async () => {
+    jest.useFakeTimers({ now: new Date("2026-10-06T17:35:00Z") });
+    const a = actions();
+    await render(<NowView result={online()} now={new Date("2026-10-06T17:35:00Z")} actions={a} />);
+    expect(screen.getByRole("header", { name: "Freie Zeit" })).toBeOnTheScreen();
+    expect(screen.getByLabelText("noch 10 Min. bis zum nächsten Block")).toBeOnTheScreen();
+    expect(screen.getByText("Als Nächstes: 19:45 Training (Beispiel)")).toBeOnTheScreen();
+    await act(async () => {
+      jest.advanceTimersByTime(5 * 60_000);
+    });
+    expect(a.start).not.toHaveBeenCalled();
+  });
+
+  it("wechselt zur Startzeit ohne Neuladen in den nächsten Block und sagt ihn an", async () => {
+    const at = new Date("2026-10-06T13:29:30Z"); // 15:29:30, vor dem ersten Block
+    jest.useFakeTimers({ now: at });
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+    await render(<NowView result={online()} now={at} actions={actions()} />);
+    expect(screen.getByRole("header", { name: "Noch frei bis 15:30" })).toBeOnTheScreen();
+    await act(async () => {
+      jest.advanceTimersByTime(29_000);
+    });
+    expect(screen.getByRole("header", { name: "Noch frei bis 15:30" })).toBeOnTheScreen();
+    await act(async () => {
+      jest.advanceTimersByTime(1_100);
+    });
+    expect(screen.getByRole("header", { name: "Gewerbe-Block (Beispiel)" })).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledWith("Jetzt im Fokus: Gewerbe-Block (Beispiel)");
+    const card = StyleSheet.flatten(screen.getByTestId("focus-card").props.style);
+    expect(card.transform).toBeDefined();
+  });
+
+  it("„Bewegung reduzieren“: Wechsel ohne Bewegung oder Einblendung", async () => {
+    const at = new Date("2026-10-06T13:29:30Z");
+    jest.useFakeTimers({ now: at });
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
+    await render(<NowView result={online()} now={at} actions={actions()} />);
+    await act(async () => {
+      jest.advanceTimersByTime(30_100);
+    });
+    expect(screen.getByRole("header", { name: "Gewerbe-Block (Beispiel)" })).toBeOnTheScreen();
+    const card = StyleSheet.flatten(screen.getByTestId("focus-card").props.style);
+    expect(card.transform).toBeUndefined();
+    expect(card.opacity).toBeUndefined();
+  });
+
+  it("Überschneidung: Hinweis und Fokus auch für den gleichzeitig laufenden Zielblock", async () => {
+    const overlap = entry("Laila-Abend (Beispiel)", "relationship", "2026-10-06", "16:30", "18:00");
+    const base = online();
+    const week = base.snapshot.weeks[0];
+    if (!week) throw new Error("Woche fehlt");
+    const result: PlanResult = {
+      ...base,
+      snapshot: {
+        ...base.snapshot,
+        weeks: [{ ...week, schedule_entries: [...week.schedule_entries, overlap] }],
+      },
+    };
+    const a = actions();
+    await render(<NowView result={result} now={NOW} actions={a} />);
+    expect(screen.getByRole("header", { name: "Laila-Abend (Beispiel)" })).toBeOnTheScreen();
+    expect(screen.getByText(/Überschneidung: gleichzeitig/)).toHaveTextContent(
+      "Überschneidung: gleichzeitig „Gewerbe-Block (Beispiel)“ (15:30–19:30)",
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Fokus für „Gewerbe-Block (Beispiel)“ starten" }),
+    );
+    expect(a.start).toHaveBeenCalledWith("business", businessBlock.id);
+  });
+
+  it("kompakter Notizzugang: erste Zeile, öffnet den Editor; offline ehrlich", async () => {
+    const a = actions();
+    const note = {
+      id: "6f9619ff-8b86-4d01-b42d-00c04fc964ff",
+      revision: 1,
+      content: "Material bereitlegen (Beispiel)\nZweite Zeile",
+      updatedAt: "2026-10-06T06:12:00.000Z",
+    };
+    const { rerender } = await render(
+      <NowView result={online()} now={NOW} actions={a} todayNote={{ status: "ready", note }} />,
+    );
+    const row = screen.getByRole("button", { name: /Tagesnotiz von heute öffnen/ });
+    expect(row).toHaveTextContent(/Material bereitlegen \(Beispiel\)/);
+    expect(row).not.toHaveTextContent(/Zweite Zeile/);
+    await fireEvent.press(row);
+    expect(a.openNote).toHaveBeenCalled();
+
+    await rerender(
+      <NowView result={online()} now={NOW} actions={a} todayNote={{ status: "offline" }} />,
+    );
+    expect(screen.getByRole("button", { name: /Tagesnotiz von heute öffnen/ })).toHaveTextContent(
+      /Ohne Verbindung nicht verfügbar/,
+    );
   });
 });

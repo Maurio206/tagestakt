@@ -11,16 +11,19 @@ export function StackHeader({
   subtitle,
   modal,
   action,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
   modal?: boolean;
   action?: ReactNode;
+  /** Eigenes Verhalten für „Zurück“ (z. B. Rückfrage bei ungespeicherten Änderungen). */
+  onBack?: () => void;
 }) {
   const theme = useTheme();
   const router = useRouter();
   const Icon = modal ? X : ChevronLeft;
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const back = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace("/")));
   return (
     <View style={styles.container}>
       <View style={styles.bar}>

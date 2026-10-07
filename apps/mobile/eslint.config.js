@@ -6,6 +6,36 @@ const prettier = require("eslint-config-prettier/flat");
 const secretEnvSelector =
   "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/SECRET|SERVICE_ROLE/]";
 
+const asyncStorageRestriction = {
+  name: "@react-native-async-storage/async-storage",
+  message:
+    "AsyncStorage nur über src/lib/plan-cache.ts verwenden – Tokens gehören ausschließlich in SecureStore.",
+};
+const webPatterns = [
+  {
+    group: ["next", "next/*", "@supabase/ssr"],
+    message: "Keine Web-Abhängigkeiten in der App.",
+  },
+  {
+    group: ["@tagestakt/web*", "../../web/*"],
+    message: "Mobile darf keine Web-Dateien importieren.",
+  },
+];
+// Tagesnotizen bleiben online und flüchtig: nie in Offline-Cache, Plan-Abruf oder Erinnerungen.
+const dailyNotePatterns = [
+  {
+    group: [
+      "@/lib/daily-notes-api",
+      "@/hooks/use-daily-note",
+      "./daily-notes-api",
+      "**/daily-notes-api",
+      "**/use-daily-note",
+    ],
+    message:
+      "Tagesnotizen dürfen nicht in Offline-Cache, Plan-Abruf oder Benachrichtigungen gelangen.",
+  },
+];
+
 module.exports = defineConfig([
   expoConfig,
   prettier,
@@ -24,25 +54,7 @@ module.exports = defineConfig([
       ],
       "no-restricted-imports": [
         "error",
-        {
-          paths: [
-            {
-              name: "@react-native-async-storage/async-storage",
-              message:
-                "AsyncStorage nur über src/lib/plan-cache.ts verwenden – Tokens gehören ausschließlich in SecureStore.",
-            },
-          ],
-          patterns: [
-            {
-              group: ["next", "next/*", "@supabase/ssr"],
-              message: "Keine Web-Abhängigkeiten in der App.",
-            },
-            {
-              group: ["@tagestakt/web*", "../../web/*"],
-              message: "Mobile darf keine Web-Dateien importieren.",
-            },
-          ],
-        },
+        { paths: [asyncStorageRestriction], patterns: webPatterns },
       ],
     },
   },
@@ -50,5 +62,18 @@ module.exports = defineConfig([
     // Einzige erlaubte Stelle für AsyncStorage: Zwischenspeicher des veröffentlichten Plans (plus Tests).
     files: ["src/lib/plan-cache.ts", "jest.setup.js", "src/__tests__/**"],
     rules: { "no-restricted-imports": "off" },
+  },
+  {
+    files: ["src/lib/plan-cache.ts"],
+    rules: { "no-restricted-imports": ["error", { patterns: dailyNotePatterns }] },
+  },
+  {
+    files: ["src/lib/notifications.ts", "src/hooks/use-reminder-sync.ts", "src/lib/plan-api.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [asyncStorageRestriction], patterns: [...webPatterns, ...dailyNotePatterns] },
+      ],
+    },
   },
 ]);

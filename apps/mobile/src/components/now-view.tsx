@@ -1,18 +1,23 @@
 import { categoryTone } from "@tagestakt/design-tokens";
 import {
   type ActivitySession,
+  CATEGORY_LABELS,
   type CompletionStatus,
+  type FocusState,
   GOAL_KEYS,
   GOAL_LABELS,
   type GoalKey,
   type ScheduleEntry,
   formatDuration,
   formatLocalDateLong,
+  formatStartLabel,
+  formatStartsIn,
   formatTime,
   formatTimeRange,
   formatWeekLabel,
-  getCurrentEntry,
   getEntryProgress,
+  getFocusKey,
+  getFocusState,
   getRemainingMinutes,
   getRunningSession,
   getSessionMinutes,
@@ -20,22 +25,37 @@ import {
   getWeekStart,
   isGoalKey,
   isLikelyForgotten,
+  minutesUntil,
   requiresCorrectionToStop,
   sortEntries,
   toLocalDate,
   trackedEntryIdsFromSessions,
 } from "@tagestakt/schedule-schema";
-import { Check, Play, Square, X } from "lucide-react-native";
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Check, Play, Square, TriangleAlert, X } from "lucide-react-native";
+import { type ReactNode, useEffect, useState } from "react";
+import {
+  AccessibilityInfo,
+  Alert,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 
+import type { DailyNoteState } from "@/hooks/use-daily-note";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type PlanResult } from "@/lib/plan-status";
 import { OFFLINE_MESSAGE } from "@/lib/write-errors";
-import { monoFamily, spacing, type, useTheme } from "@/theme";
+import { monoFamily, spacing, tint, type, useTheme } from "@/theme";
 
 import { FocusTimer } from "./focus-timer";
 import { GoalList } from "./goal-progress";
 import { ToneIcon } from "./icons";
+import { NoteRow } from "./note-card";
 import { Sheet } from "./sheet";
 import { StatusBanner } from "./status-banner";
 import { Button, CategoryPill, Muted, Notice, Section, ToneChip } from "./ui";
@@ -49,7 +69,18 @@ export interface NowActions {
   setCompletion: (entryId: string, status: CompletionStatus) => void;
   openCorrection: (sessionId: string) => void;
   openGoals: () => void;
+  openNote: () => void;
 }
+
+type Focus = FocusState<ScheduleEntry, ActivitySession>;
+
+const MAX_BOUNDARY_DELAY_MS = 60 * 60_000;
+
+/**
+ * Unschärfe der Nachbarblöcke: React Native unterstützt `filter: blur` nur unter Android
+ * (New Architecture). Unter iOS bleiben die Nachbarn deshalb nur blass und angeschnitten.
+ */
+const GHOST_BLUR: ViewStyle | null = Platform.OS === "android" ? { filter: [{ blur: 2 }] } : null;
 
 function dayPrefix(iso: string, now: Date): string {
   const date = toLocalDate(new Date(iso));
@@ -103,20 +134,16 @@ function SpontaneousStart({
   );
 }
 
-/** Restzeit groß in Ziffern mit kleiner Einheit; vorgelesen als Satz. */
-function Remaining({ minutes }: { minutes: number }) {
+/** Große Ziffern mit kleiner Einheit; vorgelesen wird ein ganzer Satz. */
+function BigNumber({ minutes, unit, label }: { minutes: number; unit: string; label: string }) {
   const theme = useTheme();
   const hours = Math.floor(minutes / 60);
   const digits = hours > 0 ? `${hours}:${String(minutes % 60).padStart(2, "0")}` : String(minutes);
   return (
-    <View
-      style={styles.remainingRow}
-      accessible
-      accessibilityLabel={`noch ${formatDuration(minutes)}`}
-    >
+    <View style={styles.remainingRow} accessible accessibilityLabel={label}>
       <Text style={[styles.remaining, { color: theme.text }]}>{digits}</Text>
       <Text style={[styles.remainingUnit, { color: theme.textMuted }]}>
-        {hours > 0 ? "Std. übrig" : "Min. übrig"}
+        {hours > 0 ? "Std." : "Min."} {unit}
       </Text>
     </View>
   );
@@ -130,6 +157,143 @@ function ProgressLine({ ratio, color }: { ratio: number; color: string }) {
         style={[styles.trackFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: color }]}
       />
     </View>
+  );
+}
+
+/** Davor/Danach als lesbarer Text – die unscharfen Nachbarn sind nur Dekoration. */
+function Around({ focus, now }: { focus: Focus; now: Date }) {
+  const theme = useTheme();
+  const { previous, next, nextIsToday } = focus;
+  const strong = { color: theme.text, fontWeight: "700" as const };
+  return (
+    <View style={[styles.around, { borderTopColor: theme.line }]}>
+      <Text style={[styles.aroundText, { color: theme.textMuted }]}>
+        Davor:{" "}
+        {previous ? (
+          <>
+            <Text style={strong}>{previous.title}</Text> bis {formatTime(previous.end_at)}
+          </>
+        ) : (
+          "heute noch nichts"
+        )}
+      </Text>
+      <Text style={[styles.aroundText, { color: theme.textMuted }]}>
+        Danach:{" "}
+        {next ? (
+          <>
+            <Text style={strong}>
+              {formatStartLabel(next.start_at, now)} {next.title}
+            </Text>
+            {nextIsToday ? ` · ${formatStartsIn(next.start_at, now)}` : ""}
+          </>
+        ) : (
+          "nichts mehr geplant"
+        )}
+      </Text>
+    </View>
+  );
+}
+
+/** Unscharfer, angeschnittener Nachbarblock: keine Bedienelemente, für Screenreader verborgen. */
+function Ghost({
+  entry,
+  position,
+  now,
+  later,
+}: {
+  entry: ScheduleEntry;
+  position: "prev" | "next";
+  now: Date;
+  later?: boolean;
+}) {
+  const theme = useTheme();
+  const color = theme[categoryTone[entry.category]];
+  return (
+    <View
+      testID={`focus-ghost-${position}`}
+      pointerEvents="none"
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      style={[styles.ghostClip, position === "prev" ? styles.ghostClipPrev : null]}
+    >
+      <View
+        style={[
+          styles.ghost,
+          {
+            borderColor: tint(color, 0.3),
+            backgroundColor: tint(color, 0.07),
+            opacity: later ? 0.35 : 0.5,
+          },
+          GHOST_BLUR,
+        ]}
+      >
+        <Text style={[styles.ghostTime, { color: theme.textMuted }]}>
+          {position === "next" && later
+            ? formatStartLabel(entry.start_at, now)
+            : formatTimeRange(entry.start_at, entry.end_at)}
+        </Text>
+        <View style={styles.ghostBody}>
+          <Text numberOfLines={1} style={[styles.ghostTitle, { color: theme.text }]}>
+            {entry.title}
+          </Text>
+          <Text numberOfLines={1} style={[styles.ghostCat, { color: theme.textMuted }]}>
+            {CATEGORY_LABELS[entry.category]}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** Fokusblock mit kurzer, ruhiger Einblendung beim Wechsel (nicht bei „Bewegung reduzieren“). */
+function FocusCard({
+  variant,
+  color,
+  animate,
+  children,
+}: {
+  variant: "running" | "block" | "free";
+  color: string;
+  animate: boolean;
+  children: ReactNode;
+}) {
+  const theme = useTheme();
+  const [progress] = useState(() => new Animated.Value(animate ? 0 : 1));
+  useEffect(() => {
+    if (!animate) return;
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [animate, progress]);
+  const colors =
+    variant === "free"
+      ? { backgroundColor: theme.surface1, borderColor: theme.lineStrong, borderStyle: "dashed" }
+      : variant === "running"
+        ? { backgroundColor: tint(color, 0.17), borderColor: color }
+        : { backgroundColor: tint(color, 0.09), borderColor: tint(color, 0.55) };
+  return (
+    <Animated.View
+      testID="focus-card"
+      style={[
+        styles.card,
+        colors as ViewStyle,
+        animate
+          ? {
+              opacity: progress,
+              transform: [
+                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) },
+              ],
+            }
+          : null,
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -180,14 +344,14 @@ function SwitchSheet({
 
 function RunningPanel({
   session,
-  current,
+  focus,
   now,
   actions,
   canWrite,
   pending,
 }: {
   session: ActivitySession;
-  current: ScheduleEntry | undefined;
+  focus: Focus;
   now: Date;
   actions: NowActions;
   canWrite: boolean;
@@ -195,7 +359,7 @@ function RunningPanel({
 }) {
   const theme = useTheme();
   const [switchOpen, setSwitchOpen] = useState(false);
-  const linked = current && session.schedule_entry_id === current.id ? current : undefined;
+  const { current, linked } = focus;
   const blocked = requiresCorrectionToStop(session, now);
   const label = GOAL_LABELS[session.goal_category];
   const target =
@@ -295,6 +459,7 @@ function RunningPanel({
 
 function EntryPanel({
   entry,
+  focus,
   now,
   tracked,
   actions,
@@ -302,6 +467,7 @@ function EntryPanel({
   pending,
 }: {
   entry: ScheduleEntry;
+  focus: Focus;
   now: Date;
   tracked: boolean;
   actions: NowActions;
@@ -311,6 +477,8 @@ function EntryPanel({
   const theme = useTheme();
   const goal = isGoalKey(entry.category) ? entry.category : undefined;
   const color = theme[categoryTone[entry.category]];
+  const minutes = getRemainingMinutes(entry, now);
+  const overlapGoals = focus.overlapping.filter((e) => isGoalKey(e.category));
   return (
     <View style={styles.now}>
       {goal ? (
@@ -329,7 +497,21 @@ function EntryPanel({
       <Text accessibilityRole="header" style={[styles.nowTitle, { color: theme.text }]}>
         {entry.title}
       </Text>
-      <Remaining minutes={getRemainingMinutes(entry, now)} />
+      {focus.overlapping.length > 0 ? (
+        <View style={styles.overlap}>
+          <TriangleAlert color={theme.warning} size={16} />
+          <Text style={[styles.overlapText, { color: theme.warning }]}>
+            Überschneidung: gleichzeitig{" "}
+            {focus.overlapping
+              .map((e) => `„${e.title}“ (${formatTimeRange(e.start_at, e.end_at)})`)
+              .join(", ")}
+          </Text>
+        </View>
+      ) : null}
+      <BigNumber minutes={minutes} unit="übrig" label={`noch ${formatDuration(minutes)}`} />
+      <Text style={[styles.meta, { color: theme.textMuted }]}>
+        endet um {formatTime(entry.end_at)} Uhr
+      </Text>
       <ProgressLine ratio={getEntryProgress(entry, now)} color={color} />
       {entry.location ? <Muted small>{`Ort: ${entry.location}`}</Muted> : null}
       {goal && !tracked ? <Muted small>Noch nicht erfasst.</Muted> : null}
@@ -343,6 +525,16 @@ function EntryPanel({
           onPress={() => actions.start(goal, entry.id)}
         />
       ) : null}
+      {overlapGoals.map((other) => (
+        <Button
+          key={other.id}
+          label={`Fokus für „${other.title}“ starten`}
+          variant={goal ? "secondary" : "primary"}
+          size="lg"
+          disabled={!canWrite || pending}
+          onPress={() => actions.start(other.category as GoalKey, other.id)}
+        />
+      ))}
       <View style={styles.row}>
         {entry.completion_status !== "completed" ? (
           <Button
@@ -374,58 +566,164 @@ function EntryPanel({
 }
 
 function FreePanel({
-  next,
+  focus,
   now,
   actions,
   canWrite,
   pending,
 }: {
-  next: ScheduleEntry | undefined;
+  focus: Focus;
   now: Date;
   actions: NowActions;
   canWrite: boolean;
   pending: boolean;
 }) {
   const theme = useTheme();
+  const { kind, previous, next, nextIsToday } = focus;
+
+  if (kind === "no_plan") {
+    return (
+      <View style={styles.now}>
+        <Text style={[styles.eyebrow, { color: theme.textSubtle }]}>DIESE WOCHE</Text>
+        <Text accessibilityRole="header" style={[styles.nowTitleSmall, { color: theme.text }]}>
+          Für diese Woche ist noch kein Plan veröffentlicht.
+        </Text>
+        <Muted small>
+          Die Planung erfolgt auf der Website oder unter „Woche“ → „Bearbeiten“. Erfassen geht
+          trotzdem.
+        </Muted>
+        <SpontaneousStart actions={actions} canWrite={canWrite} pending={pending} large />
+        <OfflineHint canWrite={canWrite} />
+      </View>
+    );
+  }
+
+  const eyebrow =
+    kind === "before_first"
+      ? "VOR DEM ERSTEN BLOCK"
+      : kind === "after_last"
+        ? "NACH DEM LETZTEN BLOCK"
+        : kind === "day_empty"
+          ? "HEUTE"
+          : `JETZT · ${previous ? formatTime(previous.end_at) : ""}–${next ? formatTime(next.start_at) : ""}`;
+  const title =
+    kind === "before_first" && next
+      ? `Noch frei bis ${formatTime(next.start_at)}`
+      : kind === "after_last"
+        ? "Heute ist nichts mehr geplant."
+        : kind === "day_empty"
+          ? "Heute ist nichts geplant."
+          : "Freie Zeit";
+  const until = next && nextIsToday ? minutesUntil(next.start_at, now) : null;
+  const untilLabel = kind === "before_first" ? "bis zum ersten Block" : "bis zum nächsten Block";
+
   return (
     <View style={styles.now}>
+      <Text style={[styles.eyebrow, { color: theme.textSubtle }]}>{eyebrow}</Text>
       <Text accessibilityRole="header" style={[styles.nowTitle, { color: theme.text }]}>
-        Gerade nichts geplant
+        {title}
       </Text>
-      <Text style={[styles.meta, { color: theme.textMuted }]}>
+      {until !== null ? (
+        <BigNumber
+          minutes={until}
+          unit={untilLabel}
+          label={`noch ${formatDuration(until)} ${untilLabel}`}
+        />
+      ) : null}
+      <Text style={[styles.meta, { color: theme.text }]}>
         {next
-          ? `Als Nächstes: ${next.title} · ${dayPrefix(next.start_at, now)}${formatTime(next.start_at)} Uhr`
-          : "Für den Rest der Woche ist nichts mehr geplant."}
+          ? `Als Nächstes: ${formatStartLabel(next.start_at, now)} ${next.title}`
+          : "Für die nächsten Tage ist nichts mehr geplant."}
       </Text>
-      <SpontaneousStart actions={actions} canWrite={canWrite} pending={pending} large />
+      <SpontaneousStart
+        actions={actions}
+        canWrite={canWrite}
+        pending={pending}
+        large={kind === "free"}
+      />
       <OfflineHint canWrite={canWrite} />
     </View>
   );
 }
 
+function focusTitle(focus: Focus): string {
+  if (focus.kind === "running") return focus.session?.title ?? "Aktivität";
+  if (focus.kind === "block") return focus.current?.title ?? "Planblock";
+  if (focus.kind === "no_plan") return "kein veröffentlichter Plan";
+  if (focus.kind === "after_last" || focus.kind === "day_empty") return "nichts mehr geplant";
+  return "freie Zeit";
+}
+
+/**
+ * Neuberechnung genau an der nächsten Blockgrenze (statt bis zu 15 s später mit dem
+ * allgemeinen Takt) – keine sekündliche Neuberechnung. Zeitbasis ist die übergebene bzw.
+ * zuletzt erreichte Uhrzeit plus die seither vergangene Zeit.
+ */
+function useBoundaryNow(now: Date, changeAt: number): Date {
+  const [boundary, setBoundary] = useState<number | null>(null);
+  const nowMs = now.getTime();
+  const effectiveMs = boundary !== null && boundary > nowMs ? boundary : nowMs;
+  useEffect(() => {
+    if (changeAt <= effectiveMs) return;
+    const started = Date.now();
+    const delay = Math.min(changeAt - effectiveMs, MAX_BOUNDARY_DELAY_MS) + 50;
+    const id = setTimeout(() => setBoundary(effectiveMs + (Date.now() - started)), delay);
+    return () => clearTimeout(id);
+  }, [changeAt, effectiveMs]);
+  return effectiveMs === nowMs ? now : new Date(effectiveMs);
+}
+
 /** Hauptansicht „Jetzt“: rein darstellend, damit sie ohne Netzwerk testbar ist. */
 export function NowView({
   result,
-  now,
+  now: clockNow,
   actions,
   pending = false,
   error,
+  todayNote,
 }: {
   result: PlanResult;
   now: Date;
   actions: NowActions;
   pending?: boolean;
   error?: string | null;
+  /** Kompakter Zugang zur Tagesnotiz (nur Ladezustand und erste Zeile). */
+  todayNote?: DailyNoteState;
 }) {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion();
   const { snapshot } = result;
   const canWrite = result.origin === "network";
   const entries = sortEntries(snapshot.weeks.flatMap((week) => week.schedule_entries));
-  const current = getCurrentEntry(entries, now);
-  const upcoming = entries.filter((e) => Date.parse(e.start_at) > now.getTime()).slice(0, 2);
+  const running = getRunningSession(snapshot.sessions) ?? null;
+
+  const [changeAt, setChangeAt] = useState(0);
+  const now = useBoundaryNow(clockNow, changeAt);
   const weekStart = getWeekStart(now);
   const currentWeek = snapshot.weeks.find((week) => week.week_start === weekStart);
-  const running = getRunningSession(snapshot.sessions);
+  const focus = getFocusState<ScheduleEntry, ActivitySession>({
+    entries,
+    running,
+    now,
+    hasPublishedPlan: Boolean(currentWeek),
+  });
+  const nextChange = focus.nextChangeAt.getTime();
+  if (nextChange !== changeAt) setChangeAt(nextChange);
+
+  // Wechsel des Fokus: kurz einblenden (nicht beim ersten Anzeigen) und ansagen.
+  const key = getFocusKey(focus);
+  const [shownKey, setShownKey] = useState(key);
+  const [changed, setChanged] = useState(false);
+  if (key !== shownKey) {
+    setShownKey(key);
+    setChanged(true);
+  }
+  const title = focusTitle(focus);
+  useEffect(() => {
+    if (changed) AccessibilityInfo.announceForAccessibility(`Jetzt im Fokus: ${title}`);
+  }, [changed, key, title]);
+
+  const upcoming = entries.filter((e) => Date.parse(e.start_at) > now.getTime()).slice(0, 2);
   const tracked = trackedEntryIdsFromSessions(entries, snapshot.sessions, now);
   const goals = getWeekGoals({
     targets: snapshot.goalTargets,
@@ -434,6 +732,15 @@ export function NowView({
     weekStart,
     now,
   });
+
+  const { kind, previous, next, nextIsToday } = focus;
+  const showGhosts = kind !== "no_plan";
+  const tone =
+    kind === "running" && focus.session
+      ? theme[categoryTone[focus.session.goal_category]]
+      : kind === "block" && focus.current
+        ? theme[categoryTone[focus.current.category]]
+        : theme.textSubtle;
 
   return (
     <View style={styles.container}>
@@ -458,39 +765,56 @@ export function NowView({
           {error}
         </Notice>
       ) : null}
-      {!currentWeek ? (
+      {!currentWeek && running ? (
         <Notice tone="info" title="Für diese Woche ist noch kein Plan veröffentlicht.">
           Die Planung erfolgt auf der Website oder unter „Woche“ → „Bearbeiten“.
         </Notice>
       ) : null}
 
-      {running ? (
-        <RunningPanel
-          session={running}
-          current={current}
-          now={now}
-          actions={actions}
-          canWrite={canWrite}
-          pending={pending}
-        />
-      ) : current ? (
-        <EntryPanel
-          entry={current}
-          now={now}
-          tracked={tracked.has(current.id)}
-          actions={actions}
-          canWrite={canWrite}
-          pending={pending}
-        />
-      ) : (
-        <FreePanel
-          next={upcoming[0]}
-          now={now}
-          actions={actions}
-          canWrite={canWrite}
-          pending={pending}
-        />
-      )}
+      <View style={styles.stage}>
+        {showGhosts && previous ? <Ghost entry={previous} position="prev" now={now} /> : null}
+        <FocusCard
+          key={key}
+          variant={kind === "running" ? "running" : kind === "block" ? "block" : "free"}
+          color={tone}
+          animate={changed && !reducedMotion}
+        >
+          {kind === "running" && focus.session ? (
+            <RunningPanel
+              session={focus.session}
+              focus={focus}
+              now={now}
+              actions={actions}
+              canWrite={canWrite}
+              pending={pending}
+            />
+          ) : kind === "block" && focus.current ? (
+            <EntryPanel
+              entry={focus.current}
+              focus={focus}
+              now={now}
+              tracked={tracked.has(focus.current.id)}
+              actions={actions}
+              canWrite={canWrite}
+              pending={pending}
+            />
+          ) : (
+            <FreePanel
+              focus={focus}
+              now={now}
+              actions={actions}
+              canWrite={canWrite}
+              pending={pending}
+            />
+          )}
+          {kind !== "no_plan" ? <Around focus={focus} now={now} /> : null}
+        </FocusCard>
+        {showGhosts && next ? (
+          <Ghost entry={next} position="next" now={now} later={!nextIsToday} />
+        ) : null}
+      </View>
+
+      {todayNote ? <NoteRow state={todayNote} onOpen={actions.openNote} /> : null}
 
       {upcoming.length > 0 ? (
         <Section title="Als Nächstes">
@@ -536,8 +860,18 @@ const styles = StyleSheet.create({
   container: { gap: spacing.xl },
   date: { ...type.small },
   clock: { fontSize: 20, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  stage: { gap: spacing.sm, alignItems: "center" },
+  card: {
+    alignSelf: "stretch",
+    gap: spacing.lg,
+    padding: spacing.lg + 4,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
   now: { gap: spacing.md },
+  eyebrow: { fontSize: 12, fontWeight: "700", letterSpacing: 1 },
   nowTitle: { ...type.nowTitle, fontWeight: "700" },
+  nowTitleSmall: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
   meta: { ...type.body },
   row: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
   block: { gap: spacing.sm },
@@ -555,7 +889,7 @@ const styles = StyleSheet.create({
   },
   goalButtonLarge: { minHeight: 56 },
   goalButtonText: { fontSize: 16, fontWeight: "700" },
-  remainingRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm },
+  remainingRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: spacing.sm },
   remaining: {
     ...type.remaining,
     fontFamily: monoFamily,
@@ -565,6 +899,25 @@ const styles = StyleSheet.create({
   remainingUnit: { fontSize: 16, fontWeight: "500" },
   track: { height: 6, borderRadius: 3, overflow: "hidden" },
   trackFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 3 },
+  overlap: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+  overlapText: { flex: 1, fontSize: 14, fontWeight: "700" },
+  around: { gap: 4, paddingTop: spacing.md, borderTopWidth: 1 },
+  aroundText: { fontSize: 14, lineHeight: 20 },
+  ghostClip: { width: "88%", height: 40, overflow: "hidden", justifyContent: "flex-start" },
+  ghostClipPrev: { justifyContent: "flex-end" },
+  ghost: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  ghostTime: { width: 92, fontFamily: monoFamily, fontSize: 13, fontVariant: ["tabular-nums"] },
+  ghostBody: { flex: 1, gap: 2 },
+  ghostTitle: { fontSize: 15, fontWeight: "700" },
+  ghostCat: { fontSize: 12 },
   compare: { gap: 4, borderWidth: 1, borderRadius: 14, padding: spacing.lg },
   compareLabel: { fontSize: 12, fontWeight: "700", letterSpacing: 1 },
   compareText: { fontSize: 16, marginBottom: spacing.sm },

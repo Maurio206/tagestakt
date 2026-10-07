@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { DayNoteCard } from "@/components/note-card";
 import { PlanError } from "@/components/plan-error";
 import { Screen } from "@/components/screen";
 import { SessionList } from "@/components/session-list";
@@ -25,6 +26,7 @@ import { StatusBanner } from "@/components/status-banner";
 import { RunningTimerBar } from "@/components/timer-bar";
 import { Timeline } from "@/components/timeline";
 import { Muted, Notice, Section, Title } from "@/components/ui";
+import { useDailyNote } from "@/hooks/use-daily-note";
 import { useNow } from "@/hooks/use-now";
 import { usePlan } from "@/hooks/use-plan";
 import { spacing, useTheme } from "@/theme";
@@ -45,6 +47,8 @@ export default function DayScreen() {
     if (requested) setSelected(requested);
   }
   const { result, isLoading, isFetching, error, refetch } = usePlan();
+  const online = result?.origin === "network";
+  const note = useDailyNote(selected, { enabled: online });
 
   if (!result) {
     return (
@@ -149,6 +153,17 @@ export default function DayScreen() {
         fetchedAt={snapshot.fetchedAt}
         now={now}
         errorMessage={result.errorMessage}
+      />
+
+      <DayNoteCard
+        state={note.state}
+        offline={!online}
+        retrying={isFetching || note.isFetching}
+        onOpen={() => router.push({ pathname: "/notiz", params: { date: selected } })}
+        onRetry={() => {
+          void refetch();
+          if (online) void note.refetch();
+        }}
       />
 
       {entries.length === 0 ? (

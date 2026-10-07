@@ -1,3 +1,4 @@
+import { toLocalDate } from "@tagestakt/schedule-schema";
 import { useRouter } from "expo-router";
 import { ActivityIndicator } from "react-native";
 
@@ -5,6 +6,7 @@ import { type NowActions, NowView } from "@/components/now-view";
 import { PlanError } from "@/components/plan-error";
 import { Screen } from "@/components/screen";
 import { useActivityActions } from "@/hooks/use-activity";
+import { useDailyNote } from "@/hooks/use-daily-note";
 import { useNow } from "@/hooks/use-now";
 import { usePlan } from "@/hooks/use-plan";
 import { useTheme } from "@/theme";
@@ -15,6 +17,10 @@ export default function NowScreen() {
   const router = useRouter();
   const { result, isLoading, isFetching, error, refetch } = usePlan();
   const activity = useActivityActions(result?.origin === "network");
+  const today = toLocalDate(now);
+  // Nur online; ohne Verbindung zeigt die Zeile das ehrlich an (keine Notiz vom Gerät).
+  const online = result?.origin === "network";
+  const note = useDailyNote(today, { enabled: online });
 
   const actions: NowActions = {
     start: (goal, entryId) => void activity.start(goal, entryId),
@@ -25,6 +31,7 @@ export default function NowScreen() {
     openCorrection: (sessionId) =>
       router.push({ pathname: "/korrigieren", params: { id: sessionId } }),
     openGoals: () => router.push("/ziele"),
+    openNote: () => router.push({ pathname: "/notiz", params: { date: today } }),
   };
 
   return (
@@ -36,6 +43,7 @@ export default function NowScreen() {
           actions={actions}
           pending={activity.pending}
           error={activity.error}
+          todayNote={online ? note.state : { status: "offline" }}
         />
       ) : isLoading ? (
         <ActivityIndicator color={theme.text} accessibilityLabel="Plan wird geladen" />

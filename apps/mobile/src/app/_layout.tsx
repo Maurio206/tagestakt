@@ -58,6 +58,8 @@ function RootNavigator() {
         <Stack.Screen name="wochenbilanz" />
         <Stack.Screen name="bearbeiten" />
         <Stack.Screen name="korrigieren" options={{ presentation: "modal" }} />
+        {/* Kein Wisch-Zurück: ungespeicherte Notizen werden vorher nachgefragt. */}
+        <Stack.Screen name="notiz" options={{ gestureEnabled: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="login" />
