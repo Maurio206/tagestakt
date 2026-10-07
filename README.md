@@ -71,23 +71,25 @@ private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.m
 
 ## Befehle
 
-| Befehl                 | Zweck                                                                      |
-| ---------------------- | -------------------------------------------------------------------------- |
-| `pnpm dev:web`         | Web-App im Entwicklungsmodus                                               |
-| `pnpm dev:mobile`      | Expo Dev Server                                                            |
-| `pnpm lint`            | ESLint in allen Paketen (Turborepo)                                        |
-| `pnpm typecheck`       | TypeScript (strict) in allen Paketen                                       |
-| `pnpm test`            | Unit-, Komponenten- und Integrationstests                                  |
-| `pnpm check`           | lint + typecheck + test                                                    |
-| `pnpm build`           | Produktions-Build der Web-App (ohne echte Zugangsdaten möglich)            |
-| `pnpm format`          | Prettier                                                                   |
-| `pnpm check:secrets`   | Secret- und Datenschutz-Scan aller Repo-Dateien                            |
-| `pnpm db:start/stop`   | Lokales Supabase starten/stoppen                                           |
-| `pnpm db:reset`        | Lokale DB neu aufsetzen (Migrationen + Seed)                               |
-| `pnpm db:test`         | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                          |
-| `pnpm db:upgrade-test` | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal) |
-| `pnpm db:lint`         | Supabase-Datenbank-Lint                                                    |
-| `pnpm db:types`        | TypeScript-Typen aus der lokalen DB generieren                             |
+| Befehl                                       | Zweck                                                                             |
+| -------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm dev:web`                               | Web-App im Entwicklungsmodus                                                      |
+| `pnpm dev:mobile`                            | Expo Dev Server                                                                   |
+| `pnpm lint`                                  | ESLint in allen Paketen (Turborepo)                                               |
+| `pnpm typecheck`                             | TypeScript (strict) in allen Paketen                                              |
+| `pnpm test`                                  | Unit-, Komponenten- und Integrationstests                                         |
+| `pnpm check`                                 | lint + typecheck + test                                                           |
+| `pnpm build`                                 | Produktions-Build der Web-App (ohne echte Zugangsdaten möglich)                   |
+| `pnpm format`                                | Prettier                                                                          |
+| `pnpm check:secrets`                         | Secret- und Datenschutz-Scan aller Repo-Dateien                                   |
+| `pnpm db:start/stop`                         | Lokales Supabase starten/stoppen                                                  |
+| `pnpm db:reset`                              | Lokale DB neu aufsetzen (Migrationen + Seed)                                      |
+| `pnpm db:test`                               | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                                 |
+| `pnpm db:upgrade-test`                       | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal)        |
+| `pnpm db:concurrency-test`                   | Gleichzeitige Wechsel/Starts von Aktivitäten mit zwei echten DB-Sitzungen (lokal) |
+| `pnpm --filter @tagestakt/mobile run doctor` | Expo Doctor (Abhängigkeiten und Konfiguration der App)                            |
+| `pnpm db:lint`                               | Supabase-Datenbank-Lint                                                           |
+| `pnpm db:types`                              | TypeScript-Typen aus der lokalen DB generieren                                    |
 
 ## Sicherheit
 

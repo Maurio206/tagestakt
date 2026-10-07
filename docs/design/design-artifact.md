@@ -58,18 +58,18 @@ W07 Einstellungen · W08 Login · W09 Leerer Zustand · W10 Fehler/Offline.
 
 ## Verwendete Komponenten (Artefakt → Code)
 
-| Artefakt              | Web (`apps/web/src/components`)                 | Mobile (`apps/mobile/src/components`)  |
-| --------------------- | ----------------------------------------------- | -------------------------------------- |
-| Jetzt-Fläche          | `now-panel.tsx`                                 | `now-view.tsx`                         |
-| Timer (Ziffern)       | `live-timer.tsx`                                | `focus-timer.tsx`                      |
-| Timer-Leiste/-Karte   | `active-session-card.tsx`                       | `timer-bar.tsx`                        |
-| Zielzeile/-balken     | `goal-progress.tsx`                             | `goal-progress.tsx`                    |
-| Status-Chip           | `goal-status.tsx`                               | `goal-progress.tsx` (`GoalStatusChip`) |
-| Planblock/Zeitstrahl  | `week-grid.tsx`, `entry-*.tsx`                  | `timeline.tsx`, `session-list.tsx`     |
-| Banner/Offline/Fehler | `ui.tsx` (`Notice`)                             | `status-banner.tsx`, `plan-error.tsx`  |
-| Sheet/Dialog          | native `<dialog>`-freie Formulare + Bestätigung | `sheet.tsx`, System-Dialog (`Alert`)   |
-| Kategorie             | `category-badge.tsx`                            | `ui.tsx` (`CategoryPill`)              |
-| Marke                 | `brand.tsx`                                     | `brand.tsx`                            |
+| Artefakt              | Web (`apps/web/src/components`)                                                            | Mobile (`apps/mobile/src/components`)  |
+| --------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
+| Jetzt-Fläche          | `now-panel.tsx`                                                                            | `now-view.tsx`                         |
+| Timer (Ziffern)       | `live-timer.tsx`                                                                           | `focus-timer.tsx`                      |
+| Timer-Leiste/-Karte   | `active-session.tsx` (`ActiveSessionCard`)                                                 | `timer-bar.tsx`                        |
+| Zielzeile/-balken     | `goal-progress.tsx`                                                                        | `goal-progress.tsx`                    |
+| Status-Chip           | `goal-progress.tsx` (`GoalStatusChip`)                                                     | `goal-progress.tsx` (`GoalStatusChip`) |
+| Planblock/Zeitstrahl  | `week-grid.tsx`, `day-list.tsx`, `entry-details.tsx`, `entry-editor.tsx`, `entry-form.tsx` | `timeline.tsx`, `session-list.tsx`     |
+| Banner/Offline/Fehler | `notice.tsx` (`Notice`)                                                                    | `status-banner.tsx`, `plan-error.tsx`  |
+| Sheet/Dialog          | native `<dialog>`-freie Formulare + Bestätigung                                            | `sheet.tsx`, System-Dialog (`Alert`)   |
+| Kategorie             | `category-badge.tsx`                                                                       | `ui.tsx` (`CategoryPill`)              |
+| Marke                 | `brand.tsx`                                                                                | `brand.tsx`                            |
 
 ## Unterschiede Mobile und Web
 

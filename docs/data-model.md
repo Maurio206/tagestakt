@@ -139,6 +139,7 @@ Planblock gelöscht, bleibt die erfasste Zeit erhalten und verliert nur den Bezu
 | `start_activity_session(p_goal_category text, p_title text, p_schedule_entry_id uuid)` | Startet mit Serverzeit; optional verknüpft mit einem veröffentlichten Planblock. |
 | `stop_activity_session(p_session_id uuid)` | Beendet mit Serverzeit (ohne ID: die laufende). Über 24 h nur per Korrektur. |
 | `correct_activity_session(p_session_id uuid, p_started_at timestamptz, p_ended_at timestamptz)` | „Zeit korrigieren“; ohne Ende läuft die Aktivität weiter. |
+| `switch_activity_session(p_session_id uuid, p_goal_category text, p_title text, p_schedule_entry_id uuid)` | Atomarer Wechsel: beendet die laufende Aktivität `p_session_id` und startet die neue mit demselben Serverzeitpunkt in einer Transaktion (gleiche Advisory-Sperre wie Start/Trigger). Scheitert der Start (TT005/22023), bleibt die alte Aktivität unverändert; veralteter Stand → TT002. |
 
 Ausführungsrechte: nur `authenticated` (und `service_role`), nicht `anon`/`PUBLIC`.
 

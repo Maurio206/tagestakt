@@ -60,8 +60,12 @@
    Serverzeit des Beginns und übersteht dadurch Neustarts und Gerätewechsel.
 2. „Beenden“ ruft `stop_activity_session` auf; „Zeit korrigieren“ `correct_activity_session`
    (danach als „korrigiert“ gekennzeichnet).
-3. Die Datenbank erzwingt höchstens eine laufende Aktivität, keine Überschneidungen und
-   höchstens 24 h – auch bei gleichzeitigen Anfragen aus Web und App.
+3. „Zu … wechseln“ ruft **eine** Funktion auf: `switch_activity_session` beendet die laufende und
+   startet die neue Aktivität in einer Transaktion mit demselben Serverzeitpunkt. Scheitert der
+   Start, bleibt die bisherige Aktivität unverändert.
+4. Die Datenbank erzwingt höchstens eine laufende Aktivität, keine Überschneidungen und
+   höchstens 24 h – auch bei gleichzeitigen Anfragen aus Web und App (Advisory-Sperre pro
+   Benutzer, partieller Unique-Index; geprüft mit `pnpm db:concurrency-test`).
 
 **Plan bearbeiten (App):** dieselben RPCs wie im Web (`create_schedule_draft`, Einträge im
 Entwurf, `publish_schedule_week`). Entwürfe werden nie lokal gespeichert; ohne Verbindung ist
@@ -79,8 +83,8 @@ der Modus gesperrt.
 
 ## Offline-Verhalten (App)
 
-- Nach jedem erfolgreichen Laden wird der Snapshot (nur veröffentlichte Pläne, keine Tokens) in
-  AsyncStorage gespeichert.
+- Nach jedem erfolgreichen Laden wird der Snapshot (nur veröffentlichte Pläne, keine Tokens,
+  keine Notizen oder Planungshinweise) in AsyncStorage gespeichert.
 - Beim Start wird zuerst der Cache angezeigt, parallel wird aktualisiert (Pull-to-Refresh,
   alle 15 Minuten, manuell in den Einstellungen).
 - Schlägt das Laden fehl, bleibt der Cache sichtbar mit deutlichem Hinweis
@@ -98,7 +102,10 @@ der Modus gesperrt.
 ## Gerätelokale Funktionen (App)
 
 - **App-Sperre** (`src/lib/app-lock.ts`, `src/components/app-lock.tsx`): Standard aus; sperrt
-  beim Kaltstart und nach der eingestellten Hintergrundzeit.
+  beim Kaltstart und nach der eingestellten Hintergrundzeit. Zustandslogik als reine Funktion
+  (`nextLockState`). Im Hintergrund verdeckt eine neutrale Schutzfläche alle Inhalte; bei
+  eingeschalteter Sperre bleibt die Vorschau im App-Umschalter leer (`src/lib/screen-privacy.ts`,
+  `FLAG_SECURE` – sperrt dann auch Screenshots).
 - **Erinnerungen** (`src/lib/notifications.ts`, `src/hooks/use-reminder-sync.ts`): werden nach
   jedem neuen Planstand, bei Rückkehr in die App und nach Änderungen vollständig neu geplant
   (`planReminders` aus `packages/schedule-schema`). Erinnerungen an „nicht gestartet“ entfallen,

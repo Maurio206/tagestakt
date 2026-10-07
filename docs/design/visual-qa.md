@@ -89,4 +89,5 @@ System.
 **Noch manuell auf einem Gerät zu prüfen** (Checkliste in
 [../mobile-preview-build.md](../mobile-preview-build.md)): tatsächliche Darstellung auf kleinen
 und großen Bildschirmen, Schriftgrößen-Skalierung des Systems, TalkBack-Reihenfolge,
-Gestennavigation/Safe Areas, Sperrbildschirm, Erinnerungen auf dem Sperrbildschirm.
+Gestennavigation/Safe Areas, Sperrbildschirm, neutrale Schutzfläche bzw. leere Vorschau im
+App-Umschalter, Erinnerungen auf dem Sperrbildschirm.

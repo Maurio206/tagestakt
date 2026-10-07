@@ -38,10 +38,11 @@ sie keine „besonderen Kategorien“ im Sinne der DSGVO sind.
   einem fremden Wochenplan zugeordnet wird – unabhängig von Policies.
 - Zusammengesetzter Fremdschlüssel `(schedule_entry_id, owner_id)` bindet erfasste Zeit
   (`activity_sessions`) ausschließlich an eigene Planblöcke.
-- Prüfungen: `supabase/tests/*.test.sql` (151 pgTAP-Tests) – anonym abgewiesen, fremder
+- Prüfungen: `supabase/tests/*.test.sql` (180 pgTAP-Tests) – anonym abgewiesen, fremder
   Benutzer kann weder lesen noch ändern noch unterschieben, Eigentümer kann bearbeiten,
   Status- und Constraint-Regeln, Fokus-Erfassung (eine laufende Aktivität, keine
-  Überschneidung, Serverzeit, Korrekturkennzeichen).
+  Überschneidung, Serverzeit, Korrekturkennzeichen, atomarer Wechsel). Gleichzeitige Wechsel
+  und Starts prüft zusätzlich `pnpm db:concurrency-test` mit zwei echten Datenbanksitzungen.
 
 ## Publishable Key
 
@@ -89,16 +90,35 @@ den Plan-Cache auch offline.
 
 ### Lokale Daten, die nur durch den Betriebssystem-/Sandbox-Schutz gesichert sind
 
-| Daten                                                                                                                          | Ort                                         | Schutz                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Zuletzt geladener **veröffentlichter** Plan (Vor-, aktuelle, nächste Woche) inkl. Titel, Zeiten, Orte, Notizen                 | AsyncStorage (App-Sandbox)                  | nur App-Sandbox / Geräteverschlüsselung; nicht zusätzlich verschlüsselt; Android-Backup deaktiviert; beim Logout gelöscht |
-| Erfasste Aktivitäten dieser Wochen (Ziel, Titel, Zeiten), Wochenziele, Erinnerungs-Vorgaben, Zeitzone, letzte Synchronisierung | AsyncStorage (gleicher Eintrag)             | wie oben                                                                                                                  |
-| Geräteeinstellungen (App-Sperre an/aus, Sperrzeit, Erinnerungen an/aus, „Titel zeigen“) – keine Inhalte                        | SecureStore                                 | Android Keystore; beim Logout gelöscht                                                                                    |
-| Geplante lokale Erinnerungen (Zeitpunkt, kurzer Text, `kind`)                                                                  | Benachrichtigungsdienst des Betriebssystems | standardmäßig **ohne** Titel, Ort oder Notiz („Gewerbe in 10 Min.“); beim Logout gelöscht                                 |
-| Abfrage-Zwischenspeicher im Arbeitsspeicher                                                                                    | RAM (TanStack Query)                        | nur solange die App läuft; beim Logout geleert                                                                            |
+| Daten                                                                                                                                                               | Ort                                         | Schutz                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Zuletzt geladener **veröffentlichter** Plan (Vor-, aktuelle, nächste Woche): Titel, Kategorie, Zeiten, Ort, Erledigt-Status – **ohne** Notizen und Planungshinweise | AsyncStorage (App-Sandbox)                  | nur App-Sandbox / Geräteverschlüsselung; nicht zusätzlich verschlüsselt; Android-Backup deaktiviert; beim Logout gelöscht |
+| Erfasste Aktivitäten dieser Wochen (Ziel, Titel, Zeiten), Wochenziele, Erinnerungs-Vorgaben, Zeitzone, letzte Synchronisierung                                      | AsyncStorage (gleicher Eintrag)             | wie oben                                                                                                                  |
+| Geräteeinstellungen (App-Sperre an/aus, Sperrzeit, Erinnerungen an/aus, „Titel zeigen“) – keine Inhalte                                                             | SecureStore                                 | Android Keystore; beim Logout gelöscht                                                                                    |
+| Geplante lokale Erinnerungen (Zeitpunkt, kurzer Text, `kind`)                                                                                                       | Benachrichtigungsdienst des Betriebssystems | standardmäßig **ohne** Titel, Ort oder Notiz („Gewerbe in 10 Min.“); beim Logout gelöscht                                 |
+| Abfrage-Zwischenspeicher im Arbeitsspeicher                                                                                                                         | RAM (TanStack Query)                        | nur solange die App läuft; beim Logout geleert                                                                            |
 
 Auf einem gerooteten oder kompromittierten Gerät kann der Plan-Cache gelesen werden. Eine
 Bildschirmsperre auf dem Gerät ist daher Voraussetzung.
+
+### Bewertung des Plan-Caches (Entscheidung: minimieren statt zusätzlich verschlüsseln)
+
+| Bedrohung                                        | Schutz                                                                                                                                                    |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Andere Apps auf dem Gerät                        | App-Sandbox: kein Zugriff auf AsyncStorage dieser App                                                                                                     |
+| Gestohlenes, **gesperrtes** Gerät                | dateibasierte Android-Verschlüsselung; Schlüssel erst nach dem Entsperren verfügbar                                                                       |
+| Cloud-/ADB-Backup                                | `allowBackup=false` – der Cache wird nicht gesichert                                                                                                      |
+| Jemand hält das **entsperrte** Gerät in der Hand | optionale App-Sperre (Oberfläche) und leere Vorschau im App-Umschalter                                                                                    |
+| Gerootetes/kompromittiertes Gerät, Forensik      | **kein** Schutz – auch ein zusätzlich verschlüsselter Cache wäre dort angreifbar, weil die App ihren Schlüssel im selben Gerät und Prozess verwenden muss |
+
+Eine zusätzliche Verschlüsselung würde eine nicht offiziell von Expo bereitgestellte
+Kryptografie-Bibliothek erfordern (Expo bietet keine symmetrische Verschlüsselung; SecureStore ist
+für kleine Werte gedacht) und gegen die realistischen Bedrohungen oben kaum Schutz hinzufügen.
+Stattdessen werden **Notizen und Planungshinweise** gar nicht mehr geladen oder gespeichert
+(`apps/mobile/src/lib/plan-api.ts`, `plan-cache.ts`); ein älterer Cache (`…plan-snapshot.v2`),
+der Notizen enthalten konnte, wird beim nächsten Start gelöscht. Auth-Tokens liegen weiterhin
+ausschließlich in SecureStore. Auf dem Gerät zu prüfen bleibt, dass nach einem Update der alte
+Cache verschwunden ist und Offline-Lesen weiter funktioniert.
 
 ## App-Sperre (optional, Standard: aus)
 
@@ -112,6 +132,16 @@ Bildschirmsperre auf dem Gerät ist daher Voraussetzung.
   Ohne Bildschirmsperre auf dem Gerät bietet die App nur „Abmelden“ an.
 - Die Sperre schützt die **Oberfläche**, nicht die Daten auf einem kompromittierten Gerät; der
   Plan-Cache bleibt wie oben beschrieben gespeichert.
+- **Vorschau im App-Umschalter:** Bei eingeschalteter App-Sperre setzt die App über
+  `expo-screen-capture` (`preventScreenCaptureAsync`) das Android-Fensterflag `FLAG_SECURE` – die
+  Vorschau bleibt leer (iOS zusätzlich: Unschärfe im App-Umschalter). Sobald die App in den
+  Hintergrund geht, zeigt sie außerdem eine neutrale TagesTakt-Schutzfläche statt Terminen und
+  Timer. **Kompromiss:** Android trennt Vorschau- und Screenshot-Schutz in Expo nicht
+  (`setRecentsScreenshotEnabled` ist nicht verfügbar); mit eingeschalteter App-Sperre sind
+  deshalb auch Screenshots und Bildschirmaufnahmen der App gesperrt. Ohne App-Sperre bleibt
+  beides erlaubt. Die Zustandslogik (Schutzfläche, Sperre, keine Sperrschleife bei der
+  PIN-Eingabe) ist als reine Funktion getestet (`nextLockState`); das tatsächliche Verhalten im
+  App-Umschalter muss auf dem Gerät geprüft werden.
 
 ## Lokale Erinnerungen
 
@@ -121,21 +151,38 @@ Bildschirmsperre auf dem Gerät ist daher Voraussetzung.
   erscheinen nur, wenn „Titel in Erinnerungen zeigen“ auf dem Gerät ausdrücklich eingeschaltet
   ist. Der Android-Kanal ist für den Sperrbildschirm als `PRIVATE` markiert.
 - Die Berechtigung wird erst angefragt, wenn Erinnerungen eingeschaltet werden.
+- **Keine Remote-Push-Funktion:** Die App ruft keine Push-Token-Funktionen auf
+  (`getExpoPushTokenAsync`/`getDevicePushTokenAsync`), es gibt keine `google-services.json` und
+  der generierte Gradle-Build bindet kein Google-Services-Plugin ein – Firebase wird also nicht
+  initialisiert. `com.google.android.c2dm.permission.RECEIVE` wird per `tools:node="remove"` aus
+  dem Manifest entfernt. Lokale Benachrichtigungen benötigen weder Firebase noch Push.
 
 ## Android-Berechtigungen
 
-| Berechtigung             | Zweck                                                |
-| ------------------------ | ---------------------------------------------------- |
-| `INTERNET`               | Verbindung zu Supabase (von Expo/React Native)       |
-| `USE_BIOMETRIC`          | App-Sperre                                           |
-| `POST_NOTIFICATIONS`     | lokale Erinnerungen (Abfrage erst beim Einschalten)  |
-| `RECEIVE_BOOT_COMPLETED` | geplante Erinnerungen nach Neustart wiederherstellen |
+| Berechtigung             | Zweck                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `INTERNET`               | Verbindung zu Supabase (von Expo/React Native)                                             |
+| `USE_BIOMETRIC`          | App-Sperre                                                                                 |
+| `POST_NOTIFICATIONS`     | lokale Erinnerungen (Abfrage erst beim Einschalten)                                        |
+| `RECEIVE_BOOT_COMPLETED` | geplante Erinnerungen nach Neustart wiederherstellen                                       |
+| `VIBRATE`                | aus der Expo-Vorlage; Vibration von Benachrichtigungen (normale Berechtigung, keine Daten) |
 
-Ausdrücklich gesperrt (`blockedPermissions`): Standort, Kamera, Mikrofon, Kontakte, Kalender,
-Speicher, `SYSTEM_ALERT_WINDOW`, `USE_FINGERPRINT` (veraltet), `SCHEDULE_EXACT_ALARM`,
-`USE_EXACT_ALARM` und `com.google.android.c2dm.permission.RECEIVE` (Push).
-`allowBackup` bleibt `false`. Das endgültige, zusammengeführte Manifest lässt sich erst in einem
-nativen Build prüfen (siehe [mobile-preview-build.md](mobile-preview-build.md)).
+Ausdrücklich gesperrt (`blockedPermissions`, im generierten Manifest als `tools:node="remove"`):
+Standort, Kamera, Mikrofon, Kontakte, Kalender, Speicher, `SYSTEM_ALERT_WINDOW`, `USE_FINGERPRINT`
+(veraltet), `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `com.google.android.c2dm.permission.RECEIVE`
+(Push) sowie `READ_MEDIA_IMAGES` und `DETECT_SCREEN_CAPTURE` (bringt `expo-screen-capture` für
+einen Screenshot-Melder mit, den TagesTakt nicht nutzt). `allowBackup` bleibt `false`.
+
+`USE_FINGERPRINT` wird nur von Android 7.0–8.1 (API 24–27) für Fingerabdrücke benötigt. Ab
+Android 9 genügt `USE_BIOMETRIC`. Auf Android 7–8.1 meldet die App die App-Sperre daher als
+„nicht unterstützt“ (der Fehler des Biometrie-Moduls wird abgefangen) – auf dem Gerät zu prüfen,
+falls ein so altes Gerät genutzt werden soll.
+
+Geprüft per `expo prebuild` (temporär, außerhalb des Repositorys): angefordert werden nur
+`INTERNET`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `USE_BIOMETRIC` und `VIBRATE`; alle
+gesperrten tragen `tools:node="remove"`. Das endgültige, per Gradle **zusammengeführte**
+Manifest (inklusive Bibliotheken aus Maven) lässt sich erst in einem nativen Build prüfen (siehe
+[mobile-preview-build.md](mobile-preview-build.md)).
 
 ## Website im Internet
 
@@ -160,15 +207,13 @@ Zusätzlich denkbar: Supabase-MFA (TOTP) für das Konto.
 - **CSP `style-src 'unsafe-inline'`** (für React-Inline-Styles/Next.js) – Skripte sind dennoch
   nonce-geschützt.
 - **Plan-Cache unverschlüsselt** in der App-Sandbox (siehe oben).
-- **App-Vorschau im Task-Wechsler:** Android zeigt beim Wechseln ein Bild des letzten Bildschirms.
-  Die App-Sperre verhindert das nicht (kein `FLAG_SECURE`, weil das auch Screenshots sperrt).
+- **App-Vorschau im Task-Wechsler ohne App-Sperre:** Nur bei eingeschalteter App-Sperre bleibt
+  die Vorschau leer (`FLAG_SECURE`); dann sind auch Screenshots gesperrt (siehe App-Sperre).
 - **`expo-notifications` bringt auf Android die Firebase-Messaging-Bibliothek mit.** Sie bleibt
   ungenutzt (keine `google-services.json`, kein Push-Token, `c2dm.RECEIVE` gesperrt), ist aber
   im Build enthalten.
 - **Erinnerungen sind nicht minutengenau:** ohne Exact-Alarm-Berechtigung kann Android sie im
   Energiesparmodus verzögern.
-- **Wechsel einer Aktivität im Web** besteht aus zwei Aufrufen (beenden, dann starten). Schlägt
-  der zweite fehl, ist die erste Aktivität beendet und es läuft keine – die Oberfläche meldet das.
 - **Kein Audit-Log** für Änderungen; Versionen werden aber nie überschrieben.
 - **Kein automatisches Backup-Konzept** dokumentiert; im kostenlosen Supabase-Plan regelmäßig
   selbst exportieren (z. B. `supabase db dump --data-only` lokal, nicht ins Repo).

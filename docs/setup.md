@@ -33,6 +33,7 @@ pnpm db:start     # startet Postgres, Auth, REST, Studio (lokal)
 pnpm db:reset     # spielt alle Migrationen und die neutralen Beispieldaten ein
 pnpm db:test      # pgTAP-Sicherheitstests (RLS, Grants, Constraints)
 pnpm db:upgrade-test  # beweist: neue Migrationen verändern vorhandene Daten nicht (nur lokal)
+pnpm db:concurrency-test  # gleichzeitige Wechsel/Starts mit zwei echten Sitzungen (nur lokal)
 pnpm exec supabase status   # zeigt lokale URLs und Keys (nur lokal gültig)
 ```
 

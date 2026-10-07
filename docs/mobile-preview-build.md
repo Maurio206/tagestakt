@@ -50,20 +50,36 @@ Ordner `android/` ist generiert und wird nicht committed.
 Das zusammengeführte Manifest enthält auch Berechtigungen aus Bibliotheken. Prüfen mit
 `apkanalyzer manifest permissions <apk>` (Android SDK) oder `aapt2 dump permissions <apk>`.
 
-| Erwartet                                                                                         | Herkunft                                    |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `INTERNET`                                                                                       | React Native / Supabase                     |
-| `USE_BIOMETRIC`                                                                                  | App-Sperre                                  |
-| `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`                                                   | lokale Erinnerungen                         |
-| ggf. `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `VIBRATE`, `…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Bibliotheken (AndroidX, Benachrichtigungen) |
+| Erwartet                                                                              | Herkunft                                    |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `INTERNET`                                                                            | React Native / Supabase                     |
+| `USE_BIOMETRIC`                                                                       | App-Sperre                                  |
+| `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`                                        | lokale Erinnerungen                         |
+| `VIBRATE`                                                                             | Expo-Vorlage (Benachrichtigungen)           |
+| ggf. `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Bibliotheken (AndroidX, Benachrichtigungen) |
 
 **Darf nicht enthalten sein:** Standort, Kamera, Mikrofon, Kontakte, Kalender, Speicher,
 `SYSTEM_ALERT_WINDOW`, `USE_FINGERPRINT`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`,
-`com.google.android.c2dm.permission.RECEIVE`. Taucht etwas Unerwartetes auf (z. B.
+`com.google.android.c2dm.permission.RECEIVE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE`. Taucht
+etwas Unerwartetes auf (z. B.
 Launcher-Badge-Berechtigungen aus einer Bibliothek von `expo-notifications`), in
 `apps/mobile/app.json` unter `blockedPermissions` ergänzen und neu bauen.
 
 Außerdem prüfen: `android:allowBackup="false"` im Manifest.
+
+Vorab (ohne Android-SDK) lässt sich das **App-Manifest** prüfen: `apps/mobile` in ein temporäres
+Verzeichnis außerhalb des Repositorys kopieren, dort `npx expo prebuild -p android --no-install`
+ausführen und `android/app/src/main/AndroidManifest.xml` lesen; danach das Verzeichnis löschen.
+Das ersetzt nicht die Prüfung der fertigen APK (Bibliotheks-Manifeste werden erst von Gradle
+zusammengeführt).
+
+Expo-Abhängigkeiten prüfen (im Repository):
+
+```bash
+pnpm --filter @tagestakt/mobile run doctor
+```
+
+(`pnpm --filter … doctor` ohne `run` würde den gleichnamigen pnpm-Befehl aufrufen.)
 
 ## 4. Gerätetests (Checkliste)
 
@@ -87,6 +103,12 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - [ ] Hintergrund kürzer/länger als die gewählte Zeit (sofort, 1 min, 5 min).
 - [ ] Geräte-PIN statt Fingerabdruck → entsperrt, **keine** erneute Sperre direkt danach.
 - [ ] Ausschalten verlangt Entsperrung. Gerät ohne Bildschirmsperre: verständlicher Hinweis.
+- [ ] App-Umschalter bei eingeschalteter Sperre: Vorschau leer bzw. neutrale TagesTakt-Fläche,
+      keine Termine und kein Timer lesbar.
+- [ ] Bei eingeschalteter Sperre sind Screenshots gesperrt; nach dem Ausschalten wieder möglich.
+- [ ] Rückkehr innerhalb der Sperrzeit: kurz die Schutzfläche, dann Inhalte – keine Sperrschleife.
+- [ ] Nur falls ein Gerät mit Android 7–8.1 genutzt wird: App-Sperre wird als „nicht
+      unterstützt“ gemeldet, kein Absturz.
 
 **Erinnerungen**
 
@@ -97,6 +119,11 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - [ ] Sperrbildschirm zeigt **keine** Titel; erst mit „Titel in Erinnerungen zeigen“.
 - [ ] Gerät neu starten → kommende Erinnerungen kommen weiterhin.
 - [ ] Abmelden → keine Erinnerungen mehr, App-Sperre zurückgesetzt, Plan-Cache gelöscht.
+
+**Offline-Cache**
+
+- [ ] Nach dem Update auf diese Version: Offline-Anzeige funktioniert weiter; Notizen zu
+      Planblöcken erscheinen in der App nicht (werden nicht mehr geladen oder gespeichert).
 
 **Darstellung und Barrierefreiheit**
 
@@ -111,5 +138,6 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - Erinnerungen sind nicht minutengenau (keine Exact-Alarm-Berechtigung, bewusst).
 - `expo-notifications` bündelt auf Android die Firebase-Messaging-Bibliothek; sie bleibt ohne
   `google-services.json` und ohne Push-Token ungenutzt.
-- Die Vorschau im Task-Wechsler kann den letzten Bildschirm zeigen, auch bei aktiver App-Sperre.
+- Die Vorschau im Task-Wechsler ist nur bei eingeschalteter App-Sperre geschützt; dann sind auch
+  Screenshots der App gesperrt (Android bietet in Expo keine getrennte Steuerung).
 - Offline werden keine Änderungen vorgemerkt (keine Warteschlange).
