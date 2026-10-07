@@ -115,6 +115,13 @@ export const categoryTone: Readonly<Record<EntryCategory, Tone>> = {
   other: "neutral",
 };
 
+/**
+ * Kategoriefläche eines Planblocks: Anteil des Kategorietons an der Fläche (gemischt mit
+ * `surface1`) und am Rand (als Deckkraft). Gilt für den Block im Wochenraster der Website
+ * (`.wb`) und für den Fokusblock der Übersicht bzw. „Jetzt“ – beide zeigen so denselben Ton.
+ */
+export const planBlockTint = { fill: 0.16, border: 0.45 } as const;
+
 /** Lucide-Symbolnamen je Ton; die Apps bilden sie auf ihre Icon-Komponenten ab. */
 export const toneIcon: Readonly<Record<Tone, string>> = {
   business: "briefcase",
@@ -202,19 +209,34 @@ function channel(value: number): number {
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-export function relativeLuminance(hex: string): number {
+/** `#RRGGBB` → Kanäle 0–255. */
+function rgb(hex: string): [number, number, number] {
   const match = /^#([0-9a-f]{6})$/i.exec(hex);
   if (!match?.[1]) throw new Error(`Ungültige Farbe: ${hex}`);
   const n = Number.parseInt(match[1], 16);
-  return (
-    0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255)
-  );
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+export function relativeLuminance(hex: string): number {
+  const [r, g, b] = rgb(hex);
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
 export function contrastRatio(foreground: string, background: string): number {
   const a = relativeLuminance(foreground);
   const b = relativeLuminance(background);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+/** Deckende Mischung wie CSS `color-mix(in srgb, color amount, base)` (#RRGGBB). */
+export function mixColor(color: string, base: string, amount: number): string {
+  const [r1, g1, b1] = rgb(color);
+  const [r2, g2, b2] = rgb(base);
+  const mix = (a: number, b: number) =>
+    Math.round(a * amount + b * (1 - amount))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${mix(r1, r2)}${mix(g1, g2)}${mix(b1, b2)}`.toUpperCase();
 }
 
 /** CSS-Variablennamen der Website (kebab-case mit Präfix `--tt-`). */

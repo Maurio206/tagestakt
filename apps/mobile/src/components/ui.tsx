@@ -7,7 +7,7 @@ import {
   Info,
   CircleCheck,
 } from "lucide-react-native";
-import { type ReactNode } from "react";
+import { type ReactNode, createContext, useContext } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -115,6 +115,24 @@ export function Section({
 }
 
 // ---------------------------------------------------------------------------
+// Kategoriegetönte Fläche (Fokusblock)
+// ---------------------------------------------------------------------------
+
+const TintedSurfaceContext = createContext(false);
+
+/**
+ * Inhalt auf einer kategoriegetönten Fläche: Chips stehen dort auf surface1 und Knopfränder
+ * nutzen textSubtle statt lineStrong, damit die Kontraste wie auf surface1 erhalten bleiben.
+ */
+export function TintedSurface({ tinted, children }: { tinted: boolean; children: ReactNode }) {
+  return <TintedSurfaceContext.Provider value={tinted}>{children}</TintedSurfaceContext.Provider>;
+}
+
+export function useOnTint(): boolean {
+  return useContext(TintedSurfaceContext);
+}
+
+// ---------------------------------------------------------------------------
 // Kategorie und Ziel
 // ---------------------------------------------------------------------------
 
@@ -137,9 +155,13 @@ export function CategoryPill({ category }: { category: EntryCategory }) {
 /** Getönter Chip mit Zielsymbol und Text, z. B. „Gewerbe · Läuft“. */
 export function ToneChip({ category, label }: { category: EntryCategory; label: string }) {
   const theme = useTheme();
+  const onTint = useOnTint();
   const color = theme[categoryTone[category]];
   return (
-    <View style={[styles.chip, { backgroundColor: tint(color, 0.14) }]}>
+    <View
+      testID="tone-chip"
+      style={[styles.chip, { backgroundColor: onTint ? theme.surface1 : tint(color, 0.14) }]}
+    >
       <ToneIcon tone={categoryTone[category]} color={color} size={16} />
       <Text style={[styles.chipText, { color }]}>{label}</Text>
     </View>
@@ -152,7 +174,7 @@ export function ToneChip({ category, label }: { category: EntryCategory; label: 
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-function buttonColors(theme: Theme, variant: ButtonVariant) {
+function buttonColors(theme: Theme, variant: ButtonVariant, onTint: boolean) {
   switch (variant) {
     case "primary":
       return { bg: theme.inverse, border: theme.inverse, text: theme.onInverse };
@@ -161,7 +183,11 @@ function buttonColors(theme: Theme, variant: ButtonVariant) {
     case "ghost":
       return { bg: "transparent", border: "transparent", text: theme.text };
     default:
-      return { bg: theme.surface2, border: theme.lineStrong, text: theme.text };
+      return {
+        bg: theme.surface2,
+        border: onTint ? theme.textSubtle : theme.lineStrong,
+        text: theme.text,
+      };
   }
 }
 
@@ -187,7 +213,8 @@ export function Button({
   flex?: boolean;
 }) {
   const theme = useTheme();
-  const colors = buttonColors(theme, variant);
+  const onTint = useOnTint();
+  const colors = buttonColors(theme, variant, onTint);
   return (
     <Pressable
       accessibilityRole="button"

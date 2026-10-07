@@ -674,8 +674,10 @@ export function FocusStage({
     <FreeCard focus={focus} now={now} actions={bound} weekPlanHref={weekPlanHref} />
   );
 
-  const tone =
-    kind === "running" && focus.session
+  // Farbe = Kategorie (wie der Block im Wochenplan), nie Status; ohne Kategorie bleibt sie neutral.
+  const tone = planError
+    ? undefined
+    : kind === "running" && focus.session
       ? categoryTone[focus.session.goal_category]
       : kind === "block" && focus.current
         ? categoryTone[focus.current.category]
@@ -685,7 +687,7 @@ export function FocusStage({
     planError ? "is-error" : "",
     kind === "running" ? "is-running" : "",
     !planError && kind !== "running" && kind !== "block" ? "is-free" : "",
-    tone ? `tone-${tone}` : "",
+    tone ? `is-tinted tone-${tone}` : "",
     changed && !reducedMotion ? "focus-card--enter" : "",
   ]
     .filter(Boolean)

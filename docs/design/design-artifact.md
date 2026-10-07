@@ -59,6 +59,11 @@ Notizfeld) – keine Bildschirme wurden nachgebaut.
 | M19 | Tag offline: Notiz nicht verfügbar, nichts vorgetäuscht                                                     | `m19-notiz-offline.dc.html`     |
 | M20 | Jetzt hell mit laufender Aktivität                                                                          | `m20-jetzt-hell.dc.html`        |
 
+**Feinschliff Kategoriefarbe (Artefakt-Version 31):** Der Fokusblock in W11, W13, W14, W17,
+W18, M16 und M20 nutzt jetzt dieselbe Fläche und denselben Rand wie der Planblock im
+Wochenraster (`.focus` in `tagestakt.css`: Ton 16 % in `s1`, Rand 45 %; laufend nur der Rand im
+vollen Ton). Die Zeile „Jetzt · …“ ist nicht mehr kategoriefarbig, sondern `text-2` – wie im Code.
+
 Notizen im Artefakt sind erfundene Beispieltexte („… (Beispiel)“). Die Haftnotizen
 `fokusUebergang` und `notizMobileHinweis` in `canvas.json` beschreiben Übergang und
 mobile Besonderheiten.

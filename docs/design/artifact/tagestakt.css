@@ -316,9 +316,14 @@ h1, h2, h3, p { margin: 0; }
 .ghost .gtime { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; }
 .ghost .gtitle { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ghost .gtitle b { color: var(--text); font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.focus { width: 100%; max-width: 880px; display: flex; flex-direction: column; gap: 16px; padding: 28px 32px; border-radius: var(--r-xl); border: 1px solid color-mix(in srgb, var(--g) 55%, var(--line)); background: color-mix(in srgb, var(--g) 9%, var(--s1)); }
-.focus.is-running { background: color-mix(in srgb, var(--g) 17%, var(--s1)); border-color: var(--g); }
+/* Fokusblock = Planblock-Fläche wie .wb im Wochenraster (Ton 16 % in s1, Rand 45 %); laufend nur der Rand im vollen Ton */
+.focus { width: 100%; max-width: 880px; display: flex; flex-direction: column; gap: 16px; padding: 28px 32px; border-radius: var(--r-xl); border: 1px solid color-mix(in srgb, var(--g) 45%, transparent); background: color-mix(in srgb, var(--g) 16%, var(--s1)); }
+.focus.is-running { border-color: var(--g); }
 .focus.is-free { --g: var(--text-3); background: var(--s1); border-style: dashed; border-color: var(--line-strong); }
+/* Auf der getönten Fläche Kontraste wie auf s1: Chip auf s1, Nebenzeile text-2, Knopfränder text-3 */
+.focus:not(.is-free) .chip { background: var(--s1); }
+.focus:not(.is-free) .fhead .eyebrow { color: var(--text-2); }
+.focus:not(.is-free) .btn-secondary { border-color: var(--text-3); }
 .focus .fhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .focus .ftitle { font-size: 40px; line-height: 1.1; font-weight: 650; letter-spacing: -0.02em; }
 .focus .fbig { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; }

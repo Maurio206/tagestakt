@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { type Palette, cssVariableName, palettes } from "@tagestakt/design-tokens";
+import { type Palette, cssVariableName, palettes, planBlockTint } from "@tagestakt/design-tokens";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(fileURLToPath(new URL("./globals.css", import.meta.url)), "utf8");
@@ -36,5 +36,45 @@ describe("globals.css spiegelt die Design-Tokens", () => {
   it("respektiert „Bewegung reduzieren“ und zeigt einen Fokusring", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toMatch(/:focus-visible\s*\{[^}]*outline: 2px solid/);
+  });
+});
+
+/** Inhalt der Regel auf oberster Ebene, deren Selektor(liste) genau `selector` lautet. */
+function rule(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(?<!,\\n)^${escaped} \\{([^}]*)\\}`, "m").exec(css);
+  expect(match, selector).not.toBeNull();
+  return match?.[1]?.trim() ?? "";
+}
+
+describe("Fokusblock und Wochenplan-Block", () => {
+  it("teilen Fläche und Rand aus planBlockTint – an genau einer Stelle", () => {
+    const fill = Math.round(planBlockTint.fill * 100);
+    const border = Math.round(planBlockTint.border * 100);
+    const shared = rule(".wb,\n.focus-card");
+    expect(shared).toContain(
+      `background: color-mix(in srgb, var(--g) ${fill}%, var(--tt-surface1));`,
+    );
+    expect(shared).toContain(
+      `border: 1px solid color-mix(in srgb, var(--g) ${border}%, transparent);`,
+    );
+    expect(rule(".wb")).not.toMatch(/background|border(-color)?:/);
+    expect(rule(".focus-card")).not.toMatch(/background|border(-color)?:/);
+  });
+
+  it("laufend: gleiche Fläche, nur der Rand im vollen Kategorieton", () => {
+    expect(rule(".focus-card.is-running")).toBe("border-color: var(--g);");
+  });
+
+  it("hält auf der getönten Fläche die Kontraste wie auf surface1", () => {
+    expect(rule(".focus-card.is-tinted .chip,\n.focus-card.is-tinted .tag")).toBe(
+      "background: var(--tt-surface1);",
+    );
+    expect(rule(".focus-card.is-tinted > .focus-head .eyebrow")).toBe(
+      "color: var(--tt-text-muted);",
+    );
+    expect(rule(".focus-card.is-tinted > .button-row .btn--secondary")).toBe(
+      "border-color: var(--tt-text-subtle);",
+    );
   });
 });

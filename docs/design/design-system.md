@@ -55,6 +55,13 @@ Alle Töne erreichen ≥ 6,6 : 1 (dunkel) bzw. ≥ 5,2 : 1 (hell) auf `bg` und `
 damit auch als Textfarbe zulässig (geprüft in `packages/design-tokens/src/index.test.ts`,
 Mindestwert 4,5 : 1). Kategorien werden **immer** zusätzlich als Text angezeigt.
 
+**Planblock-Fläche (`planBlockTint`):** Der Block im Wochenraster der Website und der Fokusblock
+(Web-Übersicht, App „Jetzt“) zeigen den Kategorieton gleich stark – Fläche 16 % Ton in `surface1`
+(`color-mix(in srgb, var(--g) 16%, var(--tt-surface1))`, App: `mixColor`), Rand 45 % Deckkraft.
+Auf dieser getönten Fläche stehen Chips und Status-Tags auf `surface1`, Nebenzeilen in
+`textMuted` und Ränder sekundärer Knöpfe in `textSubtle`; so bleiben Text ≥ 4,5 : 1 und Ränder
+≥ 3 : 1 für alle Töne in beiden Modi (Test in `packages/design-tokens/src/index.test.ts`).
+
 Hinweis: Lucide 1.x heißt das Dienst-Symbol `Building` (vormals `Building2`) und das
 Löschen-Symbol `Trash` (vormals `Trash2`).
 

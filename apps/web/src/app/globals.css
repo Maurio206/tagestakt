@@ -247,6 +247,14 @@ a:hover {
   --g: var(--tt-neutral);
 }
 
+/* Kategoriefläche eines Planblocks: Block im Wochenraster und Fokusblock der Übersicht zeigen
+   denselben Ton in derselben Stärke (Anteile wie `planBlockTint` in @tagestakt/design-tokens). */
+.wb,
+.focus-card {
+  background: color-mix(in srgb, var(--g) 16%, var(--tt-surface1));
+  border: 1px solid color-mix(in srgb, var(--g) 45%, transparent);
+}
+
 /* ---------------------------------------------------------------------------
    Rahmen: Seitenleiste (≥ 1024 px) bzw. Kopfzeile mit Menü
    --------------------------------------------------------------------------- */
@@ -1288,13 +1296,11 @@ details > summary {
   gap: 14px;
   padding: 20px;
   border-radius: var(--r-xl);
-  border: 1px solid color-mix(in srgb, var(--g) 55%, var(--tt-line));
-  background: color-mix(in srgb, var(--g) 9%, var(--tt-surface1));
 }
 
+/* Laufende Aktivität: gleiche Fläche, nur der Rand im vollen Kategorieton (keine Statusfarbe). */
 .focus-card.is-running {
   border-color: var(--g);
-  background: color-mix(in srgb, var(--g) 17%, var(--tt-surface1));
 }
 
 .focus-card.is-free {
@@ -1308,6 +1314,21 @@ details > summary {
   --g: var(--tt-error);
   border-color: color-mix(in srgb, var(--tt-error) 45%, transparent);
   background: var(--tt-surface1);
+}
+
+/* Auf der getönten Fläche bleiben Kontraste wie auf surface1: Beschriftungs-Pillen stehen auf
+   surface1, Nebenzeile und Knopfränder eine Stufe kräftiger. */
+.focus-card.is-tinted .chip,
+.focus-card.is-tinted .tag {
+  background: var(--tt-surface1);
+}
+
+.focus-card.is-tinted > .focus-head .eyebrow {
+  color: var(--tt-text-muted);
+}
+
+.focus-card.is-tinted > .button-row .btn--secondary {
+  border-color: var(--tt-text-subtle);
 }
 
 /* Kurzer, ruhiger Wechsel – bei „Bewegung reduzieren“ wird die Klasse nicht gesetzt. */
@@ -2064,8 +2085,6 @@ details > summary {
   padding: 4px 7px;
   border-radius: 8px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--g) 16%, var(--tt-surface1));
-  border: 1px solid color-mix(in srgb, var(--g) 45%, transparent);
   color: var(--tt-text);
   font-size: 12px;
   line-height: 1.3;

@@ -6,7 +6,10 @@
 import {
   type ActivitySession,
   type CompletionStatus,
+  ENTRY_CATEGORIES,
   type EntryCategory,
+  GOAL_KEYS,
+  type ScheduleEntry,
   resolveTimeRange,
 } from "@tagestakt/schedule-schema";
 import { act, render, screen, within } from "@testing-library/react";
@@ -20,6 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { FocusStage } = await import("./focus-stage");
+const { WeekGrid } = await import("./week-grid");
 
 const DAY = "2026-10-14"; // Mittwoch, Sommerzeit (UTC+2)
 
@@ -318,5 +322,109 @@ describe("FocusStage – Wechsel an der Blockgrenze", () => {
     });
     expect(focusHeading()).toHaveTextContent("Kundenprojekt (Beispiel)");
     expect(screen.getByTestId("focus-card")).not.toHaveClass("focus-card--enter");
+  });
+});
+
+describe("FocusStage – Kategoriefarbe wie im Wochenplan", () => {
+  /** Erwartete Töne unabhängig von der Implementierung (Vorgabe je Kategorie). */
+  const EXPECTED_TONE: Record<EntryCategory, string> = {
+    business: "business",
+    sport: "sport",
+    relationship: "relationship",
+    duty: "duty",
+    appointment: "violet",
+    leisure: "violet",
+    shopping: "neutral",
+    meal: "neutral",
+    hygiene: "neutral",
+    commute: "neutral",
+    sleep: "neutral",
+    other: "neutral",
+  };
+
+  function toneClasses(element: Element | null): string[] {
+    return [...(element?.classList ?? [])].filter((name) => name.startsWith("tone-"));
+  }
+
+  function asScheduleEntry(e: FocusStageEntry): ScheduleEntry {
+    return {
+      ...e,
+      owner_id: "8f14e45f-ceea-4f6a-9d1b-6d2c4f0a9b11",
+      schedule_week_id: "c9f0f895-fb98-4b91-9f5a-1c2d3e4f5a6b",
+      note: null,
+      source: "manual",
+      created_at: "2026-10-01T00:00:00+00:00",
+      updated_at: "2026-10-01T00:00:00+00:00",
+    };
+  }
+
+  it.each(ENTRY_CATEGORIES)(
+    "geplanter Block „%s“: derselbe Ton wie im Wochenraster",
+    (category) => {
+      const block = entry("k1", "Block (Beispiel)", category, "17:00", "20:00");
+      renderAt("2026-10-14T15:30:00Z", { entries: [block] }); // 17:30
+      const card = screen.getByTestId("focus-card");
+      expect(toneClasses(card)).toEqual([`tone-${EXPECTED_TONE[category]}`]);
+      expect(card).toHaveClass("is-tinted");
+      expect(card).not.toHaveClass("is-running");
+      expect(card).not.toHaveClass("is-free");
+
+      const grid = render(
+        <WeekGrid
+          weekStart="2026-10-12"
+          entries={[asScheduleEntry(block)]}
+          overlapIds={new Set()}
+          today={DAY}
+          now={new Date("2026-10-14T15:30:00Z")}
+        />,
+      );
+      expect(toneClasses(grid.container.querySelector(".wb"))).toEqual(toneClasses(card));
+    },
+  );
+
+  it.each(["completed", "skipped"] as const)(
+    "Status „%s“ ändert die Farbe nicht – sie zeigt nur die Kategorie",
+    (completion) => {
+      const block = entry("k1", "Krafttraining (Beispiel)", "sport", "17:00", "20:00", {
+        completion,
+      });
+      renderAt("2026-10-14T15:30:00Z", { entries: [block] });
+      const card = screen.getByTestId("focus-card");
+      expect(toneClasses(card)).toEqual(["tone-sport"]);
+      expect(card).toHaveClass("is-tinted");
+    },
+  );
+
+  it.each(GOAL_KEYS)(
+    "laufende Aktivität „%s“: Ton des Ziels, nur der Rand wird kräftiger",
+    (goal) => {
+      // Während des geplanten Dienstes läuft eine Aktivität – sie bestimmt den Ton.
+      renderAt("2026-10-14T08:00:00Z", { running: session(goal, "2026-10-14T07:30:00Z") });
+      const card = screen.getByTestId("focus-card");
+      expect(toneClasses(card)).toEqual([`tone-${EXPECTED_TONE[goal]}`]);
+      expect(card).toHaveClass("is-running");
+      expect(card).toHaveClass("is-tinted");
+    },
+  );
+
+  it.each<[string, string, Parameters<typeof renderAt>[1]]>([
+    ["freie Zeit", "2026-10-14T14:40:00Z", {}],
+    ["vor dem ersten Block", "2026-10-14T04:00:00Z", {}],
+    ["nach dem letzten Block", "2026-10-14T19:00:00Z", {}],
+    ["kein Plan", "2026-10-14T15:30:00Z", { entries: [], hasPublishedPlan: false }],
+    // Fehler während eines geplanten Gewerbe-Blocks: trotzdem kein Kategorieton.
+    ["Fehler", "2026-10-14T15:30:00Z", { planError: true }],
+  ])("%s: neutral, ohne Kategorieton", (_label, at, props) => {
+    renderAt(at, props);
+    const card = screen.getByTestId("focus-card");
+    expect(toneClasses(card)).toEqual([]);
+    expect(card).not.toHaveClass("is-tinted");
+  });
+
+  it("unscharfe Nachbarn behalten ihre eigene Kategoriefarbe", () => {
+    renderAt("2026-10-14T15:30:00Z"); // Gewerbe; davor Dienst, danach Abendessen
+    expect(toneClasses(screen.getByTestId("focus-card"))).toEqual(["tone-business"]);
+    expect(toneClasses(screen.getByTestId("focus-ghost-prev"))).toEqual(["tone-duty"]);
+    expect(toneClasses(screen.getByTestId("focus-ghost-next"))).toEqual(["tone-neutral"]);
   });
 });

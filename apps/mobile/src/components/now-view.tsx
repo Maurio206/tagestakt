@@ -1,4 +1,4 @@
-import { categoryTone } from "@tagestakt/design-tokens";
+import { categoryTone, mixColor, planBlockTint } from "@tagestakt/design-tokens";
 import {
   type ActivitySession,
   CATEGORY_LABELS,
@@ -58,7 +58,16 @@ import { ToneIcon } from "./icons";
 import { NoteRow } from "./note-card";
 import { Sheet } from "./sheet";
 import { StatusBanner } from "./status-banner";
-import { Button, CategoryPill, Muted, Notice, Section, ToneChip } from "./ui";
+import {
+  Button,
+  CategoryPill,
+  Muted,
+  Notice,
+  Section,
+  TintedSurface,
+  ToneChip,
+  useOnTint,
+} from "./ui";
 
 /** Aktionen der Jetzt-Ansicht; die Bildschirm-Komponente verbindet sie mit Server und Navigation. */
 export interface NowActions {
@@ -103,6 +112,7 @@ function SpontaneousStart({
   large: boolean;
 }) {
   const theme = useTheme();
+  const onTint = useOnTint();
   return (
     <View style={styles.block}>
       <Text style={[styles.label, { color: theme.textMuted }]}>Aktivität starten</Text>
@@ -119,7 +129,7 @@ function SpontaneousStart({
               styles.goalButton,
               large ? styles.goalButtonLarge : null,
               {
-                borderColor: theme.lineStrong,
+                borderColor: onTint ? theme.textSubtle : theme.lineStrong,
                 backgroundColor: theme.surface2,
                 opacity: !canWrite || pending ? 0.45 : 1,
               },
@@ -270,12 +280,15 @@ function FocusCard({
     animation.start();
     return () => animation.stop();
   }, [animate, progress]);
+  // Fläche und Rand wie der Planblock im Wochenraster (`planBlockTint`); eine laufende
+  // Aktivität bekommt nur den Rand im vollen Kategorieton – keine eigene Statusfarbe.
   const colors =
     variant === "free"
       ? { backgroundColor: theme.surface1, borderColor: theme.lineStrong, borderStyle: "dashed" }
-      : variant === "running"
-        ? { backgroundColor: tint(color, 0.17), borderColor: color }
-        : { backgroundColor: tint(color, 0.09), borderColor: tint(color, 0.55) };
+      : {
+          backgroundColor: mixColor(color, theme.surface1, planBlockTint.fill),
+          borderColor: variant === "running" ? color : tint(color, planBlockTint.border),
+        };
   return (
     <Animated.View
       testID="focus-card"
@@ -292,7 +305,7 @@ function FocusCard({
           : null,
       ]}
     >
-      {children}
+      <TintedSurface tinted={variant !== "free"}>{children}</TintedSurface>
     </Animated.View>
   );
 }

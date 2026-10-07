@@ -5,6 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { radius, spacing, type, useTheme } from "@/theme";
 
+import { TintedSurface } from "./ui";
+
 /**
  * Unteres Blatt (Sheet) als Modal: Fokus bleibt im Dialog, Zurück-Taste schließt.
  * Bei „Bewegung reduzieren“ ohne Animation.
@@ -47,7 +49,8 @@ export function Sheet({
             {title}
           </Text>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            {children}
+            {/* Das Blatt liegt auf surface1 – auch wenn es aus einem getönten Fokusblock öffnet. */}
+            <TintedSurface tinted={false}>{children}</TintedSurface>
           </ScrollView>
         </SafeAreaView>
       </View>

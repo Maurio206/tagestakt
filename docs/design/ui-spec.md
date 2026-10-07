@@ -69,6 +69,14 @@ vorherige Block liegt klein, unscharf und angeschnitten darüber, der nächste d
 Bedienelemente, für Screenreader verborgen. „Davor: … / Danach: …“ steht zusätzlich als Text im
 Fokusblock. Logik: `getFocusState` (gemeinsam für Web und App).
 
+**Farbe = Kategorie, nie Status.** Der Fokusblock trägt exakt den Ton des entsprechenden Blocks
+im Wochenplan (`categoryTone` aus `@tagestakt/design-tokens`, Fläche und Rand nach
+`planBlockTint`): Gewerbe, Sport, Laila und Dienst je eigener Ton, Termin/Freizeit violett, Essen,
+Einkaufen, Körperpflege, Fahrt, Schlaf und Sonstiges neutral. „Erledigt“ oder „Ausgelassen“
+ändern die Farbe nicht. Bei einer laufenden Aktivität gilt der Ton ihres Ziels; nur der Rand steht
+im vollen Ton (keine eigene Statusfarbe). Freie Zeit, kein Plan, vor dem ersten bzw. nach dem
+letzten Block und Fehler bleiben neutral. Die unscharfen Nachbarn behalten ihren eigenen Ton.
+
 1. **Aktivität läuft** (Vorrang vor dem Plan): Ziel-Chip + „Läuft“, Titel, Laufzeit (Mono),
    „seit 17:04 · Plan bis 20:00“, Bezug zum Planblock, **Beenden**, „Zeit korrigieren“,
    „Abbrechen“; ab 12 h „Vermutlich vergessen“, ab 24 h nur noch „Zeit korrigieren“. Läuft

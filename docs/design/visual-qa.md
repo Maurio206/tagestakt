@@ -103,6 +103,42 @@ unter Android (React Native `filter: blur`); iOS zeigt sie nur blass und angesch
 Systemschrift, TalkBack und Tastaturverhalten auf dem Gerät stehen in der Checkliste von
 [../mobile-preview-build.md](../mobile-preview-build.md).
 
+## Feinschliff: Fokusblock in der Kategoriefarbe des Wochenplans
+
+Stand: 07.10.2026 abends, gleiches Verfahren (Edge headless, lokale Website und lokales Supabase,
+Browser-Uhr auf 09:00, 12:10, 16:30, 19:35, 20:00 bzw. 21:15 Uhr gestellt). „Aktivität läuft“
+wurde über „Aktivität Laila starten“ erzeugt und danach über „Abbrechen“ wieder verworfen.
+Gemessen wurden die tatsächlich gerenderten Farben (`getComputedStyle`).
+
+| Prüfung                                        | Ergebnis                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Fläche/Rand Fokusblock = `.wb` im Wochenraster | identisch für alle sechs Töne, dunkel und hell (z. B. Gewerbe `#3a311f` bzw. `#ece5d6`) |
+| Geprüfte Zustände                              | Gewerbe (erledigt), Sport, Dienst, Termin (Überschneidung), Essen, Laila läuft, frei    |
+| Laufend                                        | gleiche Fläche wie geplant, Rand im vollen Ton (1 px, keine Statusfarbe)                |
+| Neutral (frei)                                 | `surface1`, gestrichelter Rand `lineStrong` – unverändert                               |
+| Nachbarn                                       | eigener Ton je Block (z. B. Essen neutral davor, Sport danach)                          |
+| 1440 px und 390 px, hell und dunkel            | kein horizontales Scrollen, keine Konsolenfehler                                        |
+| Fokusring (per Tab)                            | 2 px `text`, ≥ 11,2 : 1 (dunkel) bzw. ≥ 13,9 : 1 (hell) zur getönten Fläche             |
+
+Kontraste auf der Fokusfläche (kleinster Wert über alle sechs Töne, berechnet aus den Tokens;
+die Browser-Messung bestätigt die Werte):
+
+| Element                          | vorher dunkel | jetzt dunkel | vorher hell | jetzt hell |
+| -------------------------------- | ------------- | ------------ | ----------- | ---------- |
+| Titel, Ziffern, Fokusring        | 12,96         | 11,18        | 15,47       | 13,89      |
+| Nebentext (`textMuted`)          | 7,38          | 6,37         | 8,04        | 7,22       |
+| Zeile „Jetzt · …“                | 4,69          | 6,37         | 5,50        | 7,22       |
+| Ziel-Chip                        | 4,52          | 6,61         | **4,17**    | 5,69       |
+| Tag „Erledigt“                   | 7,49          | 8,86         | 4,97        | 5,69       |
+| Rand sekundärer Knöpfe (≥ 3 : 1) | 3,07          | 4,05         | 3,51        | 4,94       |
+
+Die kräftigere Fläche (16 % statt 9 %) senkt den Kontrast von Haupt- und Nebentext leicht, beide
+bleiben deutlich über 4,5 : 1. Werte, die sonst unter ihre Schwelle gefallen wären (Zeile
+„Jetzt · …“ in `textSubtle`, Chip-Text auf getöntem Chip, Knopfrand `lineStrong`), werden auf der
+getönten Fläche eine Stufe kräftiger dargestellt; der Ziel-Chip im hellen Modus lag vorher bereits
+unter 4,5 : 1 und erfüllt den Wert jetzt. Die App (M16/M20) nutzt dieselben Werte; mangels Gerät
+nur durch Komponententests abgedeckt.
+
 ## App: Abgleich mit dem Artefakt (M01–M15)
 
 | Ansicht | Umsetzung                                                | Abweichung / Hinweis                                                                                     |
