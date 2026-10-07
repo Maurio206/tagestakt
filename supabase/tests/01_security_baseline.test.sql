@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(36);
 
 -- RLS überall aktiv
 select is(
@@ -13,8 +13,8 @@ select is(
 
 select is(
   (select count(*)::int from pg_tables where schemaname = 'public'),
-  4,
-  'public enthält genau die vier erwarteten Tabellen (neue Tabellen brauchen neue Tests)'
+  5,
+  'public enthält genau die fünf erwarteten Tabellen (neue Tabellen brauchen neue Tests)'
 );
 
 -- Jede Tabelle besitzt eine owner_id
@@ -68,6 +68,10 @@ select policies_are('public', 'schedule_entries', array[
   'schedule_entries: eigene lesen', 'schedule_entries: eigene anlegen',
   'schedule_entries: eigene ändern', 'schedule_entries: eigene löschen'
 ]);
+select policies_are('public', 'activity_sessions', array[
+  'activity_sessions: eigene lesen', 'activity_sessions: eigene anlegen',
+  'activity_sessions: eigene ändern', 'activity_sessions: eigene löschen'
+]);
 
 select is(
   (select count(*)::int from pg_policies where schemaname = 'public' and roles <> '{authenticated}'),
@@ -99,12 +103,28 @@ select table_privs_are('public', 'schedule_weeks', 'authenticated',
   array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
 select table_privs_are('public', 'schedule_entries', 'authenticated',
   array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+select table_privs_are('public', 'activity_sessions', 'authenticated',
+  array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
 
 -- Funktionsrechte
 select function_privs_are('public', 'publish_schedule_week', array['uuid'], 'anon', array[]::text[]);
 select function_privs_are('public', 'publish_schedule_week', array['uuid'], 'authenticated', array['EXECUTE']);
 select function_privs_are('public', 'create_schedule_draft', array['date'], 'anon', array[]::text[]);
 select function_privs_are('public', 'add_schedule_entries', array['uuid', 'jsonb', 'boolean'], 'anon', array[]::text[]);
+select function_privs_are('public', 'start_activity_session', array['text', 'text', 'uuid'],
+  'anon', array[]::text[]);
+select function_privs_are('public', 'start_activity_session', array['text', 'text', 'uuid'],
+  'authenticated', array['EXECUTE']);
+select function_privs_are('public', 'stop_activity_session', array['uuid'], 'anon', array[]::text[]);
+select function_privs_are('public', 'stop_activity_session', array['uuid'],
+  'authenticated', array['EXECUTE']);
+select function_privs_are('public', 'correct_activity_session',
+  array['uuid', 'timestamp with time zone', 'timestamp with time zone'], 'anon', array[]::text[]);
+select function_privs_are('public', 'correct_activity_session',
+  array['uuid', 'timestamp with time zone', 'timestamp with time zone'],
+  'authenticated', array['EXECUTE']);
+select function_privs_are('private', 'guard_activity_session', array[]::text[],
+  'authenticated', array[]::text[]);
 
 -- Das interne Schema ist nicht erreichbar
 select schema_privs_are('private', 'anon', array[]::text[]);
@@ -113,6 +133,12 @@ select schema_privs_are('private', 'authenticated', array[]::text[]);
 -- Indizes für RLS-Spalten und Fremdschlüssel
 select has_index('public', 'schedule_entries', 'schedule_entries_week_owner_idx',
   'Index für den zusammengesetzten Fremdschlüssel schedule_entries → schedule_weeks');
+select has_index('public', 'activity_sessions', 'activity_sessions_owner_started_idx',
+  'Index für owner_id/started_at der erfassten Zeiten');
+select has_index('public', 'activity_sessions', 'activity_sessions_entry_owner_idx',
+  'Index für den zusammengesetzten Fremdschlüssel activity_sessions → schedule_entries');
+select has_index('public', 'activity_sessions', 'activity_sessions_one_active_idx',
+  'Eindeutiger Teilindex: höchstens eine laufende Aktivität pro Benutzer');
 
 select * from finish();
 rollback;

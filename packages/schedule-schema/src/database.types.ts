@@ -3,6 +3,53 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      activity_sessions: {
+        Row: {
+          corrected_at: string | null;
+          created_at: string;
+          ended_at: string | null;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          schedule_entry_id: string | null;
+          started_at: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          corrected_at?: string | null;
+          created_at?: string;
+          ended_at?: string | null;
+          goal_category: string;
+          id?: string;
+          owner_id?: string;
+          schedule_entry_id?: string | null;
+          started_at?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          corrected_at?: string | null;
+          created_at?: string;
+          ended_at?: string | null;
+          goal_category?: string;
+          id?: string;
+          owner_id?: string;
+          schedule_entry_id?: string | null;
+          started_at?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "activity_sessions_entry_owner_fkey";
+            columns: ["schedule_entry_id", "owner_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_entries";
+            referencedColumns: ["id", "owner_id"];
+          },
+        ];
+      };
       recurring_commitments: {
         Row: {
           active: boolean;
@@ -145,25 +192,43 @@ export type Database = {
           created_at: string;
           locale: string;
           owner_id: string;
+          remind_at_start: boolean;
+          remind_if_not_started: boolean;
+          reminder_minutes_before: number | null;
+          reminder_scope: string;
           timezone: string;
           updated_at: string;
           weekly_business_target_minutes: number;
+          weekly_relationship_target_minutes: number | null;
+          weekly_sport_target_minutes: number | null;
         };
         Insert: {
           created_at?: string;
           locale?: string;
           owner_id?: string;
+          remind_at_start?: boolean;
+          remind_if_not_started?: boolean;
+          reminder_minutes_before?: number | null;
+          reminder_scope?: string;
           timezone?: string;
           updated_at?: string;
           weekly_business_target_minutes?: number;
+          weekly_relationship_target_minutes?: number | null;
+          weekly_sport_target_minutes?: number | null;
         };
         Update: {
           created_at?: string;
           locale?: string;
           owner_id?: string;
+          remind_at_start?: boolean;
+          remind_if_not_started?: boolean;
+          reminder_minutes_before?: number | null;
+          reminder_scope?: string;
           timezone?: string;
           updated_at?: string;
           weekly_business_target_minutes?: number;
+          weekly_relationship_target_minutes?: number | null;
+          weekly_sport_target_minutes?: number | null;
         };
         Relationships: [];
       };
@@ -175,6 +240,27 @@ export type Database = {
       add_schedule_entries: {
         Args: { p_entries: Json; p_replace_existing?: boolean; p_week_id: string };
         Returns: number;
+      };
+      correct_activity_session: {
+        Args: { p_ended_at?: string; p_session_id: string; p_started_at: string };
+        Returns: {
+          corrected_at: string | null;
+          created_at: string;
+          ended_at: string | null;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          schedule_entry_id: string | null;
+          started_at: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "activity_sessions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_schedule_draft: {
         Args: { p_week_start: string };
@@ -212,6 +298,48 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "schedule_weeks";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      start_activity_session: {
+        Args: { p_goal_category: string; p_schedule_entry_id?: string; p_title?: string };
+        Returns: {
+          corrected_at: string | null;
+          created_at: string;
+          ended_at: string | null;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          schedule_entry_id: string | null;
+          started_at: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "activity_sessions";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      stop_activity_session: {
+        Args: { p_session_id?: string };
+        Returns: {
+          corrected_at: string | null;
+          created_at: string;
+          ended_at: string | null;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          schedule_entry_id: string | null;
+          started_at: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "activity_sessions";
           isOneToOne: true;
           isSetofReturn: false;
         };

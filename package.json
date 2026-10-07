@@ -22,6 +22,7 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "db:lint": "supabase db lint --level warning",
+    "db:upgrade-test": "node scripts/db-upgrade-test.mjs",
     "db:types": "supabase gen types typescript --local --schema public > packages/schedule-schema/src/database.types.ts && prettier --write packages/schedule-schema/src/database.types.ts",
     "check:secrets": "node scripts/check-secrets.mjs"
   },

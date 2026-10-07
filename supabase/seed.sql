@@ -105,5 +105,27 @@ begin
       ((v_monday + 7) + time '08:00') at time zone v_tz, ((v_monday + 7) + time '14:00') at time zone v_tz),
     (v_user, v_next_week, 'Gewerbe-Fokusblock (Beispiel)', 'business',
       ((v_monday + 7) + time '15:30') at time zone v_tz, ((v_monday + 7) + time '19:30') at time zone v_tz);
+
+  -- Erfasste Zeiten (Plan vs. Ist) für bereits vergangene Zielblöcke der aktuellen Woche.
+  -- Nur wenn die Tabelle existiert (der Upgrade-Test setzt auf die Initialmigration zurück).
+  -- Der Integritäts-Trigger wird kurz deaktiviert, damit die Beispielzeiten nicht als
+  -- „nachgetragen“ markiert werden – ausschließlich in dieser lokalen Seed-Datei.
+  if to_regclass('public.activity_sessions') is not null then
+    alter table public.activity_sessions disable trigger activity_sessions_guard;
+
+    insert into public.activity_sessions (
+      owner_id, schedule_entry_id, goal_category, title, started_at, ended_at
+    )
+    select v_user, e.id, e.category, e.title,
+           e.start_at + interval '10 minutes',
+           e.end_at - case e.category when 'business' then interval '25 minutes'
+                                      else interval '5 minutes' end
+      from public.schedule_entries e
+     where e.schedule_week_id = v_current_week
+       and e.category in ('business', 'sport', 'relationship')
+       and e.end_at < now();
+
+    alter table public.activity_sessions enable trigger activity_sessions_guard;
+  end if;
 end;
 $$;

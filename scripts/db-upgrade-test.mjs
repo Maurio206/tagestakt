@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+/**
+ * Lokaler Upgrade-Test: beweist, dass neue Migrationen bestehende Daten nicht verändern.
+ *
+ *  1. lokale Datenbank auf den Stand der Initialmigration zurücksetzen (inkl. Seed),
+ *  2. Daten in der Form des Produktionsstands einspielen (scripts/db/upgrade-fixture.sql),
+ *  3. Fingerabdruck der Fachdaten erzeugen (scripts/db/data-fingerprint.sql),
+ *  4. alle ausstehenden Migrationen anwenden (`supabase migration up --local`),
+ *  5. Fingerabdruck erneut erzeugen und vergleichen – muss identisch sein,
+ *  6. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql),
+ *  7. lokale Datenbank wieder vollständig zurücksetzen.
+ *
+ * Arbeitet ausschließlich mit der lokalen Supabase-Instanz (Docker). Niemals gegen
+ * Produktion verwenden.
+ */
+import { execFileSync, execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const BASE_VERSION = "20261006120000";
+const DB_CONTAINER = process.env.TAGESTAKT_LOCAL_DB_CONTAINER ?? "supabase_db_tagestakt";
+
+/** Nur feste Argumente aus diesem Skript – keine Benutzereingaben in der Shell. */
+function supabase(args) {
+  const command = `pnpm exec supabase ${args.join(" ")}`;
+  process.stdout.write(`> ${command}\n`);
+  execSync(command, { stdio: ["ignore", "inherit", "inherit"] });
+}
+
+function psql(file) {
+  return execFileSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      DB_CONTAINER,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-At",
+      "-q",
+    ],
+    { encoding: "utf8", input: readFileSync(file, "utf8"), stdio: ["pipe", "pipe", "inherit"] },
+  ).trim();
+}
+
+let failed = false;
+try {
+  supabase(["db", "reset", "--version", BASE_VERSION]);
+  psql("scripts/db/upgrade-fixture.sql");
+  const before = psql("scripts/db/data-fingerprint.sql");
+  process.stdout.write(`Fingerabdruck vorher:\n${before}\n`);
+
+  supabase(["migration", "up", "--local"]);
+  const after = psql("scripts/db/data-fingerprint.sql");
+  process.stdout.write(`Fingerabdruck nachher:\n${after}\n`);
+
+  if (before !== after) {
+    throw new Error("Bestehende Daten wurden durch die Migration verändert.");
+  }
+  process.stdout.write("Bestehende Daten unverändert.\n");
+
+  psql("scripts/db/upgrade-postcheck.sql");
+  process.stdout.write("Nachprüfungen erfolgreich.\n");
+} catch (error) {
+  failed = true;
+  process.stderr.write(`Upgrade-Test fehlgeschlagen: ${error.message}\n`);
+} finally {
+  supabase(["db", "reset"]);
+}
+
+process.exitCode = failed ? 1 : 0;

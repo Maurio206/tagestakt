@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(57);
 
 -- -----------------------------------------------------------------------------
 -- Testdaten (als postgres; Tabelleneigentümer umgeht RLS)
@@ -30,6 +30,10 @@ insert into public.schedule_entries (id, owner_id, schedule_week_id, title, cate
 values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
         'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Beispiel', 'business',
         '2026-10-05 09:00+02', '2026-10-05 12:00+02');
+
+insert into public.activity_sessions (id, owner_id, goal_category, title, started_at, ended_at)
+values ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', '11111111-1111-4111-8111-111111111111',
+        'business', 'Beispiel', now() - interval '3 hours', now() - interval '2 hours');
 
 -- -----------------------------------------------------------------------------
 -- 1. Anonym
@@ -61,6 +65,15 @@ select throws_ok(
 select throws_ok(
   $$ select public.create_schedule_draft('2026-10-12') $$,
   '42501', null, 'anon: kann keine Entwürfe anlegen');
+select throws_ok($$ select * from public.activity_sessions $$, '42501', null,
+  'anon: kein Lesezugriff auf activity_sessions');
+select throws_ok(
+  $$ insert into public.activity_sessions (owner_id, goal_category, title)
+     values ('11111111-1111-4111-8111-111111111111', 'business', 'x') $$,
+  '42501', null, 'anon: kann keine Aktivitäten anlegen');
+select throws_ok(
+  $$ select public.start_activity_session('business') $$,
+  '42501', null, 'anon: kann keine Aktivität starten');
 
 reset role;
 
@@ -128,6 +141,29 @@ select throws_ok(
        '[{"title":"x","category":"other","start_at":"2026-10-06T07:00:00Z","end_at":"2026-10-06T08:00:00Z"}]') $$,
   'P0002', null, 'fremd: kann keine Einträge per RPC in fremde Pläne schreiben');
 
+select is_empty($$ select * from public.activity_sessions $$,
+  'fremd: sieht keine fremden Aktivitäten');
+select is_empty(
+  $$ update public.activity_sessions set title = 'Übernommen' returning id $$,
+  'fremd: kann fremde Aktivitäten nicht ändern');
+select is_empty(
+  $$ delete from public.activity_sessions returning id $$,
+  'fremd: kann fremde Aktivitäten nicht löschen');
+select throws_ok(
+  $$ select public.correct_activity_session('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+       now() - interval '5 hours', now() - interval '4 hours') $$,
+  'P0002', null, 'fremd: kann fremde Aktivitäten nicht korrigieren');
+select throws_ok(
+  $$ select public.stop_activity_session('dddddddd-dddd-4ddd-8ddd-dddddddddddd') $$,
+  'TT002', null, 'fremd: kann fremde Aktivitäten nicht beenden');
+select throws_ok(
+  $$ insert into public.activity_sessions (owner_id, goal_category, title)
+     values ('11111111-1111-4111-8111-111111111111', 'business', 'x') $$,
+  '42501', null, 'fremd: kann keine Aktivität im Namen eines anderen anlegen');
+select throws_ok(
+  $$ select public.start_activity_session('business', null, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc') $$,
+  'TT005', null, 'fremd: kann keine Aktivität an einen fremden Planblock hängen');
+
 -- Eigene Daten anlegen funktioniert; owner_id kann nicht auf einen anderen umgeschrieben werden
 select lives_ok(
   $$ insert into public.user_settings default values $$,
@@ -149,6 +185,11 @@ select is(
   1200,
   'Einstellungen des Eigentümers sind unverändert (Standardziel 1200 Minuten)'
 );
+select is(
+  (select title from public.activity_sessions where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
+  'Beispiel',
+  'Aktivität des Eigentümers ist nach den Angriffen unverändert'
+);
 
 -- -----------------------------------------------------------------------------
 -- 3. Eigentümer
@@ -161,6 +202,17 @@ select is((select count(*)::int from public.schedule_entries), 1,
   'Eigentümer: sieht seine Einträge');
 select is((select count(*)::int from public.schedule_weeks), 1,
   'Eigentümer: sieht seine Wochenpläne');
+select is((select count(*)::int from public.activity_sessions), 1,
+  'Eigentümer: sieht seine Aktivitäten');
+select lives_ok(
+  $$ select public.start_activity_session('sport', 'Laufen (Beispiel)') $$,
+  'Eigentümer: kann eine Aktivität starten');
+select throws_ok(
+  $$ select public.start_activity_session('business') $$,
+  'TT001', null, 'Eigentümer: höchstens eine laufende Aktivität');
+select lives_ok(
+  $$ select public.stop_activity_session() $$,
+  'Eigentümer: kann die laufende Aktivität beenden');
 
 select lives_ok(
   $$ update public.schedule_entries set title = 'Geändert'
