@@ -50,6 +50,36 @@ export type Database = {
           },
         ];
       };
+      daily_notes: {
+        Row: {
+          content: string;
+          created_at: string;
+          id: string;
+          note_date: string;
+          owner_id: string;
+          revision: number;
+          updated_at: string;
+        };
+        Insert: {
+          content: string;
+          created_at?: string;
+          id?: string;
+          note_date: string;
+          owner_id?: string;
+          revision?: number;
+          updated_at?: string;
+        };
+        Update: {
+          content?: string;
+          created_at?: string;
+          id?: string;
+          note_date?: string;
+          owner_id?: string;
+          revision?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       recurring_commitments: {
         Row: {
           active: boolean;
@@ -300,6 +330,29 @@ export type Database = {
           to: "schedule_weeks";
           isOneToOne: true;
           isSetofReturn: false;
+        };
+      };
+      save_daily_note: {
+        Args: {
+          p_content: string;
+          p_expected_id?: string;
+          p_expected_revision?: number;
+          p_note_date: string;
+        };
+        Returns: {
+          content: string;
+          created_at: string;
+          id: string;
+          note_date: string;
+          owner_id: string;
+          revision: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "daily_notes";
+          isOneToOne: false;
+          isSetofReturn: true;
         };
       };
       start_activity_session: {

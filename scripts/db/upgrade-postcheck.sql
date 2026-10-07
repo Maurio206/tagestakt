@@ -20,6 +20,7 @@ declare
   v_draft uuid;
   v_business_entry uuid;
   v_session public.activity_sessions;
+  v_note public.daily_notes;
   v_count integer;
 begin
   -- 1. Bestehende Einstellungen bleiben, neue Felder haben neutrale Standardwerte.
@@ -40,6 +41,12 @@ begin
    where week_start = date '2026-10-12' and status = 'published' and version = 1;
   select count(*) into v_count from public.schedule_entries where schedule_week_id = v_published;
   assert v_count = 5, 'Einträge der KW 42 fehlen';
+
+  -- 2a. Tagesnotiz für einen Tag der KW 42 anlegen (gehört zum Tag, nicht zur Planversion).
+  select * into strict v_note
+    from public.save_daily_note(date '2026-10-14', E'Beispielnotiz\nZweite Zeile');
+  assert v_note.revision = 1 and v_note.content = E'Beispielnotiz\nZweite Zeile',
+    'Tagesnotiz nicht gespeichert';
 
   -- 3. Bestehende Abläufe funktionieren weiter: Entwurf aus veröffentlichter Woche, Veröffentlichen.
   v_draft := (public.create_schedule_draft(date '2026-10-12')).id;
@@ -64,6 +71,25 @@ begin
   assert v_session.ended_at > v_session.started_at, 'Beenden fehlerhaft';
   select count(*) into v_count from public.activity_sessions where corrected_at is not null;
   assert v_count = 0, 'Normale Erfassung als korrigiert markiert';
+
+  -- 4a. Die Tagesnotiz hat den Versionswechsel unverändert überstanden.
+  assert (select revision = 1 and content = v_note.content
+            from public.daily_notes where id = v_note.id),
+    'Tagesnotiz durch neue Planversion verändert';
+
+  -- 4b. Speichern nur auf dem zuletzt gelesenen Stand; leerer Inhalt entfernt die Notiz.
+  select * into strict v_note
+    from public.save_daily_note(date '2026-10-14', 'Geändert (Beispiel)', v_note.id, 1);
+  assert v_note.revision = 2, 'Fassung nicht erhöht';
+  begin
+    perform * from public.save_daily_note(date '2026-10-14', 'Veraltet', v_note.id, 1);
+    raise exception 'veralteter Stand nicht erkannt';
+  exception when sqlstate 'TT007' then
+    null;
+  end;
+  perform * from public.save_daily_note(date '2026-10-14', '   ', v_note.id, 2);
+  assert not exists (select 1 from public.daily_notes where note_date = date '2026-10-14'),
+    'leere Notiz nicht entfernt';
 
   -- 5. Nachtragen wird als Korrektur gekennzeichnet.
   insert into public.activity_sessions (goal_category, title, started_at, ended_at)

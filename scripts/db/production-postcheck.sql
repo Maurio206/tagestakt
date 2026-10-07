@@ -1,5 +1,5 @@
 -- =============================================================================
--- TagesTakt – Nachprüfung nach der Migration 20261007120000 (nur lesend)
+-- TagesTakt – Nachprüfung nach den Migrationen 20261007120000 und 20261008120000 (nur lesend)
 --
 -- Prüft Struktur, RLS, Policies, Grants und Funktionen – ohne Inhalte zu lesen.
 -- Jede fehlgeschlagene Prüfung bricht mit einer Meldung ab.
@@ -67,7 +67,8 @@ begin
     'public.start_activity_session(text, text, uuid)',
     'public.stop_activity_session(uuid)',
     'public.correct_activity_session(uuid, timestamptz, timestamptz)',
-    'public.switch_activity_session(uuid, text, text, uuid)'
+    'public.switch_activity_session(uuid, text, text, uuid)',
+    'public.save_daily_note(date, text, uuid, integer)'
   ] loop
     if to_regprocedure(v_function) is null then
       raise exception 'Funktion % fehlt', v_function;
@@ -102,6 +103,39 @@ begin
                   where conname = 'schedule_entries_id_owner_key'
                     and conrelid = 'public.schedule_entries'::regclass) then
     raise exception 'Constraint schedule_entries_id_owner_key fehlt';
+  end if;
+
+  -- Tagesnotizen (20261008120000): RLS, vier Policies, Grants, eine Notiz je Tag, Trigger.
+  if to_regclass('public.daily_notes') is null then
+    raise exception 'daily_notes fehlt';
+  end if;
+  if not (select relrowsecurity from pg_class where oid = 'public.daily_notes'::regclass) then
+    raise exception 'RLS ist auf daily_notes nicht aktiv';
+  end if;
+  select count(distinct cmd) into v_count
+    from pg_policies
+   where schemaname = 'public' and tablename = 'daily_notes' and roles = '{authenticated}';
+  if v_count <> 4
+     or (select count(*) from pg_policies
+          where schemaname = 'public' and tablename = 'daily_notes') <> 4 then
+    raise exception 'daily_notes: Policies nicht je Operation getrennt bzw. nicht auf authenticated beschränkt';
+  end if;
+  if has_table_privilege('anon', 'public.daily_notes',
+                         'select, insert, update, delete, truncate, references, trigger') then
+    raise exception 'anon hat Rechte auf daily_notes';
+  end if;
+  if has_table_privilege('authenticated', 'public.daily_notes', 'truncate') then
+    raise exception 'authenticated darf daily_notes leeren';
+  end if;
+  if not exists (select 1 from pg_constraint
+                  where conname = 'daily_notes_owner_date_key'
+                    and conrelid = 'public.daily_notes'::regclass and contype = 'u') then
+    raise exception 'Constraint daily_notes_owner_date_key fehlt';
+  end if;
+  if not exists (select 1 from pg_trigger
+                  where tgrelid = 'public.daily_notes'::regclass
+                    and tgname = 'daily_notes_guard') then
+    raise exception 'Trigger daily_notes_guard fehlt';
   end if;
 
   -- Weiterhin: keine Views im Schema public.

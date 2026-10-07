@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Lokaler Nebenläufigkeitstest für die Fokus-Erfassung (nur lokale Supabase-Instanz in Docker).
+ * Lokaler Nebenläufigkeitstest für Fokus-Erfassung und Tagesnotizen (nur lokale Supabase-Instanz).
  *
  * pgTAP läuft in einer einzigen Transaktion und kann echte Gleichzeitigkeit nicht prüfen.
  * Dieses Skript öffnet zwei gleichzeitige Datenbanksitzungen desselben Test-Benutzers:
@@ -8,6 +8,9 @@
  *  1. zwei gleichzeitige Wechsel derselben laufenden Aktivität → genau einer gelingt,
  *     der andere wird mit TT002 (veralteter Stand) abgewiesen,
  *  2. gleichzeitiger Wechsel und Start → der Start wird mit TT001 abgewiesen,
+ *  3. zwei gleichzeitige Speichervorgänge einer Tagesnotiz auf demselben Stand → genau einer
+ *     gelingt, der andere wird mit TT007 abgewiesen (kein stilles Überschreiben),
+ *  4. zwei gleichzeitige Erstanlagen derselben Tagesnotiz → genau eine Notiz,
  *
  * und prüft danach, dass nie mehr als eine Aktivität läuft. Der Test-Benutzer wird am Ende
  * samt Daten wieder gelöscht. Niemals gegen Produktion verwenden.
@@ -124,6 +127,43 @@ try {
     "der gleichzeitige Start wird abgewiesen (TT001)",
   );
   assert(runningCount() === 1, "auch dann läuft genau eine Aktivität");
+
+  // 3. Tagesnotiz: zwei gleichzeitige Speichervorgänge auf demselben gelesenen Stand.
+  psql(`delete from public.daily_notes where owner_id = '${USER_ID}';`);
+  const note = psql(`insert into public.daily_notes (owner_id, note_date, content)
+                     values ('${USER_ID}', '2026-10-14', 'Ausgang (Beispiel)')
+                     returning id;`);
+  const saves = await Promise.all([
+    session(`public.save_daily_note('2026-10-14', 'Fassung A (Beispiel)', '${note}', 1)`, 0),
+    session(`public.save_daily_note('2026-10-14', 'Fassung B (Beispiel)', '${note}', 1)`, 300),
+  ]);
+  assert(saves.filter((r) => r.ok).length === 1, "genau ein gleichzeitiges Speichern gelingt");
+  assert(
+    saves.some((r) => !r.ok && r.sqlstate === "TT007"),
+    "das zweite Speichern wird als veraltet abgewiesen (TT007) statt still zu überschreiben",
+  );
+  assert(
+    psql(`select content || '|' || revision from public.daily_notes
+           where owner_id = '${USER_ID}' and note_date = '2026-10-14';`) ===
+      "Fassung A (Beispiel)|2",
+    "gespeichert ist genau die erste Fassung (Revision 2)",
+  );
+
+  // 4. Tagesnotiz: zwei gleichzeitige Erstanlagen für denselben Tag.
+  const creates = await Promise.all([
+    session(`public.save_daily_note('2026-10-15', 'Neu A (Beispiel)')`, 0),
+    session(`public.save_daily_note('2026-10-15', 'Neu B (Beispiel)')`, 300),
+  ]);
+  assert(creates.filter((r) => r.ok).length === 1, "genau eine gleichzeitige Erstanlage gelingt");
+  assert(
+    creates.some((r) => !r.ok && r.sqlstate === "TT007"),
+    "die zweite Erstanlage wird abgewiesen (TT007)",
+  );
+  assert(
+    psql(`select count(*) from public.daily_notes
+           where owner_id = '${USER_ID}' and note_date = '2026-10-15';`) === "1",
+    "für den Tag existiert genau eine Notiz",
+  );
 } catch (error) {
   failed = true;
   process.stderr.write(`Nebenläufigkeitstest fehlgeschlagen: ${error.message}\n`);

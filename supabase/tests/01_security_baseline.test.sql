@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(36);
+select plan(42);
 
 -- RLS überall aktiv
 select is(
@@ -13,8 +13,8 @@ select is(
 
 select is(
   (select count(*)::int from pg_tables where schemaname = 'public'),
-  5,
-  'public enthält genau die fünf erwarteten Tabellen (neue Tabellen brauchen neue Tests)'
+  6,
+  'public enthält genau die sechs erwarteten Tabellen (neue Tabellen brauchen neue Tests)'
 );
 
 -- Jede Tabelle besitzt eine owner_id
@@ -72,6 +72,10 @@ select policies_are('public', 'activity_sessions', array[
   'activity_sessions: eigene lesen', 'activity_sessions: eigene anlegen',
   'activity_sessions: eigene ändern', 'activity_sessions: eigene löschen'
 ]);
+select policies_are('public', 'daily_notes', array[
+  'daily_notes: eigene lesen', 'daily_notes: eigene anlegen',
+  'daily_notes: eigene ändern', 'daily_notes: eigene löschen'
+]);
 
 select is(
   (select count(*)::int from pg_policies where schemaname = 'public' and roles <> '{authenticated}'),
@@ -105,6 +109,8 @@ select table_privs_are('public', 'schedule_entries', 'authenticated',
   array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
 select table_privs_are('public', 'activity_sessions', 'authenticated',
   array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+select table_privs_are('public', 'daily_notes', 'authenticated',
+  array['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
 
 -- Funktionsrechte
 select function_privs_are('public', 'publish_schedule_week', array['uuid'], 'anon', array[]::text[]);
@@ -125,6 +131,12 @@ select function_privs_are('public', 'correct_activity_session',
   'authenticated', array['EXECUTE']);
 select function_privs_are('private', 'guard_activity_session', array[]::text[],
   'authenticated', array[]::text[]);
+select function_privs_are('public', 'save_daily_note', array['date', 'text', 'uuid', 'integer'],
+  'anon', array[]::text[]);
+select function_privs_are('public', 'save_daily_note', array['date', 'text', 'uuid', 'integer'],
+  'authenticated', array['EXECUTE']);
+select function_privs_are('private', 'guard_daily_note', array[]::text[],
+  'authenticated', array[]::text[]);
 
 -- Das interne Schema ist nicht erreichbar
 select schema_privs_are('private', 'anon', array[]::text[]);
@@ -139,6 +151,8 @@ select has_index('public', 'activity_sessions', 'activity_sessions_entry_owner_i
   'Index für den zusammengesetzten Fremdschlüssel activity_sessions → schedule_entries');
 select has_index('public', 'activity_sessions', 'activity_sessions_one_active_idx',
   'Eindeutiger Teilindex: höchstens eine laufende Aktivität pro Benutzer');
+select has_index('public', 'daily_notes', 'daily_notes_owner_date_key',
+  'Eindeutiger Index (owner_id, note_date) – zugleich Index für RLS auf owner_id');
 
 select * from finish();
 rollback;

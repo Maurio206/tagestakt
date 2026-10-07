@@ -1,5 +1,5 @@
 -- =============================================================================
--- TagesTakt – Vorprüfung vor der Migration 20261007120000 (nur lesend)
+-- TagesTakt – Vorprüfung vor den Migrationen 20261007120000 und 20261008120000 (nur lesend)
 --
 -- Ausgabe ohne Inhalte: Version, vorhandene Objekte, Migrationsverlauf.
 -- Bricht ab, wenn PostgreSQL älter als 15 ist (benötigt für
@@ -22,6 +22,8 @@ $$;
 select 'postgres_version=' || current_setting('server_version');
 
 select 'activity_sessions_vorhanden=' || (to_regclass('public.activity_sessions') is not null);
+
+select 'daily_notes_vorhanden=' || (to_regclass('public.daily_notes') is not null);
 
 select 'neue_user_settings_spalten=' || count(*)
   from information_schema.columns

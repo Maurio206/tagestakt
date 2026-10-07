@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(57);
+select plan(66);
 
 -- -----------------------------------------------------------------------------
 -- Testdaten (als postgres; Tabelleneigentümer umgeht RLS)
@@ -34,6 +34,10 @@ values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-1111111
 insert into public.activity_sessions (id, owner_id, goal_category, title, started_at, ended_at)
 values ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', '11111111-1111-4111-8111-111111111111',
         'business', 'Beispiel', now() - interval '3 hours', now() - interval '2 hours');
+
+insert into public.daily_notes (id, owner_id, note_date, content)
+values ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '11111111-1111-4111-8111-111111111111',
+        '2026-10-05', 'Beispielnotiz');
 
 -- -----------------------------------------------------------------------------
 -- 1. Anonym
@@ -74,6 +78,15 @@ select throws_ok(
 select throws_ok(
   $$ select public.start_activity_session('business') $$,
   '42501', null, 'anon: kann keine Aktivität starten');
+select throws_ok($$ select * from public.daily_notes $$, '42501', null,
+  'anon: kein Lesezugriff auf daily_notes');
+select throws_ok(
+  $$ insert into public.daily_notes (owner_id, note_date, content)
+     values ('11111111-1111-4111-8111-111111111111', '2026-10-06', 'x') $$,
+  '42501', null, 'anon: kann keine Tagesnotizen anlegen');
+select throws_ok(
+  $$ select * from public.save_daily_note('2026-10-06', 'x') $$,
+  '42501', null, 'anon: kann keine Tagesnotiz per RPC speichern');
 
 reset role;
 
@@ -164,6 +177,23 @@ select throws_ok(
   $$ select public.start_activity_session('business', null, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc') $$,
   'TT005', null, 'fremd: kann keine Aktivität an einen fremden Planblock hängen');
 
+select is_empty($$ select * from public.daily_notes $$,
+  'fremd: sieht keine fremden Tagesnotizen');
+select is_empty(
+  $$ update public.daily_notes set content = 'Übernommen' returning id $$,
+  'fremd: kann fremde Tagesnotizen nicht ändern');
+select is_empty(
+  $$ delete from public.daily_notes returning id $$,
+  'fremd: kann fremde Tagesnotizen nicht löschen');
+select throws_ok(
+  $$ insert into public.daily_notes (owner_id, note_date, content)
+     values ('11111111-1111-4111-8111-111111111111', '2026-10-06', 'x') $$,
+  '42501', null, 'fremd: kann keine Tagesnotiz im Namen eines anderen anlegen');
+select throws_ok(
+  $$ select * from public.save_daily_note('2026-10-05', 'Übernommen',
+       'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1) $$,
+  'TT007', null, 'fremd: kann eine fremde Tagesnotiz nicht per RPC überschreiben');
+
 -- Eigene Daten anlegen funktioniert; owner_id kann nicht auf einen anderen umgeschrieben werden
 select lives_ok(
   $$ insert into public.user_settings default values $$,
@@ -189,6 +219,11 @@ select is(
   (select title from public.activity_sessions where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
   'Beispiel',
   'Aktivität des Eigentümers ist nach den Angriffen unverändert'
+);
+select is(
+  (select content from public.daily_notes where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'),
+  'Beispielnotiz',
+  'Tagesnotiz des Eigentümers ist nach den Angriffen unverändert'
 );
 
 -- -----------------------------------------------------------------------------

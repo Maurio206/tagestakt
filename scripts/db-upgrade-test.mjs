@@ -10,7 +10,9 @@
  *  5. Fingerabdruck erneut erzeugen und vergleichen – muss identisch sein,
  *  6. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql) und die
  *     lesenden Produktionsprüfungen des Runbooks (scripts/db/production-*check.sql),
- *  7. Rückfall-Skript des Runbooks anwenden und prüfen, dass die Altdaten unverändert sind,
+ *  7. Rückfall-Skripte des Runbooks (erst Tagesnotizen, dann Fokus-Erfassung) anwenden und
+ *     prüfen, dass die Altdaten unverändert sind und vorhandene Notizen nicht still gelöscht
+ *     werden,
  *  8. lokale Datenbank wieder vollständig zurücksetzen.
  *
  * Arbeitet ausschließlich mit der lokalen Supabase-Instanz (Docker). Niemals gegen
@@ -119,11 +121,30 @@ try {
   process.stdout.write(`${psql("scripts/db/production-postcheck.sql")}\n`);
 
   // Rückfall des Runbooks: entfernt nur die neuen Objekte, Altdaten bleiben identisch.
+  // Vorhandene Tagesnotizen dürfen ohne ausdrückliche Bestätigung nicht verloren gehen.
+  psqlText(`insert into public.daily_notes (owner_id, note_date, content)
+            values ('0d3e0000-0000-4000-8000-0000000000a1', '2026-10-14', 'Beispielnotiz');`);
+  let rollbackAborted = false;
+  try {
+    psql("scripts/db/rollback-20261008120000.sql");
+  } catch {
+    rollbackAborted = true;
+  }
+  if (!rollbackAborted || psqlText("select count(*) from public.daily_notes;") !== "1") {
+    throw new Error("Der Rückfall hätte vorhandene Tagesnotizen ohne Bestätigung gelöscht.");
+  }
+  process.stdout.write("Rückfall bricht bei vorhandenen Tagesnotizen ohne Bestätigung ab.\n");
+  psqlText("delete from public.daily_notes;");
+  psql("scripts/db/rollback-20261008120000.sql");
   psql("scripts/db/rollback-20261007120000.sql");
   if (psql("scripts/db/data-fingerprint.sql") !== before) {
     throw new Error("Der Rückfall hat bestehende Daten verändert.");
   }
-  if (!psql("scripts/db/production-precheck.sql").includes("activity_sessions_vorhanden=false")) {
+  const afterRollback = psql("scripts/db/production-precheck.sql");
+  if (
+    !afterRollback.includes("activity_sessions_vorhanden=false") ||
+    !afterRollback.includes("daily_notes_vorhanden=false")
+  ) {
     throw new Error("Der Rückfall hat nicht alle neuen Objekte entfernt.");
   }
   process.stdout.write("Rückfall geprüft: Altdaten unverändert, neue Objekte entfernt.\n");
