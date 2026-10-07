@@ -19,6 +19,16 @@ export class PlanFetchError extends Error {
   }
 }
 
+/**
+ * Spalten für die Offline-Anzeige. Bewusst OHNE `note` (Planblöcke) und `planning_note`
+ * (Woche): Diese Freitexte zeigt die App in Jetzt/Tag/Woche nicht an – sie werden daher weder
+ * übertragen noch auf dem Gerät gespeichert.
+ */
+const WEEK_COLUMNS =
+  "id, owner_id, week_start, version, status, published_at, created_at, updated_at";
+const ENTRY_COLUMNS =
+  "id, owner_id, schedule_week_id, title, category, start_at, end_at, location, source, completion_status, created_at, updated_at";
+
 /** Vorwoche (für Blöcke über Mitternacht), aktuelle und nächste Woche. */
 export function relevantWeekStarts(now: Date): string[] {
   const current = getWeekStart(now);
@@ -39,7 +49,7 @@ export async function fetchPlanSnapshot(
   const [weeks, settings, sessions] = await Promise.all([
     supabase
       .from("schedule_weeks")
-      .select("*, schedule_entries(*)")
+      .select(`${WEEK_COLUMNS}, schedule_entries(${ENTRY_COLUMNS})`)
       .eq("status", "published")
       .in("week_start", weekStarts)
       .order("week_start"),
@@ -60,7 +70,11 @@ export async function fetchPlanSnapshot(
   const parsed = planSnapshotSchema.safeParse({
     schemaVersion: 2,
     fetchedAt: now.toISOString(),
-    weeks: weeks.data,
+    weeks: (weeks.data ?? []).map((week) => ({
+      ...week,
+      planning_note: null,
+      schedule_entries: week.schedule_entries.map((entry) => ({ ...entry, note: null })),
+    })),
     goalTargets: goalTargetsFromSettings({
       weekly_business_target_minutes:
         row?.weekly_business_target_minutes ?? DEFAULT_WEEKLY_BUSINESS_TARGET_MINUTES,

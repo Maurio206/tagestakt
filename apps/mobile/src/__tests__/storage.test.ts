@@ -2,8 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 
 import { looksLikeSecretKey, parseMobileEnv } from "@/lib/env";
+import { fetchPlanSnapshot } from "@/lib/plan-api";
 import { PLAN_CACHE_KEY, clearCachedPlan, loadCachedPlan, saveCachedPlan } from "@/lib/plan-cache";
+import { type TypedSupabaseClient } from "@/lib/supabase";
 import { SECURE_CHUNK_SIZE, secureSessionStorage, toSecureKey } from "@/lib/secure-storage";
+
+import { NOW, snapshot as fixtureSnapshot } from "./fixtures";
 
 const store = (SecureStore as unknown as { __store: Map<string, string> }).__store;
 
@@ -86,6 +90,77 @@ describe("Plan-Cache", () => {
     await saveCachedPlan(snapshot);
     await clearCachedPlan();
     expect(await loadCachedPlan()).toBeNull();
+  });
+
+  it("speichert keine Notizen und keinen Planungshinweis, behält aber den Ort", async () => {
+    const withNotes = fixtureSnapshot("2026-10-06T14:55:00.000Z");
+    const [week] = withNotes.weeks;
+    if (!week) throw new Error("Testdaten unvollständig");
+    week.planning_note = "Planungshinweis (Beispiel)";
+    week.schedule_entries = week.schedule_entries.map((entry) => ({
+      ...entry,
+      note: "Private Notiz (Beispiel)",
+      location: "Büro (Beispiel)",
+    }));
+    await saveCachedPlan(withNotes);
+
+    const raw = (await AsyncStorage.getItem(PLAN_CACHE_KEY)) ?? "";
+    expect(raw).not.toContain("Private Notiz");
+    expect(raw).not.toContain("Planungshinweis");
+    expect(raw).toContain("Büro (Beispiel)");
+    const loaded = await loadCachedPlan();
+    expect(loaded?.weeks[0]?.schedule_entries.every((entry) => entry.note === null)).toBe(true);
+  });
+
+  it("entfernt ältere Cache-Formate (v2 konnte Notizen enthalten)", async () => {
+    await AsyncStorage.setItem("tagestakt.plan-snapshot.v2", JSON.stringify({ note: "alt" }));
+    await loadCachedPlan();
+    expect(await AsyncStorage.getItem("tagestakt.plan-snapshot.v2")).toBeNull();
+  });
+});
+
+describe("Plan laden (Datensparsamkeit)", () => {
+  function fakeSupabase(responses: Record<string, unknown>) {
+    const selects: Record<string, string> = {};
+    const client = {
+      from(table: string) {
+        const result = { data: responses[table] ?? null, error: null };
+        const chain = {
+          select(columns: string) {
+            selects[table] = columns;
+            return chain;
+          },
+          eq: () => chain,
+          in: () => chain,
+          or: () => chain,
+          order: async () => result,
+          maybeSingle: async () => result,
+        };
+        return chain;
+      },
+    };
+    return { selects, client: client as unknown as TypedSupabaseClient };
+  }
+
+  it("lädt weder Notizen noch Planungshinweise vom Server", async () => {
+    const fixture = fixtureSnapshot("2026-10-06T14:55:00.000Z");
+    const serverWeeks = fixture.weeks.map((week) => ({
+      ...week,
+      planning_note: "Planungshinweis (Beispiel)",
+      schedule_entries: week.schedule_entries.map((entry) => ({ ...entry, note: "Notiz" })),
+    }));
+    const { selects, client } = fakeSupabase({
+      schedule_weeks: serverWeeks,
+      user_settings: null,
+      activity_sessions: [],
+    });
+
+    const result = await fetchPlanSnapshot(client, NOW);
+
+    expect(selects.schedule_weeks).not.toMatch(/note/);
+    expect(selects.schedule_weeks).toContain("location");
+    expect(result.weeks[0]?.planning_note).toBeNull();
+    expect(result.weeks[0]?.schedule_entries.every((entry) => entry.note === null)).toBe(true);
   });
 });
 
