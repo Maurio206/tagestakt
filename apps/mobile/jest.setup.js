@@ -69,3 +69,32 @@ jest.mock("expo-local-authentication", () => ({
   getEnrolledLevelAsync: jest.fn(async () => 3),
   authenticateAsync: jest.fn(async () => ({ success: true })),
 }));
+
+// Lokale Benachrichtigungen: In-Memory-Ersatz, der geplante Erinnerungen festhält.
+jest.mock("expo-notifications", () => {
+  const scheduled = [];
+  let permission = "undetermined";
+  return {
+    __scheduled: scheduled,
+    __setPermission: (value) => {
+      permission = value;
+    },
+    AndroidImportance: { HIGH: 4, DEFAULT: 3 },
+    AndroidNotificationVisibility: { PRIVATE: 0, PUBLIC: 1, SECRET: -1 },
+    SchedulableTriggerInputTypes: { DATE: "date" },
+    setNotificationHandler: jest.fn(),
+    setNotificationChannelAsync: jest.fn(async () => null),
+    getPermissionsAsync: jest.fn(async () => ({ status: permission })),
+    requestPermissionsAsync: jest.fn(async () => {
+      permission = "granted";
+      return { status: permission };
+    }),
+    cancelAllScheduledNotificationsAsync: jest.fn(async () => {
+      scheduled.length = 0;
+    }),
+    scheduleNotificationAsync: jest.fn(async (request) => {
+      scheduled.push(request);
+      return request.identifier ?? String(scheduled.length);
+    }),
+  };
+});

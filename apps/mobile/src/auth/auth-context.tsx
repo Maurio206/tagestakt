@@ -13,6 +13,7 @@ import {
 import { loginErrorMessage } from "@/lib/auth-messages";
 import { clearDeviceSettings } from "@/lib/device-settings";
 import { type MobileEnv } from "@/lib/env";
+import { cancelAllReminders } from "@/lib/notifications";
 import { clearCachedPlan } from "@/lib/plan-cache";
 import { type TypedSupabaseClient, getSupabase, wipeLocalSession } from "@/lib/supabase";
 
@@ -68,8 +69,13 @@ export function AuthProvider({ env, children }: { env: MobileEnv; children: Reac
       // Offline: lokale Daten werden trotzdem gelöscht.
     }
     // Immer alle lokalen Daten entfernen – auch wenn der Server nicht erreichbar war.
-    // Dazu gehören Plan-Cache und Geräteeinstellungen (App-Sperre).
-    await Promise.allSettled([wipeLocalSession(), clearCachedPlan(), clearDeviceSettings()]);
+    // Dazu gehören Plan-Cache, Geräteeinstellungen (App-Sperre) und geplante Erinnerungen.
+    await Promise.allSettled([
+      wipeLocalSession(),
+      clearCachedPlan(),
+      clearDeviceSettings(),
+      cancelAllReminders(),
+    ]);
     queryClient.clear();
     setSession(null);
     setSupabase(getSupabase(env));

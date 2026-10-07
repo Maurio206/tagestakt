@@ -8,12 +8,18 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/auth/auth-context";
 import { AppLockGate } from "@/components/app-lock";
 import { DeviceSettingsProvider } from "@/hooks/device-settings";
+import { useReminderSync } from "@/hooks/use-reminder-sync";
 import { readMobileEnv } from "@/lib/env";
 import { spacing, useTheme } from "@/theme";
 
 const envResult = readMobileEnv();
 
-/** Dienste, die nur mit gültiger Sitzung laufen: Geräteeinstellungen und App-Sperre. */
+function ReminderSync() {
+  useReminderSync();
+  return null;
+}
+
+/** Dienste, die nur mit gültiger Sitzung laufen: Geräteeinstellungen, Erinnerungen, App-Sperre. */
 function SessionServices({
   userId,
   onSignOut,
@@ -25,6 +31,7 @@ function SessionServices({
 }) {
   return (
     <DeviceSettingsProvider key={userId}>
+      <ReminderSync />
       <AppLockGate onSignOut={onSignOut}>{children}</AppLockGate>
     </DeviceSettingsProvider>
   );

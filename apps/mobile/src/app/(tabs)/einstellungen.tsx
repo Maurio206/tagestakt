@@ -18,6 +18,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/auth/auth-context";
 import { AppLockSettings } from "@/components/app-lock-settings";
 import { GoalSettings } from "@/components/goal-settings";
+import { ReminderSettingsPanel } from "@/components/reminder-settings";
 import { Screen } from "@/components/screen";
 import { RunningTimerBar } from "@/components/timer-bar";
 import { Body, Button, Muted, Section, Surface, Title } from "@/components/ui";
@@ -95,6 +96,14 @@ export default function MoreScreen() {
           <Muted>Die Ziele werden geladen, sobald der Plan verfügbar ist.</Muted>
         )}
         {result && !canWrite ? <Muted small>Ändern ist nur mit Verbindung möglich.</Muted> : null}
+      </Section>
+
+      <Section title="Erinnerungen">
+        {result ? (
+          <ReminderSettingsPanel server={result.snapshot.reminderSettings} canWrite={canWrite} />
+        ) : (
+          <Muted>Die Erinnerungen werden geladen, sobald der Plan verfügbar ist.</Muted>
+        )}
       </Section>
 
       <Section title="App-Sperre">
