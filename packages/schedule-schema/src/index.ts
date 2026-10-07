@@ -5,5 +5,7 @@ export * from "./goals";
 export * from "./reminders";
 export * from "./schemas";
 export * from "./format";
+export * from "./focus";
+export * from "./daily-notes";
 export * from "./agent-contract";
 export type { Database, Json } from "./database.types";
