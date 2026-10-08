@@ -2,8 +2,11 @@ import { ENTRY_CATEGORIES, GOAL_STATUSES } from "@tagestakt/schedule-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+  BLOCK_EMPHASES,
   type ColorScheme,
   TONES,
+  blockColors,
+  blockTint,
   categoryTone,
   contrastRatio,
   cssVariableName,
@@ -62,6 +65,75 @@ describe("Kontraste (WCAG)", () => {
       expect(contrastRatio(p[tone], p.surface1)).toBeGreaterThanOrEqual(4.5); // Chip
       expect(contrastRatio(p.success, p.surface1)).toBeGreaterThanOrEqual(4.5); // „Erledigt“
     }
+  });
+});
+
+describe("Semantische Blockfarben", () => {
+  // Titel und Zeit stehen direkt auf der Blockfläche; Warnhinweise (Überschneidung) ebenso.
+  it.each(schemes)("Text und gedämpfter Text bleiben auf jeder Stufe lesbar (%s)", (scheme) => {
+    const p = palettes[scheme];
+    for (const tone of TONES) {
+      for (const emphasis of BLOCK_EMPHASES) {
+        const c = blockColors(p, tone, emphasis);
+        expect(contrastRatio(c.text, c.background)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(c.textMuted, c.background)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(p.warning, c.background)).toBeGreaterThanOrEqual(4.5);
+      }
+      // Knopfränder auf dem Fokusblock (Hauptphase) nutzen textSubtle: ≥ 3 : 1.
+      expect(
+        contrastRatio(p.textSubtle, blockColors(p, tone, "strong").background),
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it.each(schemes)(
+    "Hauptphase ist kräftiger als regulär, regulär kräftiger als Nebenblock (%s)",
+    (scheme) => {
+      const p = palettes[scheme];
+      for (const tone of TONES) {
+        const [strong, base, muted] = BLOCK_EMPHASES.map((e) => blockColors(p, tone, e).background);
+        const distance = (hex: string) => contrastRatio(hex, p.surface1);
+        expect(distance(strong ?? "")).toBeGreaterThan(distance(base ?? ""));
+        expect(distance(base ?? "")).toBeGreaterThan(distance(muted ?? ""));
+      }
+    },
+  );
+
+  it("regulär entspricht exakt dem Wochenraster der Website (planBlockTint)", () => {
+    expect(blockTint.base).toMatchObject(planBlockTint);
+    const p = palettes.dark;
+    expect(blockColors(p, "business", "base").background).toBe(
+      mixColor(p.business, p.surface1, planBlockTint.fill),
+    );
+  });
+
+  /** Farbton (0–360°) einer #RRGGBB-Farbe. */
+  function hue(hex: string): number {
+    const n = Number.parseInt(hex.slice(1), 16);
+    const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255) as [
+      number,
+      number,
+      number,
+    ];
+    const max = Math.max(r, g, b);
+    const d = max - Math.min(r, g, b);
+    if (d === 0) return 0;
+    const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  }
+
+  // Gewerbe = Gelb/Gold, Laila = Rosa, Dienst = Blau, Sport = Grün – in beiden Modi.
+  it.each(schemes)("Hauptkategorien haben ihre festgelegte Farbfamilie (%s)", (scheme) => {
+    const p = palettes[scheme];
+    const accent = (tone: "business" | "relationship" | "duty" | "sport") =>
+      hue(blockColors(p, tone, "strong").accent);
+    expect(accent("business")).toBeGreaterThanOrEqual(35);
+    expect(accent("business")).toBeLessThanOrEqual(50);
+    expect(accent("relationship")).toBeGreaterThanOrEqual(330);
+    expect(accent("duty")).toBeGreaterThanOrEqual(200);
+    expect(accent("duty")).toBeLessThanOrEqual(230);
+    expect(accent("sport")).toBeGreaterThanOrEqual(130);
+    expect(accent("sport")).toBeLessThanOrEqual(160);
   });
 });
 

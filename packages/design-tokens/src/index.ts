@@ -122,6 +122,52 @@ export const categoryTone: Readonly<Record<EntryCategory, Tone>> = {
  */
 export const planBlockTint = { fill: 0.16, border: 0.45 } as const;
 
+// ---------------------------------------------------------------------------
+// Semantische Blockfarben (App) – abgeleitet aus den Kategorietönen der Palette
+// ---------------------------------------------------------------------------
+
+/**
+ * Betonung eines Planblocks: `strong` = Hauptphase (aktueller Block), `base` = regulärer Block
+ * (entspricht dem Wochenraster der Website, `planBlockTint`), `muted` = Nebenblock (davor/danach,
+ * vergangen, Vorschau). Die Kategorie bestimmt den Ton, die Betonung nur dessen Stärke.
+ */
+export const BLOCK_EMPHASES = ["strong", "base", "muted"] as const;
+export type BlockEmphasis = (typeof BLOCK_EMPHASES)[number];
+
+/** Anteil des Kategorietons an Fläche (gemischt in `surface1`), Rand und Akzentkante. */
+export const blockTint: Readonly<
+  Record<BlockEmphasis, { fill: number; border: number; accent: number }>
+> = {
+  strong: { fill: 0.24, border: 0.8, accent: 1 },
+  base: { fill: planBlockTint.fill, border: planBlockTint.border, accent: 1 },
+  muted: { fill: 0.08, border: 0.3, accent: 0.55 },
+};
+
+/** Deckende Farben eines Planblocks – Hintergrund, Rand, Akzent, Text und gedämpfter Text. */
+export interface BlockColors {
+  background: string;
+  border: string;
+  /** Kante bzw. Symbol im Kategorieton; trägt die Kategorie zusätzlich zu Text und Symbol. */
+  accent: string;
+  /** Titel */
+  text: string;
+  /** Zeit, Kategorie, Status */
+  textMuted: string;
+}
+
+export function blockColors(palette: Palette, tone: Tone, emphasis: BlockEmphasis): BlockColors {
+  const { fill, border, accent } = blockTint[emphasis];
+  const color = palette[tone];
+  const background = mixColor(color, palette.surface1, fill);
+  return {
+    background,
+    border: mixColor(color, background, border),
+    accent: mixColor(color, background, accent),
+    text: emphasis === "muted" ? palette.textMuted : palette.text,
+    textMuted: emphasis === "muted" ? palette.textSubtle : palette.textMuted,
+  };
+}
+
 /** Lucide-Symbolnamen je Ton; die Apps bilden sie auf ihre Icon-Komponenten ab. */
 export const toneIcon: Readonly<Record<Tone, string>> = {
   business: "briefcase",
