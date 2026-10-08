@@ -1,4 +1,5 @@
 import {
+  type CompletionStatus,
   type LocalDate,
   type ScheduleEntry,
   type ScheduleWeek,
@@ -22,7 +23,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ActionButton } from "@/components/action-button";
-import { DayList, type DayListActions } from "@/components/day-list";
+import { RevealBlockDetails } from "@/components/block-details-reveal";
 import { DayNotes } from "@/components/day-notes";
 import { EntryDetails } from "@/components/entry-details";
 import { EntryEditor } from "@/components/entry-editor";
@@ -32,6 +33,7 @@ import { Notice } from "@/components/notice";
 import { OverlapWarning } from "@/components/overlap-warning";
 import { PlanningNoteForm } from "@/components/planning-note-form";
 import { WeekGrid } from "@/components/week-grid";
+import { WeekGridFrame } from "@/components/week-grid-frame";
 import { WeekPicker } from "@/components/week-picker";
 import { noticeText, parseUndoTimes, weekPlanPath } from "@/lib/paths";
 import { saveDailyNoteAction } from "@/server/actions/daily-notes";
@@ -55,10 +57,8 @@ import { settle } from "@/server/settle";
 
 export const metadata: Metadata = { title: "Wochenplan" };
 
-const dayListActions: DayListActions = {
-  deleteEntry: (entryId) => deleteEntryAction.bind(null, entryId),
-  setCompletion: (entryId, status) => setCompletionAction.bind(null, entryId, status),
-};
+const setCompletion = (entryId: string, status: CompletionStatus) =>
+  setCompletionAction.bind(null, entryId, status);
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -328,32 +328,20 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
           ) : null}
 
           <div className={selectedEntry ? "planner planner--editing" : "planner"}>
-            <div className="stack">
-              <div className="week-grid-wrap">
-                <WeekGrid
-                  weekStart={weekStart}
-                  entries={entries}
-                  overlapIds={overlapIds}
-                  today={today}
-                  now={now}
-                  selectedId={selectedEntry?.id}
-                  editHref={editHref}
-                  linkAction={isDraft ? "bearbeiten" : "Details anzeigen"}
-                  dayNotes={dayNotes}
-                />
-              </div>
-              <DayList
+            <WeekGridFrame>
+              <WeekGrid
                 weekStart={weekStart}
                 entries={entries}
                 overlapIds={overlapIds}
-                status={week.status}
                 today={today}
+                now={now}
                 selectedId={selectedEntry?.id}
                 editHref={editHref}
-                actions={dayListActions}
+                linkAction={isDraft ? "bearbeiten" : "Details anzeigen"}
                 dayNotes={dayNotes}
               />
-            </div>
+            </WeekGridFrame>
+            {selectedEntry ? <RevealBlockDetails entryId={selectedEntry.id} /> : null}
             {editEntry ? (
               <EntryEditor
                 key={editEntry.id + editEntry.updated_at}
@@ -372,7 +360,7 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
                 entry={selectedEntry}
                 status={week.status}
                 closeHref={versionPath}
-                setCompletion={dayListActions.setCompletion}
+                setCompletion={setCompletion}
               />
             ) : null}
           </div>

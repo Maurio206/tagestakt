@@ -201,6 +201,10 @@ export function WeekGrid({
               <Link
                 key={`${entry.id}-${date}`}
                 href={href}
+                // Kein Sprung an den Seitenanfang: Next.js würde sonst zum Anfang des neu
+                // gerenderten Seitensegments scrollen. Den Weg zu den Details übernimmt
+                // RevealBlockDetails (sanft, ohne Hash, ohne Fokuswechsel).
+                scroll={false}
                 className={classes}
                 style={style}
                 aria-label={`${label} – ${linkAction}`}

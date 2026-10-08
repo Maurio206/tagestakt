@@ -1738,29 +1738,6 @@ details > summary {
   color: var(--tt-text);
 }
 
-.day-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 12px;
-}
-
-.day-note-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--tt-text-muted);
-  text-decoration: none;
-}
-
-.day-note-link:hover {
-  color: var(--tt-text);
-}
-
 /* ---------------------------------------------------------------------------
    Listen: „Als Nächstes“, Einträge, Aktivitäten
    --------------------------------------------------------------------------- */
@@ -1852,18 +1829,6 @@ details > summary {
   font-weight: 650;
 }
 
-.today-tag {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 11px;
-  background: var(--tt-inverse);
-  color: var(--tt-on-inverse);
-  font-size: 12px;
-  font-weight: 650;
-}
-
 .empty {
   display: flex;
   flex-direction: column;
@@ -1948,6 +1913,15 @@ details > summary {
   border-radius: var(--r-lg);
   border: 1px solid var(--tt-line);
   background: var(--tt-surface1);
+  /* Beim Hinscrollen (RevealBlockDetails) Abstand zum Fensterrand … */
+  scroll-margin-top: 24px;
+}
+
+/* … bzw. nicht unter der festen Kopfzeile (60 px) schmaler Bildschirme. */
+@media (max-width: 1023.98px) {
+  .drawer {
+    scroll-margin-top: 72px;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -1983,23 +1957,17 @@ details > summary {
   font-size: 13px;
 }
 
-.week-grid-wrap {
-  display: none;
-}
-
-.day-list {
+.week-grid-frame {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 8px;
+  min-width: 0;
 }
 
-@media (min-width: 1100px) {
-  .week-grid-wrap {
-    display: block;
-  }
-  .day-list--responsive {
-    display: none;
-  }
+/* Schalter „Vollbild“ nur auf schmalen Bildschirmen (siehe unten). */
+.week-grid-tools {
+  display: none;
+  justify-content: flex-end;
 }
 
 .wk {
@@ -2144,6 +2112,81 @@ a.wb:hover {
   background: var(--tt-inverse);
 }
 
+/* Schmale Bildschirme: dasselbe Zeitraster in einem eigenen Scrollbereich – nur der Wochenplan
+   scrollt seitlich, nie die Seite. Zeitspalte und Tagesköpfe bleiben dabei stehen. */
+@media (max-width: 1099.98px) {
+  .week-grid-wrap {
+    max-height: 70dvh;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+    border: 1px solid var(--tt-line);
+    border-radius: var(--r-lg);
+    background: var(--tt-surface1);
+  }
+
+  /* Rahmen und Rundung trägt der Scrollbereich; `overflow: visible` lässt `sticky` wirken. */
+  .week-grid-wrap .wk {
+    grid-template-columns: 48px repeat(7, minmax(90px, 1fr));
+    min-width: calc(48px + 7 * 90px);
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .week-grid-wrap .wk-head,
+  .week-grid-wrap .wk-corner {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--tt-surface1);
+  }
+
+  .week-grid-wrap .wk-corner {
+    left: 0;
+    z-index: 3;
+  }
+
+  .week-grid-wrap .wk-hours {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--tt-surface1);
+  }
+
+  /* Die oberste Stunde nicht unter die stehende Kopfzeile schieben. */
+  .week-grid-wrap .wk-hours > div:first-child {
+    transform: none;
+  }
+
+  .week-grid-tools {
+    display: flex;
+  }
+}
+
+/* Vollbild des Wochenrasters (Fullscreen-API oder bildschirmfüllende Ebene): das Raster nutzt den
+   ganzen Bildschirm, scrollt weiter in beide Richtungen; die Seite dahinter steht still. */
+.week-grid-frame.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  height: 100dvh;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: var(--tt-bg);
+}
+
+.week-grid-frame.is-fullscreen .week-grid-wrap {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+html.grid-fullscreen-open,
+html.grid-fullscreen-open body {
+  overflow: hidden;
+}
+
 /* ---------------------------------------------------------------------------
    Wiederholungen: Wochenstruktur
    --------------------------------------------------------------------------- */
@@ -2248,7 +2291,7 @@ a.wb:hover {
   cursor: pointer;
 }
 
-/* Bearbeitungsbereich: schmal oberhalb der Tagesliste, breit als rechte Spalte */
+/* Bearbeitungsbereich: schmal oberhalb des Zeitrasters, breit als rechte Spalte */
 .planner--editing .drawer {
   order: -1;
 }

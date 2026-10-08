@@ -78,3 +78,40 @@ describe("Fokusblock und Wochenplan-Block", () => {
     );
   });
 });
+
+describe("Wochenplan auf schmalen Bildschirmen", () => {
+  const narrow = css.slice(css.indexOf("@media (max-width: 1099.98px) {"));
+
+  it("zeigt immer das Zeitraster – keine Tagesliste, nie ausgeblendet", () => {
+    expect(css).not.toMatch(/\.day-list/);
+    expect(rule(".week-grid-frame")).toContain("min-width: 0;");
+    expect(css).not.toMatch(/\.week-grid-wrap\s*\{[^}]*display:\s*none/);
+  });
+
+  it("Vollbild-Schalter nur schmal; Vollbild füllt den Bildschirm und sperrt die Seite", () => {
+    expect(rule(".week-grid-tools")).toContain("display: none;");
+    expect(narrow).toMatch(/\.week-grid-tools \{\s*display: flex;/);
+    const fullscreen = rule(".week-grid-frame.is-fullscreen");
+    expect(fullscreen).toContain("position: fixed;");
+    expect(fullscreen).toContain("height: 100dvh;");
+    expect(fullscreen).toContain("env(safe-area-inset-bottom)");
+    expect(rule(".week-grid-frame.is-fullscreen .week-grid-wrap")).toContain("max-height: none;");
+    expect(rule("html.grid-fullscreen-open,\nhtml.grid-fullscreen-open body")).toBe(
+      "overflow: hidden;",
+    );
+  });
+
+  it("Detailbereich wird unterhalb der festen Kopfzeile angezeigt", () => {
+    expect(rule(".drawer")).toContain("scroll-margin-top: 24px;");
+    expect(css).toMatch(
+      /@media \(max-width: 1023\.98px\) \{\s*\.drawer \{\s*scroll-margin-top: 72px;/,
+    );
+  });
+
+  it("nur der Wochenplan scrollt; Zeitspalte und Tagesköpfe bleiben stehen", () => {
+    expect(narrow).toMatch(/\.week-grid-wrap \{[^}]*overflow: auto;/);
+    expect(narrow).toMatch(/\.week-grid-wrap \.wk \{[^}]*overflow: visible;/);
+    expect(narrow).toMatch(/\.week-grid-wrap \.wk-hours \{[^}]*position: sticky;[^}]*left: 0;/);
+    expect(narrow).toMatch(/\.week-grid-wrap \.wk-corner \{[^}]*position: sticky;[^}]*top: 0;/);
+  });
+});

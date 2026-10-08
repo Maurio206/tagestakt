@@ -11,6 +11,7 @@ import {
 import { X } from "lucide-react";
 import Link from "next/link";
 
+import { BLOCK_DETAILS_ID } from "@/lib/block-details";
 import type { FormAction } from "@/lib/form";
 
 import { ActionButton } from "./action-button";
@@ -33,7 +34,7 @@ export function EntryDetails({
 }) {
   const when = `${formatLocalDateShort(toLocalDate(new Date(entry.start_at)))} ${formatTimeRange(entry.start_at, entry.end_at)}`;
   return (
-    <aside className="drawer" aria-labelledby="details-titel">
+    <aside id={BLOCK_DETAILS_ID} className="drawer" aria-labelledby="details-titel">
       <div className="drawer-head">
         <div className="stack-tight">
           <p className="eyebrow">Block</p>

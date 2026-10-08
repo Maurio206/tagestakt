@@ -8,6 +8,7 @@ import {
 import { Trash, X } from "lucide-react";
 import Link from "next/link";
 
+import { BLOCK_DETAILS_ID } from "@/lib/block-details";
 import type { FormAction } from "@/lib/form";
 
 import { ActionButton } from "./action-button";
@@ -40,7 +41,7 @@ export function EntryEditor({
 }) {
   const when = `${formatLocalDateShort(toLocalDate(new Date(entry.start_at)))} ${formatTimeRange(entry.start_at, entry.end_at)}`;
   return (
-    <aside className="drawer" aria-labelledby="editor-titel">
+    <aside id={BLOCK_DETAILS_ID} className="drawer" aria-labelledby="editor-titel">
       <div className="drawer-head">
         <div className="stack-tight">
           <p className="eyebrow">Block bearbeiten</p>
