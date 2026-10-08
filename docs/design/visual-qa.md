@@ -42,10 +42,10 @@ Repositorys.
 
 ### Bekannte Beobachtungen (nicht geändert)
 
-- Unter 1100 px zeigt der Wochenplan statt des Zeitrasters eine **Tagesliste**. Mit vielen
-  Blöcken wird die Seite lang (1024 px ca. 6 000 px, 390 px mit laufender Aktivität ca. 10 000 px),
-  scrollt aber nicht horizontal. Möglicher Folgeschritt: Tage einklappbar oder ein 3-Tage-Raster
-  (offene Designfrage 3 im Artefakt).
+- ~~Unter 1100 px zeigt der Wochenplan statt des Zeitrasters eine **Tagesliste**; mit vielen
+  Blöcken wird die Seite sehr lang (390 px ca. 10 000 px).~~ **Erledigt:** Auch schmal zeigt der
+  Wochenplan jetzt das Zeitraster in einem eigenen Scrollbereich mit „Vollbild“ – siehe
+  [Wochenplan schmal](#wochenplan-schmal-zeitraster-scrollbereich-und-vollbild).
 - Das helle Erscheinungsbild wurde für Auswertung und Wiederholungen fotografiert, die übrigen
   Seiten nur dunkel; die Farben stammen in beiden Fällen aus denselben geprüften Tokens.
 
@@ -138,6 +138,51 @@ bleiben deutlich über 4,5 : 1. Werte, die sonst unter ihre Schwelle gefallen w�
 getönten Fläche eine Stufe kräftiger dargestellt; der Ziel-Chip im hellen Modus lag vorher bereits
 unter 4,5 : 1 und erfüllt den Wert jetzt. Die App (M16/M20) nutzt dieselben Werte; mangels Gerät
 nur durch Komponententests abgedeckt.
+
+## Wochenplan schmal: Zeitraster, Scrollbereich und Vollbild
+
+Stand: 08.10.2026, Branch `feat/design-and-focus-tracking`, Artefakt W03 (Version 33). Die
+Tagesliste unter 1100 px wurde durch dasselbe Zeitraster ersetzt (Verhalten:
+[UI-Spezifikation](ui-spec.md#wochenplan-auf-schmalen-bildschirmen--1100-px)).
+
+**Automatisiert** (Edge headless über CDP, lokale Website und lokales Supabase mit Seed-Daten,
+echte Mausklicks und Mausrad, keine Browser-Uhr verstellt):
+
+| Ansicht           | Horiz. Scrollen (Seite) | Antippen: Sprung / Hash | Details danach | Vollbild füllt Fenster | Seite unter Vollbild | Uhrzeiten/Tagesköpfe fest | Beenden: Knopf / Esc / Block |
+| ----------------- | ----------------------- | ----------------------- | -------------- | ---------------------- | -------------------- | ------------------------- | ---------------------------- |
+| 390 × 844 dunkel  | nein                    | nein / nein             | 75 px          | ja                     | bewegt sich nicht    | ja                        | ✓ / ✓ / ✓                    |
+| 390 × 844 hell    | nein                    | nein / nein             | 75 px          | ja                     | bewegt sich nicht    | ja                        | ✓ / ✓ / ✓                    |
+| 844 × 390 (quer)  | nein                    | nein / nein             | 72 px          | ja, alle 7 Tage        | bewegt sich nicht    | ja                        | ✓ / ✓ / ✓                    |
+| 768 × 1024 hell   | nein                    | nein / nein             | 102 px         | ja                     | bewegt sich nicht    | ja                        | ✓ / ✓ / ✓                    |
+| 1440 × 900 dunkel | nein                    | nein / nein             | 24 px          | – (kein Schalter)      | –                    | –                         | –                            |
+
+„Details danach“ = Abstand der Oberkante des Detailbereichs zum oberen Fensterrand nach dem
+Antippen (schmal unterhalb der 60 px hohen Kopfzeile, bei 1440 px der rechte Seitenbereich).
+Erneutes Antippen und Antippen im Vollbild landen ebenso im Blick (72–190 px). In keiner Ansicht
+Konsolenfehler. Ab 1100 px bleibt das Raster unverändert; einzige Änderung dort: Statt an den
+Seitenanfang zu springen, scrollt die Seite nach dem Antippen sanft zum Seitenbereich.
+
+**Gefunden und behoben:** Bei 768 px lief die Seite um 6 px waagerecht über (Mindestspalte
+92 px) – Mindestspalte auf 90 px gesenkt; danach in allen Breiten ohne Überlauf.
+
+**Auf dem Gerät** (Android-Smartphone, Chrome, per USB mit `adb reverse` gegen die lokale Website
+und das lokale Supabase; keine Produktionsverbindung): vom Benutzer bestätigt –
+
+| Prüfung                                                                       | Ergebnis |
+| ----------------------------------------------------------------------------- | -------- |
+| Zeitraster statt Tagesliste, Wischen im Raster, Uhrzeiten/Tagesköpfe fest     | passt    |
+| Antippen eines Blocks: kein Sprung an den Seitenanfang, Details im Blick      | passt    |
+| Erneutes Antippen desselben Blocks: kein unerwarteter Sprung                  | passt    |
+| Vollbild: Wischen in beide Richtungen, Seite dahinter bleibt stehen           | passt    |
+| Vollbild beim Drehen zwischen Hoch- und Querformat                            | passt    |
+| Beenden mit „Vollbild beenden“ und mit Android-Zurück (Seite bleibt geöffnet) | passt    |
+| Block im Vollbild antippen: Vollbild endet, Details werden gezeigt            | passt    |
+| Hell und Dunkel                                                               | passt    |
+
+Bedienbarkeit des schmalen Rasters ohne Vollbild: vom Benutzer als „akzeptabel“ bewertet. Offen
+(Designfrage 3 im Artefakt): beim Öffnen automatisch zum heutigen Tag bzw. zur aktuellen Uhrzeit
+scrollen. Die native App (Expo) ist davon nicht betroffen; ihr Gerätetest folgt mit einem
+Development Build.
 
 ## App: Abgleich mit dem Artefakt (M01–M15)
 

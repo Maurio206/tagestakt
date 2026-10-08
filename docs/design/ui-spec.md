@@ -55,7 +55,7 @@ Tab-Leiste auf allen Tabs außer „Jetzt“, solange eine Aktivität läuft.
 | Jetzt                | Datum/KW/Uhrzeit · Offline-Banner · **Fokusfläche** · Tagesnotiz (eine Zeile) · Als Nächstes · Diese Woche (drei Ziele, Link „Ziele“)                     | alle Fokus-Zustände (siehe unten), offline                            |
 | Tag                  | Datum, 7-Tage-Leiste · **Tagesnotiz** (Vorschau, „Notiz bearbeiten“) · Zeitstrahl, Jetzt-Linie, freie Lücken, „erfasst“-Chips · Erfasst heute             | vergangen/aktuell/kommend, leer, offline (Notiz nicht verfügbar)      |
 | Tagesnotiz           | „Zurück“ · Titel + Datum · Zähler · Textfeld (füllt den Platz über der Tastatur) · Status · „Speichern“                                                   | leer, geändert, speichert, gespeichert, Fehler, Konflikt, offline     |
-| Woche                | „Diese / Nächste Woche“, Version · Ziele kompakt · sieben Tage gestapelt (max. 4 Einträge + „weitere“) · „Bearbeiten“                                     | kein Plan veröffentlicht                                              |
+| Woche                | „Diese / Nächste Woche“, Version · **Zeitraster** (wie Website schmal, „Vollbild“, Details als Blatt, „Tag öffnen“) · „Bearbeiten“ · Ziele kompakt        | kein Plan veröffentlicht, Vollbild (Zurück beendet es)                |
 | Plan bearbeiten      | Entwurfs-Banner, Woche, Liste je Tag, Block-Sheet, „Eintrag“, „Veröffentlichen“                                                                           | kein Entwurf → „Neue Version anlegen“ (Bestätigung), offline gesperrt |
 | Ziele                | Legende · je Ziel: Status, Ziel/geplant/erfasst, Balken, Satz · Erfasst diese Woche (Korrigieren)                                                         | ohne Ziel                                                             |
 | Wochenbilanz         | Woche wählen · Kernsatz · Tabelle Ziel/geplant/erfasst/Differenz · Status je Ziel                                                                         | abgeschlossen vs. laufend                                             |
@@ -76,6 +76,22 @@ Einkaufen, Körperpflege, Fahrt, Schlaf und Sonstiges neutral. „Erledigt“ od
 ändern die Farbe nicht. Bei einer laufenden Aktivität gilt der Ton ihres Ziels; nur der Rand steht
 im vollen Ton (keine eigene Statusfarbe). Freie Zeit, kein Plan, vor dem ersten bzw. nach dem
 letzten Block und Fehler bleiben neutral. Die unscharfen Nachbarn behalten ihren eigenen Ton.
+
+**App „Jetzt“ (Stand 08.10.2026):** Der erste Bildschirm ist der Fokusbereich – Uhrzeit,
+vorheriger Block, aktueller Block, nächster Block und Tagesnotiz füllen die gemessene sichtbare
+Höhe (ohne Statusleiste, Safe Areas, Tab-Leiste); „Als Nächstes“ und „Diese Woche“ folgen erst
+darunter. Der Fokusblock ist die Hauptphase (`blockColors … "strong"`), Nachbarn und „Als
+Nächstes“ sind Nebenblöcke (`muted`). Die Nachbarn sind abhängig von Bildschirmhöhe und
+Schriftgröße angeschnitten (36–72 dp) und laufen zur Bildschirmkante über einen Verlauf in den
+Hintergrund aus – kein rechteckiger Beschnitt der Unschärfe.
+
+**App „Woche“ (Stand 08.10.2026):** Zeitraster wie der mobile Wochenplan der Website – Zeitachse
+links (bleibt beim seitlichen Scrollen stehen), sieben Tagesspalten nebeneinander (≥ 90 dp,
+breitere Bildschirme teilen sich die Breite), Kopfzeile bleibt beim vertikalen Scrollen stehen,
+heute hervorgehoben mit Jetzt-Linie. Geometrie aus `getWeekGridLayout`
+(`packages/schedule-schema`). Antippen eines Blocks öffnet dessen Details als Blatt über dem Raster
+(Scrollposition bleibt), „Tag öffnen“ führt in die Tagesansicht. „Vollbild“ zeigt das Raster
+bildschirmfüllend innerhalb der Safe Areas; Android-Zurück beendet zuerst das Vollbild.
 
 1. **Aktivität läuft** (Vorrang vor dem Plan): Ziel-Chip + „Läuft“, Titel, Laufzeit (Mono),
    „seit 17:04 · Plan bis 20:00“, Bezug zum Planblock, **Beenden**, „Zeit korrigieren“,
@@ -130,7 +146,7 @@ Fokus wird höflich angesagt („Jetzt im Fokus: …“). Unschärfe: Web per CS
   er dem neuen Tag – Text wird nie einem anderen Tag zugeordnet.
 - **Web:** Übersicht – aufklappbare Zeile „Tagesnotiz · heute“ mit erster Zeile; Wochenplan –
   Abschnitt „Tagesnotiz“ mit Tagesauswahl (Links, `aria-current="date"`) und **einem** Editor;
-  Markierung „Notiz“ im Zeitraster und „Notiz“/„Notiz schreiben“ in der Tagesliste.
+  Markierung „Notiz“ im Tageskopf des Zeitrasters (auf allen Breiten).
 - **App:** „Tag“ zeigt Vorschau (4 Zeilen) und „Notiz bearbeiten“ bzw. „Notiz schreiben“;
   „Jetzt“ nur eine Zeile. Der Editor ist ein eigener Bildschirm, der Inhalt rückt über die
   Tastatur. **Offline:** „Ohne Verbindung nicht verfügbar – Tagesnotizen werden nicht auf dem
@@ -160,19 +176,41 @@ Navigation: Seitenleiste ab 1024 px (Übersicht, Wochenplan, Wiederholungen, Aus
 Einstellungen; laufende Aktivität unten als kompakte Karte), darunter Kopfzeile mit Marke,
 Timer-Chip und aufklappbarem „Menü“ (`<details>`, ohne JavaScript bedienbar).
 
-| Seite            | Inhalt                                                                                                                                                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Login            | schmale Spalte, Zeichen, „Anmelden“, E-Mail, Passwort, Fehler am Feld, Hinweis ohne Registrierung                                                                                                                                                                      |
-| Übersicht        | **Fokusfläche** (siehe oben) · Tagesnotiz heute (aufklappbar) · Als Nächstes (3) · Diese Woche (Ziele) · Planung (aktuelle/nächste KW)                                                                                                                                 |
-| Wochenplan       | Kopf mit Wochenwechsel + Datumsfeld (synchron zur URL) · Versions-Chips · Entwurfs-/Veröffentlicht-Banner · Überschneidungen · **Zeitraster** (≥ 1100 px) bzw. **Tagesliste** (schmal) · Bearbeitungsbereich · Ziele · **Tagesnotiz** (`?notiz=JJJJ-MM-TT#tagesnotiz`) |
-| Block bearbeiten | Seitenbereich bzw. unter der Liste: Titel, Kategorie, Tag, Beginn, Ende, Folgetag, Ort, Notiz; „Verschieben ±15/±30“, „Dauer ±15/±30“, Speichern, Löschen (Bestätigung); Rückgängig nach Verschieben                                                                   |
-| Wiederholungen   | Wochenstruktur (7 Spalten) · neue Wiederholung mit Mehrfach-Wochentagen („Werktage“) · Übernahme in Entwurf · Liste mit sichtbaren Aktionen inkl. Duplizieren                                                                                                          |
-| Auswertung       | Woche wählen · Bilanz je Ziel (Ziel/geplant/erfasst/Differenz/Status) · letzte vier Wochen · erfasste Aktivitäten mit Korrigieren/Löschen · Zeit nachtragen                                                                                                            |
-| Einstellungen    | Wochenziele (Stunden, leer = kein Ziel) · Erinnerungen · Zeit und Sprache · Sicherheit und Datenschutz (Biometrie = Gerät) · Konto                                                                                                                                     |
+| Seite            | Inhalt                                                                                                                                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login            | schmale Spalte, Zeichen, „Anmelden“, E-Mail, Passwort, Fehler am Feld, Hinweis ohne Registrierung                                                                                                                                                                                                              |
+| Übersicht        | **Fokusfläche** (siehe oben) · Tagesnotiz heute (aufklappbar) · Als Nächstes (3) · Diese Woche (Ziele) · Planung (aktuelle/nächste KW)                                                                                                                                                                         |
+| Wochenplan       | Kopf mit Wochenwechsel + Datumsfeld (synchron zur URL) · Versions-Chips · Entwurfs-/Veröffentlicht-Banner · Überschneidungen · **Zeitraster** auf allen Breiten (schmal mit eigenem Scrollbereich und „Vollbild“, siehe unten) · Bearbeitungsbereich · Ziele · **Tagesnotiz** (`?notiz=JJJJ-MM-TT#tagesnotiz`) |
+| Block bearbeiten | Seitenbereich rechts (≥ 1280 px), darunter oberhalb des Zeitrasters: Titel, Kategorie, Tag, Beginn, Ende, Folgetag, Ort, Notiz; „Verschieben ±15/±30“, „Dauer ±15/±30“, Speichern, Löschen (Bestätigung); Rückgängig nach Verschieben                                                                          |
+| Wiederholungen   | Wochenstruktur (7 Spalten) · neue Wiederholung mit Mehrfach-Wochentagen („Werktage“) · Übernahme in Entwurf · Liste mit sichtbaren Aktionen inkl. Duplizieren                                                                                                                                                  |
+| Auswertung       | Woche wählen · Bilanz je Ziel (Ziel/geplant/erfasst/Differenz/Status) · letzte vier Wochen · erfasste Aktivitäten mit Korrigieren/Löschen · Zeit nachtragen                                                                                                                                                    |
+| Einstellungen    | Wochenziele (Stunden, leer = kein Ziel) · Erinnerungen · Zeit und Sprache · Sicherheit und Datenschutz (Biometrie = Gerät) · Konto                                                                                                                                                                             |
 
 Drag-and-drop wird **nicht** angeboten: Verschieben erfolgt über Schaltflächen und Formular
 (tastatur- und touch-tauglich, ohne JavaScript nutzbar, testbar). Nach einem Verschieben erscheint
 ein Hinweis mit „Rückgängig“.
+
+### Wochenplan auf schmalen Bildschirmen (< 1100 px)
+
+Dasselbe Zeitraster (`WeekGrid`, gleiche Daten) wie auf dem Desktop – keine eigene Tagesliste.
+Ab 1100 px bleibt die Ansicht unverändert (kein Vollbild-Schalter).
+
+- **Eigener Scrollbereich:** Das Raster liegt in einem Rahmen (`.week-grid-wrap`, höchstens
+  `70dvh` hoch) und scrollt dort waagerecht und senkrecht; die Seite selbst scrollt nie
+  waagerecht. Spalten mindestens 90 px, Zeitspalte 48 px. Zeitspalte (links) und Tagesköpfe
+  (oben) bleiben beim Scrollen stehen (`position: sticky`).
+- **Antippen eines Blocks:** wählt ihn aus (`?bearbeiten=…`), **ohne** an den Seitenanfang zu
+  springen (`Link scroll={false}`) und ohne Sprungmarke in der Adresse. Danach scrollt die Seite
+  sanft zum Detail- bzw. Bearbeitungsbereich (`#block-details`, unterhalb der Kopfzeile;
+  bei „Bewegung reduzieren“ ohne Animation) – nur, wenn er nicht schon im Blick ist. Erneutes
+  Antippen des ausgewählten Blocks führt ebenfalls dorthin.
+- **„Vollbild“:** Schalter rechts über dem Raster. Nutzt die Fullscreen-API (Navigationsleiste
+  ausgeblendet); wo sie fehlt oder abgelehnt wird, eine bildschirmfüllende Ebene. Höhe `100dvh`
+  mit Abständen für Safe Areas, die Seite dahinter ist gesperrt, Zeitspalte und Tagesköpfe
+  bleiben fest, hoch- und querformatig nutzbar. „Vollbild beenden“ ist immer sichtbar; zusätzlich
+  beenden Esc, Android-Zurück (Ende des System-Vollbilds) und ein Wechsel auf Desktopbreite.
+  Antippen eines Blocks im Vollbild beendet es und zeigt danach dessen Details; die Markierung
+  „Notiz“ im Tageskopf beendet es ebenfalls (die Tagesnotiz liegt außerhalb des Rasters).
 
 ## Zustände (beide Plattformen)
 

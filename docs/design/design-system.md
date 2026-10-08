@@ -62,6 +62,17 @@ Auf dieser getönten Fläche stehen Chips und Status-Tags auf `surface1`, Nebenz
 `textMuted` und Ränder sekundärer Knöpfe in `textSubtle`; so bleiben Text ≥ 4,5 : 1 und Ränder
 ≥ 3 : 1 für alle Töne in beiden Modi (Test in `packages/design-tokens/src/index.test.ts`).
 
+**Semantische Blockfarben der App (`blockColors`, `blockTint`):** Die App färbt jeden Planblock
+an genau einer Stelle (`blockStyle` in `apps/mobile/src/theme.ts`) in drei Stufen desselben
+Kategorietons – Hauptphase `strong` (aktueller Block, Fokusblock „Jetzt“: Fläche 24 %, Rand 80 %),
+regulär `base` (= `planBlockTint`, wie das Wochenraster der Website) und Nebenblock `muted`
+(Nachbarn, „Als Nächstes“, Vergangenes: Fläche 8 %, Rand 30 %, gedämpfter Text). Jede Stufe
+liefert Hintergrund, Rand, Akzentkante (links, 4 dp), Text und gedämpften Text; Titel, Zeit und
+Warnhinweise erreichen auf jeder Stufe ≥ 4,5 : 1 (Test). Zustände sind auch ohne Farbe
+erkennbar: läuft (breiter Rand im vollen Ton + Text), erledigt (Haken + Text), ausgelassen (blass,
+durchgestrichen + Text), ausgewählt (Ring in `text`), Überschneidung (gestrichelt in `warning` +
+Symbol). Die Website nutzt die neuen Stufen noch nicht.
+
 Hinweis: Lucide 1.x heißt das Dienst-Symbol `Building` (vormals `Building2`) und das
 Löschen-Symbol `Trash` (vormals `Trash2`).
 

@@ -64,6 +64,12 @@ W18, M16 und M20 nutzt jetzt dieselbe Fläche und denselben Rand wie der Planblo
 Wochenraster (`.focus` in `tagestakt.css`: Ton 16 % in `s1`, Rand 45 %; laufend nur der Rand im
 vollen Ton). Die Zeile „Jetzt · …“ ist nicht mehr kategoriefarbig, sondern `text-2` – wie im Code.
 
+**Wochenplan schmal (Artefakt-Version 33):** W03 zeigt statt der früheren Tagesliste dasselbe
+Zeitraster wie W02 (gleiche Beispielwoche, gleiche Blöcke) in einem eigenen Scrollbereich –
+Spalten mindestens 90 px, Zeitspalte und Tagesköpfe bleiben stehen – mit dem Schalter „Vollbild“
+darüber. Kopf, Versions-Chips und Entwurfsbanner sind unverändert. Verhalten (Antippen,
+Vollbild) beschreibt die [UI-Spezifikation](ui-spec.md#wochenplan-auf-schmalen-bildschirmen--1100-px).
+
 Notizen im Artefakt sind erfundene Beispieltexte („… (Beispiel)“). Die Haftnotizen
 `fokusUebergang` und `notizMobileHinweis` in `canvas.json` beschreiben Übergang und
 mobile Besonderheiten.
@@ -78,8 +84,8 @@ mobile Besonderheiten.
 4. **Primäraktionen im Daumenbereich** (Mobile) und invertierter Primärknopf (helles Feld auf
    dunklem Grund) als einziges stark kontrastiertes Element.
 5. **Timer nur einmal groß.** Überall sonst kompakte Timer-Leiste (Mobile) bzw. Seitenleisten-Karte (Web).
-6. **Web als Planungstisch:** Seitenleiste + breite Arbeitsfläche, Zeitraster nur auf breiten
-   Bildschirmen, schmal eine Tagesliste.
+6. **Web als Planungstisch:** Seitenleiste + breite Arbeitsfläche, Zeitraster auf allen
+   Breiten – schmal in einem eigenen Scrollbereich mit „Vollbild“ (früher eine Tagesliste).
 7. **Fokusfläche wie ein Kalenderausschnitt:** Der aktuelle Block groß und scharf, Nachbarn klein,
    unscharf und angeschnitten (nur Dekoration). Wechsel an der Blockgrenze ruhig eingeblendet,
    bei „Bewegung reduzieren“ ohne Bewegung.
@@ -96,38 +102,41 @@ mobile Besonderheiten.
 
 ## Verwendete Komponenten (Artefakt → Code)
 
-| Artefakt              | Web (`apps/web/src/components`)                                                            | Mobile (`apps/mobile/src/components`)  |
-| --------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| Fokusfläche           | `focus-stage.tsx` (Minutentakt: `use-clock.tsx`)                                           | `now-view.tsx`                         |
-| Tagesnotiz            | `daily-note-editor.tsx`, `today-note.tsx`, `day-notes.tsx`                                 | `note-editor.tsx`, `note-card.tsx`     |
-| Timer (Ziffern)       | `live-timer.tsx`                                                                           | `focus-timer.tsx`                      |
-| Timer-Leiste/-Karte   | `active-session.tsx` (`ActiveSessionCard`)                                                 | `timer-bar.tsx`                        |
-| Zielzeile/-balken     | `goal-progress.tsx`                                                                        | `goal-progress.tsx`                    |
-| Status-Chip           | `goal-progress.tsx` (`GoalStatusChip`)                                                     | `goal-progress.tsx` (`GoalStatusChip`) |
-| Planblock/Zeitstrahl  | `week-grid.tsx`, `day-list.tsx`, `entry-details.tsx`, `entry-editor.tsx`, `entry-form.tsx` | `timeline.tsx`, `session-list.tsx`     |
-| Banner/Offline/Fehler | `notice.tsx` (`Notice`)                                                                    | `status-banner.tsx`, `plan-error.tsx`  |
-| Sheet/Dialog          | native `<dialog>`-freie Formulare + Bestätigung                                            | `sheet.tsx`, System-Dialog (`Alert`)   |
-| Kategorie             | `category-badge.tsx`                                                                       | `ui.tsx` (`CategoryPill`)              |
-| Marke                 | `brand.tsx`                                                                                | `brand.tsx`                            |
+| Artefakt               | Web (`apps/web/src/components`)                                            | Mobile (`apps/mobile/src/components`)  |
+| ---------------------- | -------------------------------------------------------------------------- | -------------------------------------- |
+| Fokusfläche            | `focus-stage.tsx` (Minutentakt: `use-clock.tsx`)                           | `now-view.tsx`                         |
+| Tagesnotiz             | `daily-note-editor.tsx`, `today-note.tsx`, `day-notes.tsx`                 | `note-editor.tsx`, `note-card.tsx`     |
+| Timer (Ziffern)        | `live-timer.tsx`                                                           | `focus-timer.tsx`                      |
+| Timer-Leiste/-Karte    | `active-session.tsx` (`ActiveSessionCard`)                                 | `timer-bar.tsx`                        |
+| Zielzeile/-balken      | `goal-progress.tsx`                                                        | `goal-progress.tsx`                    |
+| Status-Chip            | `goal-progress.tsx` (`GoalStatusChip`)                                     | `goal-progress.tsx` (`GoalStatusChip`) |
+| Planblock/Zeitstrahl   | `week-grid.tsx`, `entry-details.tsx`, `entry-editor.tsx`, `entry-form.tsx` | `timeline.tsx`, `session-list.tsx`     |
+| Raster schmal/Vollbild | `week-grid-frame.tsx`, `block-details-reveal.tsx`                          | –                                      |
+| Banner/Offline/Fehler  | `notice.tsx` (`Notice`)                                                    | `status-banner.tsx`, `plan-error.tsx`  |
+| Sheet/Dialog           | native `<dialog>`-freie Formulare + Bestätigung                            | `sheet.tsx`, System-Dialog (`Alert`)   |
+| Kategorie              | `category-badge.tsx`                                                       | `ui.tsx` (`CategoryPill`)              |
+| Marke                  | `brand.tsx`                                                                | `brand.tsx`                            |
 
 ## Unterschiede Mobile und Web
 
-| Thema        | Mobile                                    | Web                                           |
-| ------------ | ----------------------------------------- | --------------------------------------------- |
-| Zweck        | Alltag: Was jetzt? Starten/Beenden        | Planen, Verwalten, Auswerten                  |
-| Woche        | gestapelte Tage, keine Rasteransicht      | Zeitraster (breit) bzw. Tagesliste (schmal)   |
-| Bearbeiten   | ausdrücklicher Modus, Sheet, ±15-Schritte | Seitenbereich/Formular, ±15/±30, Rückgängig   |
-| Timer        | groß auf Jetzt, Leiste auf anderen Tabs   | groß auf Übersicht, Karte in der Seitenleiste |
-| Schrift      | Systemschrift                             | Geist (selbst gehostet)                       |
-| Biometrie    | App-Sperre lokal                          | nur Hinweis in Einstellungen                  |
-| Erinnerungen | lokal ausgelöst, Gerät schaltet ein       | Einstellungen (Vorlauf, Umfang) für die App   |
+| Thema        | Mobile                                    | Web                                               |
+| ------------ | ----------------------------------------- | ------------------------------------------------- |
+| Zweck        | Alltag: Was jetzt? Starten/Beenden        | Planen, Verwalten, Auswerten                      |
+| Woche        | gestapelte Tage, keine Rasteransicht      | Zeitraster; schmal mit Scrollbereich und Vollbild |
+| Bearbeiten   | ausdrücklicher Modus, Sheet, ±15-Schritte | Seitenbereich/Formular, ±15/±30, Rückgängig       |
+| Timer        | groß auf Jetzt, Leiste auf anderen Tabs   | groß auf Übersicht, Karte in der Seitenleiste     |
+| Schrift      | Systemschrift                             | Geist (selbst gehostet)                           |
+| Biometrie    | App-Sperre lokal                          | nur Hinweis in Einstellungen                      |
+| Erinnerungen | lokal ausgelöst, Gerät schaltet ein       | Einstellungen (Vorlauf, Umfang) für die App       |
 
 ## Offene Designfragen
 
 1. **Bezeichnung „Laila“** ist als Zielname im Code hinterlegt (Vorgabe). Soll der Name später
    konfigurierbar sein (Einstellung statt Konstante)?
 2. **Sport- und Laila-Ziel**: Zielwerte legt der Benutzer fest; das Artefakt zeigt 3 h nur als Beispiel.
-3. **Wochenraster auf dem Tablet** (768–1099 px): derzeit Tagesliste; ein 3-Tage-Raster wäre denkbar.
+3. **Wochenraster unter 1100 px:** entschieden (Artefakt-Version 33) – dasselbe Zeitraster mit
+   eigenem Scrollbereich und „Vollbild“ statt der Tagesliste, auf dem Gerät geprüft. Offen:
+   beim Öffnen automatisch zum heutigen Tag bzw. zur aktuellen Uhrzeit scrollen?
 4. **App-Icon und Splash** sind nicht Teil dieser Phase (Expo-Standard bleibt).
 5. **Haptik** beim Starten/Beenden (expo-haptics) bewusst nicht eingebaut – keine zusätzliche
    Abhängigkeit ohne Gerätetest.

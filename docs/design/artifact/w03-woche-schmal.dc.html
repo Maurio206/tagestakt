@@ -15,11 +15,13 @@
 body{margin:0}
 a{color:#f3efe8}a:hover{color:#ffffff}
 .topbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--s1)}
-.dayh{position:sticky;top:0;display:flex;align-items:baseline;justify-content:space-between;padding:12px 0 8px;background:var(--bg);border-bottom:1px solid var(--line);font-weight:650}
-.dayh span{font-size:13px;font-weight:500;color:var(--text-2)}
-.er{display:grid;grid-template-columns:92px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
-.er .tm{font-family:var(--mono);font-size:13px;color:var(--text-2)}
-.er b{display:block;font-size:15px;font-weight:600}
+.fsbar{display:flex;justify-content:flex-end}
+.wkscroll{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--s1);overscroll-behavior-x:contain}
+.wkscroll .wk{grid-template-columns:48px repeat(7,minmax(90px,1fr));min-width:678px;border:0;border-radius:0;overflow:visible}
+.wkscroll .wk-h,.wkscroll .wk-corner{position:sticky;top:0;z-index:2;background:var(--s1)}
+.wkscroll .wk-corner{left:0;z-index:3}
+.wkscroll .wk-hours{position:sticky;left:0;z-index:1;background:var(--s1)}
+.wkscroll .wk-hours div:first-child{transform:none}
 </style>
 </helmet>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -30,6 +32,7 @@ a{color:#f3efe8}a:hover{color:#ffffff}
 <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"></path></symbol>
 <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.63l-19 6.5a.5.5 0 0 0-.02.93l7.93 3.18a2 2 0 0 1 1.11 1.11z"></path><path d="m21.85 2.15-10.94 10.94"></path></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></symbol>
 <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
 </defs>
 </svg>
@@ -49,27 +52,67 @@ a{color:#f3efe8}a:hover{color:#ffffff}
     <div class="field"><label for="ws-date">Woche wählen (beliebiger Tag)</label><input id="ws-date" class="input num" type="date" value="2026-10-12"></div>
     <div class="toolbar"><a class="vchip pub" href="w03-woche-schmal.dc.html">V1 · veröffentlicht</a><a class="vchip draft on" href="w03-woche-schmal.dc.html" aria-current="page">V2 · Entwurf</a></div>
     <div class="banner draft" style="flex-direction: column"><div style="display: flex; gap: 10px"><svg class="ic" style="color: var(--warning)"><use href="#i-pencil"></use></svg><span><b>Entwurf · Version 2</b>Noch nicht in der App sichtbar.</span></div><div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%"><button class="btn btn-secondary" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-plus"></use></svg>Eintrag</button><button class="btn btn-primary" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-send"></use></svg>Veröffentlichen</button></div></div>
-    <section aria-labelledby="d-mo">
-      <h2 id="d-mo" class="dayh">Montag, 12.10.<span>Gewerbe 2 h · Laila 1,5 h</span></h2>
-      <div class="er g-duty"><span class="tm">07:00–16:30</span><span><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Dienst Bundeswehr bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-      <div class="er g-business"><span class="tm">17:30–19:30</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-      <div class="er g-relationship"><span class="tm">20:30–22:00</span><span><b>Gemeinsamer Abend</b><span class="cat"><i class="d"></i>Laila</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Gemeinsamer Abend bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-    </section>
-    <section aria-labelledby="d-di">
-      <h2 id="d-di" class="dayh">Dienstag, 13.10.<span>Gewerbe 2 h · Sport 1,3 h</span></h2>
-      <div class="er g-duty"><span class="tm">07:00–16:30</span><span><b>Dienst Bundeswehr</b><span class="cat"><i class="d"></i>Dienst</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Dienst Bundeswehr bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-      <div class="er g-sport"><span class="tm">17:00–18:15</span><span><b>Krafttraining</b><span class="cat"><i class="d"></i>Sport</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Krafttraining bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-      <div class="er g-business"><span class="tm">19:30–21:30</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-    </section>
-    <section aria-labelledby="d-mi">
-      <h2 id="d-mi" class="dayh">Mittwoch, 14.10. · heute<span>Gewerbe 3 h</span></h2>
-      <div class="er g-business"><span class="tm">17:00–20:00</span><span><b>Kundenprojekt</b><span class="cat"><i class="d"></i>Gewerbe</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Kundenprojekt bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-      <div class="er g-neutral"><span class="tm">20:00–20:45</span><span><b>Abendessen</b><span class="cat"><i class="d"></i>Essen</span></span><a class="icon-btn" href="w04-block.dc.html" aria-label="Abendessen bearbeiten" style="width: 44px; height: 44px"><svg class="ic"><use href="#i-pencil"></use></svg></a></div>
-    </section>
+    <div class="fsbar"><button class="btn btn-secondary" type="button" style="min-height: 44px"><svg class="ic ic-sm"><use href="#i-maximize"></use></svg>Vollbild</button></div>
+    <div class="wkscroll" role="region" aria-label="Zeitraster der Woche – seitlich wischen">
+      <div class="wk" role="grid" aria-label="Woche als Zeitraster">
+        <div class="wk-corner"></div>
+        <div class="wk-h"><span class="dn">Mo</span><span class="dd">12</span><span class="sum">Gewerbe 2 h</span></div>
+        <div class="wk-h"><span class="dn">Di</span><span class="dd">13</span><span class="sum">Gewerbe 2 h · Sport</span></div>
+        <div class="wk-h today"><span class="dn">Mi · heute</span><span class="dd">14</span><span class="sum">Gewerbe 3 h</span></div>
+        <div class="wk-h"><span class="dn">Do</span><span class="dd">15</span><span class="sum">Gewerbe 2 h · Sport</span></div>
+        <div class="wk-h"><span class="dn">Fr</span><span class="dd">16</span><span class="sum">Gewerbe 4 h · Laila</span></div>
+        <div class="wk-h"><span class="dn">Sa</span><span class="dd">17</span><span class="sum">Sport · Laila 4 h</span></div>
+        <div class="wk-h"><span class="dn">So</span><span class="dd">18</span><span class="sum">Gewerbe 3 h</span></div>
+        <div class="wk-hours" aria-hidden="true"><div>06:00</div><div>07:00</div><div>08:00</div><div>09:00</div><div>10:00</div><div>11:00</div><div>12:00</div><div>13:00</div><div>14:00</div><div>15:00</div><div>16:00</div><div>17:00</div><div>18:00</div><div>19:00</div><div>20:00</div><div>21:00</div><div>22:00</div></div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 10px; height: 20px"><b>Duschen</b></a>
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 430px; height: 20px"><b>Einkaufen</b></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 460px; height: 78px"><b>Kundenprojekt</b><span>17:30–19:30</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 550px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-relationship" href="w04-block.dc.html" style="top: 580px; height: 58px"><b>Gemeinsamer Abend</b><span>20:30–22:00</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 440px; height: 48px"><b>Krafttraining</b><span>17:00–18:15</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 500px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 540px; height: 78px"><b>Kundenprojekt</b><span>19:30–21:30</span></a>
+        </div>
+        <div class="wk-col today" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 440px; height: 118px"><b>Kundenprojekt</b><span>17:00–20:00</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 560px; height: 28px"><b>Abendessen</b></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 600px; height: 38px"><b>Freizeit</b><span>21:00–22:00</span></a>
+          <span class="wk-now" style="top: 483px" aria-label="Jetzt 18:05"></span>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 378px"><b>Dienst Bundeswehr</b><span>07:00–16:30</span></a>
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 440px; height: 48px"><b>Krafttraining</b><span>17:00–18:15</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 510px; height: 78px"><b>Kundenprojekt</b><span>18:45–20:45</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-duty" href="w04-block.dc.html" style="top: 40px; height: 238px"><b>Dienst Bundeswehr</b><span>07:00–13:00</span></a>
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 320px; height: 158px"><b>Kundenprojekt</b><span>14:00–18:00</span></a>
+          <a class="wb g-relationship warn" href="w04-block.dc.html" style="top: 520px; height: 158px; right: 50%"><b>Gemeinsamer Abend</b><span>19:00–23:00</span></a>
+          <a class="wb g-neutral warn" href="w04-block.dc.html" style="top: 520px; height: 28px; left: 52%"><b>Abendessen</b></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-sport" href="w04-block.dc.html" style="top: 160px; height: 48px"><b>Krafttraining</b><span>10:00–11:15</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 240px; height: 38px"><b>Einkaufen</b><span>12:00–13:00</span></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 320px; height: 118px"><b>Freizeit</b><span>14:00–17:00</span></a>
+          <a class="wb g-relationship" href="w04-block.dc.html" style="top: 480px; height: 158px"><b>Gemeinsamer Abend</b><span>18:00–22:00</span></a>
+        </div>
+        <div class="wk-col" style="height: 680px">
+          <a class="wb g-business" href="w04-block.dc.html" style="top: 160px; height: 118px"><b>Kundenprojekt</b><span>10:00–13:00</span></a>
+          <a class="wb g-violet" href="w04-block.dc.html" style="top: 320px; height: 158px"><b>Freizeit</b><span>14:00–18:00</span></a>
+          <a class="wb g-neutral" href="w04-block.dc.html" style="top: 500px; height: 38px"><b>Abendessen</b><span>18:30–19:30</span></a>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1300}}'>
 class Component extends DCLogic {
   renderVals() {
     return {};
