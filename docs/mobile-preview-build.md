@@ -1,14 +1,16 @@
-# Mobile App: Testen und privater Vorschau-Build
+# Mobile App: Testen, Debug- und Release-Build
 
-In dieser Phase wurde **keine APK gebaut oder verteilt** und kein Test auf einem echten Gerät
-durchgeführt. Dieses Dokument beschreibt, was in Expo Go prüfbar ist, wie später ein privater
-Build entsteht und welche Gerätetests dann nötig sind.
+Getestet wird mit einem **lokal gebauten Debug-Build** (Paket `app.tagestakt.privat.dev`) auf dem
+eigenen Gerät per USB: Metro und die lokale Supabase laufen nur auf diesem Rechner und sind über
+`adb reverse` erreichbar (`127.0.0.1`), nie über WLAN. Die eigenständige App ist ein **lokal
+gebauter, selbst signierter Release** (`app.tagestakt.privat`) gegen die Produktions-Supabase über
+HTTPS – ohne Metro, ohne USB, ohne Play Store und ohne EAS (Abschnitt 2). Expo Go wird nicht
+verwendet; die Tabelle in Abschnitt 1 erklärt, warum.
 
-## 1. Was Expo Go kann – und was nicht
+## 1. Warum nicht Expo Go
 
-`pnpm dev:mobile` + Expo Go genügt für Oberfläche, Fokus-Erfassung, Plan bearbeiten, Ziele und
-Offline-Verhalten. Für App-Sperre, Erinnerungen und Berechtigungen ist Expo Go nur eingeschränkt
-aussagekräftig:
+Expo Go zeigt zwar Oberfläche, Fokus-Erfassung, Plan bearbeiten, Ziele und Offline-Verhalten. Für
+App-Sperre, Erinnerungen und Berechtigungen ist es aber nicht aussagekräftig:
 
 | Thema                  | In Expo Go                                                                                                             | Verlässlich prüfbar erst im eigenen Build  |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -18,32 +20,67 @@ aussagekräftig:
 | Neustart des Geräts    | Erinnerungen nach Neustart nicht aussagekräftig                                                                        | ja (`RECEIVE_BOOT_COMPLETED`)              |
 | Name, Symbol, Splash   | Expo Go                                                                                                                | ja                                         |
 
-## 2. Privaten Build erstellen (später, nur nach Rückfrage)
+## 2. Debug- und Release-Build (lokal, nur nach Rückfrage)
 
-Beide Wege erzeugen eine APK **nur für das eigene Gerät** – keine Veröffentlichung im Play Store.
+Beide Varianten entstehen lokal (JDK 17, Android-SDK/NDK außerhalb des Repositorys) und nur für
+das eigene Gerät – kein Play Store, kein EAS. Der Ordner `apps/mobile/android/` ist generiert
+(`expo prebuild -p android --no-install`) und wird nicht committed; alle Anpassungen kommen aus
+`app.json` und dem Plugin `apps/mobile/plugins/with-android-release.js`.
 
-**A – EAS Build (Expo-Cloud):** benötigt ein Expo-Konto; das kostenlose Kontingent ist begrenzt –
-Bedingungen vorher prüfen, keine kostenpflichtigen Builds ohne Entscheidung des Benutzers. Eine
-`eas.json` gibt es im Repository noch nicht; ein mögliches Profil:
+|                    | Debug                                                     | Release                                    |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------ |
+| Paket              | `app.tagestakt.privat.dev`                                | `app.tagestakt.privat`                     |
+| JavaScript         | von Metro (USB, `adb reverse`)                            | in der APK eingebettet                     |
+| Supabase-URL       | `http://127.0.0.1:54321` (lokal) oder HTTPS               | **nur HTTPS** (Produktion)                 |
+| Signatur           | öffentlicher Debug-Schlüssel                              | eigener Schlüssel; ohne ihn **unsigniert** |
+| Zusätzliche Rechte | `SYSTEM_ALERT_WINDOW` (Entwickler-Overlay), Klartext-HTTP | keine                                      |
+| Badge/Install-Ref. | aus Bibliotheken vorhanden                                | per Release-Manifest entfernt              |
 
-```json
-{
-  "build": {
-    "preview": {
-      "distribution": "internal",
-      "android": { "buildType": "apk" }
-    }
-  }
-}
+Beide Pakete können nebeneinander installiert sein. Ein Debug-Build vor dieser Trennung hieß
+ebenfalls `app.tagestakt.privat` und ist mit dem Debug-Schlüssel signiert – Android installiert
+den Release nicht darüber. Er wird **einmal** deinstalliert (lokale App-Daten gehen verloren; der
+Plan liegt in der Datenbank).
+
+**Signierschlüssel (einmalig, durch den Benutzer):** außerhalb des Repositorys, z. B. unter
+`%USERPROFILE%\TagesTakt-Android\signing\`, mit `keytool -genkeypair` (PKCS12, RSA 4096). Die
+Passwörter werden nur interaktiv eingegeben – nie als Befehlsargument, nie in Chat, Log oder
+Repository. Den Schlüssel samt Passwort im Passwortmanager und offline sichern: Ohne ihn kann
+die installierte App nicht mehr aktualisiert, nur neu installiert werden.
+
+**Signierwerte für Gradle:** vier Eigenschaften in der `gradle.properties` des verwendeten
+`GRADLE_USER_HOME` (hier `%USERPROFILE%\TagesTakt-Android\gradle-home\`), nie im Repository und nie
+mit `-P` auf der Kommandozeile:
+
+```properties
+# Pfad mit Schrägstrichen (Properties-Format); bei PKCS12 sind beide Passwörter gleich.
+TAGESTAKT_RELEASE_STORE_FILE=C:/…/TagesTakt-Android/signing/<datei>.p12
+TAGESTAKT_RELEASE_STORE_PASSWORD=<nur lokal eintragen>
+TAGESTAKT_RELEASE_KEY_ALIAS=<alias>
+TAGESTAKT_RELEASE_KEY_PASSWORD=<nur lokal eintragen>
 ```
 
-Die Umgebungsvariablen `EXPO_PUBLIC_SUPABASE_URL` und `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-werden als EAS-Umgebungsvariablen hinterlegt – **nur der öffentliche Publishable Key**, niemals
-ein Secret- oder Service-Role-Key.
+**Umgebung für den Release-Bundle:** `EXPO_PUBLIC_SUPABASE_URL=https://api.plan.north-frame.de` und
+der **Publishable Key** der Produktion – nur in der Shell des Builds oder in
+`apps/mobile/.env.production.local` (per `.gitignore` ausgeschlossen), niemals ein Secret- oder
+Service-Role-Key. Mit einer HTTP-URL startet der Release nicht.
 
-**B – lokal:** `npx expo prebuild -p android`, eigenen Release-Keystore außerhalb des Repositorys
-erzeugen, `cd android && ./gradlew assembleRelease`. Benötigt Android Studio/SDK und JDK. Der
-Ordner `android/` ist generiert und wird nicht committed.
+**Bauen:** nach `prebuild` zuerst die Codegen-Tasks vom normalen Pfad, dann
+`gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a` (unter Windows mit kurzen
+Laufwerksbuchstaben für Repository und `GRADLE_USER_HOME`, sonst scheitert CMake an der
+Pfadlänge). Ein Release ohne die vier Eigenschaften bricht nicht ab, ist aber unsigniert und
+nicht installierbar – nie mit dem Debug-Schlüssel signiert.
+
+**Vor der Installation prüfen** (alles muss stimmen, sonst nicht installieren):
+
+- Signatur gültig und **nicht** der Debug-Schlüssel (`apksigner verify --print-certs`), Paket
+  `app.tagestakt.privat`, `versionCode`/`versionName`, Größe und SHA-256 der APK notieren.
+- JavaScript eingebettet (`assets/index.android.bundle`), keine Verbindung zu Metro nötig.
+- Nur `arm64-v8a` unter `lib/`.
+- Manifest: `allowBackup="false"`, kein `usesCleartextTraffic`, Berechtigungen wie in Abschnitt 3.
+- Im Bundle nur die HTTPS-Produktions-URL, kein `127.0.0.1`/`10.0.2.2`, kein `sb_secret_`, kein
+  `service_role`.
+
+Staging gibt es bewusst noch nicht; Empfehlung für später siehe [security.md](security.md).
 
 ## 3. Nach dem Build: Berechtigungen prüfen
 
@@ -57,13 +94,23 @@ Das zusammengeführte Manifest enthält auch Berechtigungen aus Bibliotheken. Pr
 | `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`                                        | lokale Erinnerungen                         |
 | `VIBRATE`                                                                             | Expo-Vorlage (Benachrichtigungen)           |
 | ggf. `ACCESS_NETWORK_STATE`, `WAKE_LOCK`, `…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Bibliotheken (AndroidX, Benachrichtigungen) |
+| `DETECT_SCREEN_CAPTURE` (Android 14+)                                                 | `expo-screen-capture`, beim Laden benötigt  |
+
+`DETECT_SCREEN_CAPTURE` erlaubt keine Aufnahme oder Auslesung des Bildschirms; die App erfährt
+damit nur, dass ein Screenshot ihrer eigenen Oberfläche erstellt wurde. `expo-screen-capture`
+braucht sie unter Android 14 und neuer bereits beim Laden – war sie gesperrt, startete die App
+nicht („Permission Denial: registerScreenCaptureObserver …“). TagesTakt nutzt das Modul weiterhin
+nur für `preventScreenCaptureAsync` (Schutz sensibler Inhalte bzw. der Vorschau im
+App-Umschalter), nicht für Screenshot-Meldungen. Begründung: [security.md](security.md).
 
 **Darf nicht enthalten sein:** Standort, Kamera, Mikrofon, Kontakte, Kalender, Speicher,
-`SYSTEM_ALERT_WINDOW`, `USE_FINGERPRINT`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`,
-`com.google.android.c2dm.permission.RECEIVE`, `READ_MEDIA_IMAGES`, `DETECT_SCREEN_CAPTURE`. Taucht
-etwas Unerwartetes auf (z. B.
-Launcher-Badge-Berechtigungen aus einer Bibliothek von `expo-notifications`), in
-`apps/mobile/app.json` unter `blockedPermissions` ergänzen und neu bauen.
+`SYSTEM_ALERT_WINDOW` (nur im Debug-Build), `USE_FINGERPRINT`, `SCHEDULE_EXACT_ALARM`,
+`USE_EXACT_ALARM`, `com.google.android.c2dm.permission.RECEIVE`, `READ_MEDIA_IMAGES`; im
+**Release** außerdem keine Launcher-Badge-Berechtigungen (`READ_APP_BADGE`, `…launcher…`,
+`…badge…`) und kein `BIND_GET_INSTALL_REFERRER_SERVICE`. Taucht etwas Unerwartetes auf: für alle
+Varianten in `apps/mobile/app.json` unter `blockedPermissions` ergänzen, nur für den Release in
+`RELEASE_BLOCKED_PERMISSIONS` des Plugins – vorher prüfen, dass keine benötigte Funktion
+(Erinnerungen, App-Sperre) daran hängt.
 
 Außerdem prüfen: `android:allowBackup="false"` im Manifest.
 

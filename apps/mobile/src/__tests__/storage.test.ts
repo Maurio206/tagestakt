@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 
-import { looksLikeSecretKey, parseMobileEnv } from "@/lib/env";
+import { isAllowedSupabaseUrl, looksLikeSecretKey, parseMobileEnv } from "@/lib/env";
 import { fetchPlanSnapshot } from "@/lib/plan-api";
 import { PLAN_CACHE_KEY, clearCachedPlan, loadCachedPlan, saveCachedPlan } from "@/lib/plan-cache";
 import { type TypedSupabaseClient } from "@/lib/supabase";
@@ -178,5 +178,47 @@ describe("Konfiguration", () => {
     const result = parseMobileEnv({});
     expect(result).toMatchObject({ ok: false });
     if (!result.ok) expect(result.message).toContain("EXPO_PUBLIC_SUPABASE_URL");
+  });
+
+  const KEY = "sb_publishable_abcdefghijklmnopqrstuvwxyz";
+  const env = (url: string) => ({
+    EXPO_PUBLIC_SUPABASE_URL: url,
+    EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: KEY,
+  });
+
+  it("Release: ausschließlich HTTPS", () => {
+    expect(parseMobileEnv(env("https://api.beispiel.test")).ok).toBe(true);
+    for (const url of [
+      "http://api.beispiel.test",
+      "http://127.0.0.1:54321",
+      "http://localhost:54321",
+      "ftp://api.beispiel.test",
+    ]) {
+      const result = parseMobileEnv(env(url));
+      expect(result).toMatchObject({ ok: false });
+      if (!result.ok) expect(result.message).toMatch(/im Release mit https:\/\//);
+    }
+  });
+
+  it("Debug: HTTP nur zu diesem Rechner (adb reverse bzw. Emulator), sonst HTTPS", () => {
+    const debug = { allowLocalHttp: true };
+    expect(parseMobileEnv(env("http://127.0.0.1:54321"), debug).ok).toBe(true);
+    expect(parseMobileEnv(env("http://localhost:54321"), debug).ok).toBe(true);
+    expect(parseMobileEnv(env("http://10.0.2.2:54321"), debug).ok).toBe(true);
+    expect(parseMobileEnv(env("https://api.beispiel.test"), debug).ok).toBe(true);
+    // Kein unverschlüsseltes HTTP über WLAN oder Internet – auch nicht im Debug-Build.
+    for (const url of [
+      "http://192.168.1.20:54321",
+      "http://api.beispiel.test",
+      "http://127.0.0.1.beispiel.test",
+    ]) {
+      expect(parseMobileEnv(env(url), debug).ok).toBe(false);
+    }
+  });
+
+  it("Standard ist die strenge Release-Regel", () => {
+    expect(isAllowedSupabaseUrl("http://127.0.0.1:54321", false)).toBe(false);
+    expect(isAllowedSupabaseUrl("HTTPS://API.BEISPIEL.TEST/rest", false)).toBe(true);
+    expect(isAllowedSupabaseUrl("kein-url", true)).toBe(false);
   });
 });
