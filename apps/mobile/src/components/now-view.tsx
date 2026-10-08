@@ -1,8 +1,9 @@
-import { categoryTone, mixColor, planBlockTint } from "@tagestakt/design-tokens";
+import { categoryTone } from "@tagestakt/design-tokens";
 import {
   type ActivitySession,
   CATEGORY_LABELS,
   type CompletionStatus,
+  type EntryCategory,
   type FocusState,
   GOAL_KEYS,
   GOAL_LABELS,
@@ -44,18 +45,21 @@ import {
   Text,
   View,
   type ViewStyle,
+  useWindowDimensions,
 } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import type { DailyNoteState } from "@/hooks/use-daily-note";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { type PlanResult } from "@/lib/plan-status";
 import { OFFLINE_MESSAGE } from "@/lib/write-errors";
-import { monoFamily, spacing, tint, type, useTheme } from "@/theme";
+import { blockStyle, monoFamily, spacing, type, useTheme } from "@/theme";
 
 import { FocusTimer } from "./focus-timer";
 import { GoalList } from "./goal-progress";
 import { ToneIcon } from "./icons";
 import { NoteRow } from "./note-card";
+import { useViewport } from "./screen";
 import { Sheet } from "./sheet";
 import { StatusBanner } from "./status-banner";
 import {
@@ -204,66 +208,100 @@ function Around({ focus, now }: { focus: Focus; now: Date }) {
   );
 }
 
-/** Unscharfer, angeschnittener Nachbarblock: keine Bedienelemente, für Screenreader verborgen. */
+/**
+ * Weicher Übergang in den Seitenhintergrund: deckt die äußere Kante eines angeschnittenen
+ * Nachbarblocks ab, damit weder Block noch Unschärfe rechteckig abgeschnitten wirken.
+ */
+function EdgeFade({ edge, color }: { edge: "top" | "bottom"; color: string }) {
+  const id = `focus-fade-${edge}`;
+  const outer = edge === "top" ? "0" : "1";
+  const inner = edge === "top" ? "1" : "0";
+  return (
+    <View testID={id} pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1={outer} x2="0" y2={inner}>
+            <Stop offset="0" stopColor={color} stopOpacity={1} />
+            <Stop offset="0.3" stopColor={color} stopOpacity={0.8} />
+            <Stop offset="1" stopColor={color} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  );
+}
+
+/**
+ * Unscharfer Nachbarblock, nur teilweise sichtbar (`peek`): läuft zur Bildschirmkante hin weich
+ * in den Hintergrund aus. Keine Bedienelemente, für Screenreader verborgen.
+ */
 function Ghost({
   entry,
   position,
   now,
   later,
+  peek,
 }: {
   entry: ScheduleEntry;
   position: "prev" | "next";
   now: Date;
   later?: boolean;
+  peek: number;
 }) {
   const theme = useTheme();
-  const color = theme[categoryTone[entry.category]];
+  const look = blockStyle(theme, entry.category, { emphasis: "muted" });
   return (
     <View
       testID={`focus-ghost-${position}`}
       pointerEvents="none"
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
-      style={[styles.ghostClip, position === "prev" ? styles.ghostClipPrev : null]}
+      style={[
+        styles.ghostClip,
+        { height: peek },
+        position === "prev" ? styles.ghostClipPrev : null,
+      ]}
     >
       <View
-        style={[
-          styles.ghost,
-          {
-            borderColor: tint(color, 0.3),
-            backgroundColor: tint(color, 0.07),
-            opacity: later ? 0.35 : 0.5,
-          },
-          GHOST_BLUR,
-        ]}
+        testID={`focus-ghost-${position}-block`}
+        style={[styles.ghost, look.container, { opacity: later ? 0.55 : 0.8 }, GHOST_BLUR]}
       >
-        <Text style={[styles.ghostTime, { color: theme.textMuted }]}>
+        <Text style={[styles.ghostTime, { color: look.textMuted }]}>
           {position === "next" && later
             ? formatStartLabel(entry.start_at, now)
             : formatTimeRange(entry.start_at, entry.end_at)}
         </Text>
         <View style={styles.ghostBody}>
-          <Text numberOfLines={1} style={[styles.ghostTitle, { color: theme.text }]}>
+          <Text numberOfLines={1} style={[styles.ghostTitle, { color: look.text }]}>
             {entry.title}
           </Text>
-          <Text numberOfLines={1} style={[styles.ghostCat, { color: theme.textMuted }]}>
+          <Text numberOfLines={1} style={[styles.ghostCat, { color: look.textMuted }]}>
             {CATEGORY_LABELS[entry.category]}
           </Text>
         </View>
       </View>
+      <EdgeFade edge={position === "prev" ? "top" : "bottom"} color={theme.bg} />
     </View>
   );
+}
+
+/** Sichtbarer Anteil eines Nachbarblocks: aus der Bildschirmhöhe, mit der Schriftgröße wachsend. */
+export function ghostPeek(viewportHeight: number, fontScale: number): number {
+  const base = viewportHeight > 0 ? Math.min(72, Math.max(36, viewportHeight * 0.08)) : 48;
+  return Math.round(base * Math.min(1.4, Math.max(1, fontScale)));
 }
 
 /** Fokusblock mit kurzer, ruhiger Einblendung beim Wechsel (nicht bei „Bewegung reduzieren“). */
 function FocusCard({
   variant,
-  color,
+  category,
   animate,
   children,
 }: {
   variant: "running" | "block" | "free";
-  color: string;
+  /** Kategorie des Blocks bzw. Ziel der laufenden Aktivität; ohne Kategorie neutral. */
+  category: EntryCategory | null;
   animate: boolean;
   children: ReactNode;
 }) {
@@ -280,21 +318,19 @@ function FocusCard({
     animation.start();
     return () => animation.stop();
   }, [animate, progress]);
-  // Fläche und Rand wie der Planblock im Wochenraster (`planBlockTint`); eine laufende
-  // Aktivität bekommt nur den Rand im vollen Kategorieton – keine eigene Statusfarbe.
-  const colors =
-    variant === "free"
+  // Hauptphase: kräftigste Stufe der zentralen Blockfarben. Eine laufende Aktivität bekommt
+  // zusätzlich den breiteren Rand im vollen Kategorieton – keine eigene Statusfarbe.
+  const colors: ViewStyle =
+    variant === "free" || !category
       ? { backgroundColor: theme.surface1, borderColor: theme.lineStrong, borderStyle: "dashed" }
-      : {
-          backgroundColor: mixColor(color, theme.surface1, planBlockTint.fill),
-          borderColor: variant === "running" ? color : tint(color, planBlockTint.border),
-        };
+      : blockStyle(theme, category, { emphasis: "strong", running: variant === "running" })
+          .container;
   return (
     <Animated.View
       testID="focus-card"
       style={[
         styles.card,
-        colors as ViewStyle,
+        colors,
         animate
           ? {
               opacity: progress,
@@ -748,105 +784,121 @@ export function NowView({
 
   const { kind, previous, next, nextIsToday } = focus;
   const showGhosts = kind !== "no_plan";
-  const tone =
+  const focusCategory: EntryCategory | null =
     kind === "running" && focus.session
-      ? theme[categoryTone[focus.session.goal_category]]
+      ? focus.session.goal_category
       : kind === "block" && focus.current
-        ? theme[categoryTone[focus.current.category]]
-        : theme.textSubtle;
+        ? focus.current.category
+        : null;
+
+  // Erster Bildschirm = Fokusbereich: Uhrzeit, Nachbarn, aktueller Block und Tagesnotiz füllen
+  // die gemessene Höhe; „Als Nächstes“ und alles Weitere beginnt erst darunter (Scrollen).
+  const viewport = useViewport();
+  const { fontScale } = useWindowDimensions();
+  const foldHeight = viewport.height > 0 ? viewport.height - viewport.paddingTop : undefined;
+  const peek = ghostPeek(viewport.height, fontScale);
 
   return (
     <View style={styles.container}>
-      <View
-        accessible
-        accessibilityLabel={`Es ist ${formatTime(now)} Uhr, ${formatLocalDateLong(toLocalDate(now))}`}
-      >
-        <Text style={[styles.date, { color: theme.textMuted }]}>
-          {formatLocalDateLong(toLocalDate(now))} · {formatWeekLabel(weekStart).split(" · ")[0]}
-        </Text>
-        <Text style={[styles.clock, { color: theme.text }]}>{formatTime(now)}</Text>
-      </View>
-
-      <StatusBanner
-        origin={result.origin}
-        fetchedAt={snapshot.fetchedAt}
-        now={now}
-        errorMessage={result.errorMessage}
-      />
-      {error ? (
-        <Notice tone="error" title="Nicht gespeichert">
-          {error}
-        </Notice>
-      ) : null}
-      {!currentWeek && running ? (
-        <Notice tone="info" title="Für diese Woche ist noch kein Plan veröffentlicht.">
-          Die Planung erfolgt auf der Website oder unter „Woche“ → „Bearbeiten“.
-        </Notice>
-      ) : null}
-
-      <View style={styles.stage}>
-        {showGhosts && previous ? <Ghost entry={previous} position="prev" now={now} /> : null}
-        <FocusCard
-          key={key}
-          variant={kind === "running" ? "running" : kind === "block" ? "block" : "free"}
-          color={tone}
-          animate={changed && !reducedMotion}
+      <View testID="now-fold" style={[styles.fold, foldHeight ? { minHeight: foldHeight } : null]}>
+        <View
+          accessible
+          accessibilityLabel={`Es ist ${formatTime(now)} Uhr, ${formatLocalDateLong(toLocalDate(now))}`}
         >
-          {kind === "running" && focus.session ? (
-            <RunningPanel
-              session={focus.session}
-              focus={focus}
-              now={now}
-              actions={actions}
-              canWrite={canWrite}
-              pending={pending}
-            />
-          ) : kind === "block" && focus.current ? (
-            <EntryPanel
-              entry={focus.current}
-              focus={focus}
-              now={now}
-              tracked={tracked.has(focus.current.id)}
-              actions={actions}
-              canWrite={canWrite}
-              pending={pending}
-            />
-          ) : (
-            <FreePanel
-              focus={focus}
-              now={now}
-              actions={actions}
-              canWrite={canWrite}
-              pending={pending}
-            />
-          )}
-          {kind !== "no_plan" ? <Around focus={focus} now={now} /> : null}
-        </FocusCard>
-        {showGhosts && next ? (
-          <Ghost entry={next} position="next" now={now} later={!nextIsToday} />
-        ) : null}
-      </View>
+          <Text style={[styles.date, { color: theme.textMuted }]}>
+            {formatLocalDateLong(toLocalDate(now))} · {formatWeekLabel(weekStart).split(" · ")[0]}
+          </Text>
+          <Text style={[styles.clock, { color: theme.text }]}>{formatTime(now)}</Text>
+        </View>
 
-      {todayNote ? <NoteRow state={todayNote} onOpen={actions.openNote} /> : null}
+        <StatusBanner
+          origin={result.origin}
+          fetchedAt={snapshot.fetchedAt}
+          now={now}
+          errorMessage={result.errorMessage}
+        />
+        {error ? (
+          <Notice tone="error" title="Nicht gespeichert">
+            {error}
+          </Notice>
+        ) : null}
+        {!currentWeek && running ? (
+          <Notice tone="info" title="Für diese Woche ist noch kein Plan veröffentlicht.">
+            Die Planung erfolgt auf der Website oder unter „Woche“ → „Bearbeiten“.
+          </Notice>
+        ) : null}
+
+        <View style={styles.stage}>
+          {showGhosts && previous ? (
+            <Ghost entry={previous} position="prev" now={now} peek={peek} />
+          ) : null}
+          <FocusCard
+            key={key}
+            variant={kind === "running" ? "running" : kind === "block" ? "block" : "free"}
+            category={focusCategory}
+            animate={changed && !reducedMotion}
+          >
+            {kind === "running" && focus.session ? (
+              <RunningPanel
+                session={focus.session}
+                focus={focus}
+                now={now}
+                actions={actions}
+                canWrite={canWrite}
+                pending={pending}
+              />
+            ) : kind === "block" && focus.current ? (
+              <EntryPanel
+                entry={focus.current}
+                focus={focus}
+                now={now}
+                tracked={tracked.has(focus.current.id)}
+                actions={actions}
+                canWrite={canWrite}
+                pending={pending}
+              />
+            ) : (
+              <FreePanel
+                focus={focus}
+                now={now}
+                actions={actions}
+                canWrite={canWrite}
+                pending={pending}
+              />
+            )}
+            {kind !== "no_plan" ? <Around focus={focus} now={now} /> : null}
+          </FocusCard>
+          {showGhosts && next ? (
+            <Ghost entry={next} position="next" now={now} later={!nextIsToday} peek={peek} />
+          ) : null}
+        </View>
+
+        {todayNote ? <NoteRow state={todayNote} onOpen={actions.openNote} /> : null}
+      </View>
 
       {upcoming.length > 0 ? (
         <Section title="Als Nächstes">
-          {upcoming.map((entry) => (
-            <View
-              key={entry.id}
-              style={[styles.next, { backgroundColor: theme.surface1, borderColor: theme.line }]}
-              accessible
-              accessibilityLabel={`${dayPrefix(entry.start_at, now)}${formatTimeRange(entry.start_at, entry.end_at)}, ${entry.title}`}
-            >
-              <Text style={[styles.nextTime, { color: theme.textMuted }]}>
-                {formatTime(entry.start_at)}
-              </Text>
-              <View style={styles.nextBody}>
-                <Text style={[styles.nextTitle, { color: theme.text }]}>{entry.title}</Text>
-                <CategoryPill category={entry.category} />
+          {upcoming.map((entry) => {
+            // Nebenblöcke: gedämpfte Variante ihrer Kategorie.
+            const look = blockStyle(theme, entry.category, { emphasis: "muted" });
+            return (
+              <View
+                key={entry.id}
+                testID="upcoming-block"
+                style={[styles.next, look.container]}
+                accessible
+                accessibilityLabel={`${dayPrefix(entry.start_at, now)}${formatTimeRange(entry.start_at, entry.end_at)}, ${entry.title}`}
+              >
+                <Text style={[styles.nextTime, { color: look.textMuted }]}>
+                  {formatTime(entry.start_at)}
+                </Text>
+                <View style={styles.nextBody}>
+                  <Text style={[styles.nextTitle, { color: look.text }]}>{entry.title}</Text>
+                  <CategoryPill category={entry.category} />
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </Section>
       ) : null}
 
@@ -871,9 +923,10 @@ export function NowView({
 
 const styles = StyleSheet.create({
   container: { gap: spacing.xl },
+  fold: { gap: spacing.lg },
   date: { ...type.small },
   clock: { fontSize: 20, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  stage: { gap: spacing.sm, alignItems: "center" },
+  stage: { flexGrow: 1, justifyContent: "center", alignItems: "center", gap: spacing.sm },
   card: {
     alignSelf: "stretch",
     gap: spacing.lg,
@@ -916,9 +969,16 @@ const styles = StyleSheet.create({
   overlapText: { flex: 1, fontSize: 14, fontWeight: "700" },
   around: { gap: 4, paddingTop: spacing.md, borderTopWidth: 1 },
   aroundText: { fontSize: 14, lineHeight: 20 },
-  ghostClip: { width: "88%", height: 40, overflow: "hidden", justifyContent: "flex-start" },
+  // Breiter als der Block selbst, damit die Unschärfe seitlich nicht beschnitten wird.
+  ghostClip: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    overflow: "hidden",
+    justifyContent: "flex-start",
+  },
   ghostClipPrev: { justifyContent: "flex-end" },
   ghost: {
+    width: "88%",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,

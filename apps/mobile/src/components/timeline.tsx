@@ -16,7 +16,7 @@ import {
 import { Fragment } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { monoFamily, spacing, tint, useTheme } from "@/theme";
+import { blockStyle, monoFamily, spacing, useTheme } from "@/theme";
 
 const MIN_GAP_MINUTES = 30;
 
@@ -113,6 +113,11 @@ export function Timeline({
         const state = getEntryTimeState(entry, now);
         const continued = start < bounds.start.getTime();
         const color = theme[categoryTone[entry.category]];
+        // Aktueller Block = Hauptphase, kommende regulär, vergangene als Nebenblock.
+        const look = blockStyle(theme, entry.category, {
+          emphasis: state === "current" ? "strong" : state === "past" ? "muted" : "base",
+          skipped: entry.completion_status === "skipped",
+        });
         const tracked = trackedFor(entry, sessions, now);
         const { gapMinutes, showNowBefore } = layout[index] ?? {
           gapMinutes: 0,
@@ -147,23 +152,12 @@ export function Timeline({
                   ]}
                 />
               </View>
-              <View
-                style={[
-                  styles.block,
-                  state === "past"
-                    ? { backgroundColor: "transparent", borderColor: theme.line }
-                    : {
-                        backgroundColor: tint(color, 0.1),
-                        borderColor: state === "current" ? color : tint(color, 0.35),
-                        borderWidth: state === "current" ? 1.5 : 1,
-                      },
-                ]}
-              >
+              <View testID={`timeline-block-${state}`} style={[styles.block, look.container]}>
                 <Text
                   style={[
                     styles.title,
                     {
-                      color: state === "past" ? theme.textMuted : theme.text,
+                      color: look.text,
                       textDecorationLine:
                         entry.completion_status === "skipped" ? "line-through" : "none",
                     },
@@ -172,12 +166,12 @@ export function Timeline({
                   {entry.title}
                 </Text>
                 <View style={styles.meta}>
-                  <Text style={[styles.metaText, { color: theme.textMuted }]}>
+                  <Text style={[styles.metaText, { color: look.textMuted }]}>
                     {formatTimeRange(entry.start_at, entry.end_at)} ·{" "}
                     {CATEGORY_LABELS[entry.category]}
                   </Text>
                   {entry.completion_status !== "planned" ? (
-                    <Text style={[styles.metaText, { color: theme.textMuted }]}>
+                    <Text style={[styles.metaText, { color: look.textMuted }]}>
                       {COMPLETION_STATUS_LABELS[entry.completion_status]}
                     </Text>
                   ) : null}

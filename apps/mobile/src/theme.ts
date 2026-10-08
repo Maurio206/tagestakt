@@ -1,6 +1,8 @@
 import {
+  type BlockEmphasis,
   type Palette,
   type Tone,
+  blockColors,
   categoryTone,
   palettes,
   radius as tokenRadius,
@@ -8,7 +10,7 @@ import {
   typeScale,
 } from "@tagestakt/design-tokens";
 import { type EntryCategory } from "@tagestakt/schedule-schema";
-import { useColorScheme } from "react-native";
+import { type ViewStyle, useColorScheme } from "react-native";
 
 /**
  * App-Theme aus packages/design-tokens (dieselben Werte wie die Website).
@@ -31,6 +33,53 @@ export function toneColor(theme: Theme, tone: Tone): string {
 
 export function categoryColor(theme: Theme, category: EntryCategory): string {
   return theme[categoryTone[category]];
+}
+
+/** Zustand eines Planblocks; jeder Zustand ist auch ohne Farbe erkennbar (Rand, Ring, Text). */
+export interface BlockState {
+  emphasis: BlockEmphasis;
+  /** Läuft gerade: Rand im vollen Kategorieton, doppelt so breit (dazu Text „läuft“). */
+  running?: boolean;
+  /** Ausgewählt: Ring in Textfarbe außerhalb des Blocks. */
+  selected?: boolean;
+  /** Ausgelassen: blasser, Titel durchgestrichen (dazu Text „ausgelassen“). */
+  skipped?: boolean;
+  /** Überschneidung: gestrichelter Rand in Warnfarbe (dazu Symbol bzw. Text). */
+  overlap?: boolean;
+}
+
+export interface BlockStyle {
+  /** Fläche, Rand, Akzentkante links und Zustandsmarkierungen */
+  container: ViewStyle;
+  accent: string;
+  text: string;
+  textMuted: string;
+}
+
+/**
+ * Einzige Stelle, an der die App Planblöcke einfärbt (Fokusblock, Nachbarn, Zeitstrahl,
+ * Wochenraster, „Als Nächstes“): Werte aus `blockColors` der Design-Tokens.
+ */
+export function blockStyle(theme: Theme, category: EntryCategory, state: BlockState): BlockStyle {
+  const colors = blockColors(theme, categoryTone[category], state.emphasis);
+  const container: ViewStyle = {
+    backgroundColor: colors.background,
+    borderColor: state.overlap ? theme.warning : state.running ? colors.accent : colors.border,
+    borderWidth: state.running ? 2 : 1,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accent,
+    ...(state.overlap ? { borderStyle: "dashed" as const } : null),
+    ...(state.skipped ? { opacity: 0.6 } : null),
+    ...(state.selected
+      ? {
+          outlineColor: theme.text,
+          outlineWidth: 2,
+          outlineOffset: 2,
+          outlineStyle: "solid" as const,
+        }
+      : null),
+  };
+  return { container, accent: colors.accent, text: colors.text, textMuted: colors.textMuted };
 }
 
 /** Halbtransparente Tönung einer Farbe (#RRGGBB + Alpha). */

@@ -1,15 +1,10 @@
 /**
- * Fokusfläche „Jetzt“: Die Farbe zeigt nur die Kategorie – exakt wie der Planblock im
- * Wochenraster der Website (Fläche 16 % in surface1, Rand 45 % Deckkraft). Eine laufende
- * Aktivität bekommt nur den Rand im vollen Ton, Zustände ohne Kategorie bleiben neutral.
+ * Fokusfläche „Jetzt“: Die Farbe zeigt nur die Kategorie, als Hauptphase in der kräftigsten
+ * Stufe der zentralen Blockfarben (`blockColors(…, "strong")`). Eine laufende Aktivität bekommt
+ * zusätzlich den breiteren Rand im vollen Ton, Zustände ohne Kategorie bleiben neutral.
+ * Nachbarn und „Als Nächstes“ sind Nebenblöcke (`muted`).
  */
-import {
-  type ColorScheme,
-  type Tone,
-  mixColor,
-  palettes,
-  planBlockTint,
-} from "@tagestakt/design-tokens";
+import { type ColorScheme, type Tone, blockColors, palettes } from "@tagestakt/design-tokens";
 import {
   type ActivitySession,
   ENTRY_CATEGORIES,
@@ -21,7 +16,6 @@ import { StyleSheet } from "react-native";
 
 import { type NowActions, NowView } from "@/components/now-view";
 import { type PlanResult } from "@/lib/plan-status";
-import { tint } from "@/theme";
 
 import { NOW, entry, session, snapshot } from "./fixtures";
 
@@ -87,28 +81,29 @@ describe.each(SCHEMES)("Fokusfläche – Kategoriefarbe (%s)", (scheme) => {
   });
 
   it.each(ENTRY_CATEGORIES)(
-    "geplanter Block „%s“: Fläche und Rand wie im Wochenraster",
+    "geplanter Block „%s“: Hauptphase in der kräftigen Kategorievariante",
     async (category) => {
       await render(<NowView result={planWith(category)} now={NOW} actions={actions()} />);
-      const color = p[EXPECTED_TONE[category]];
+      const strong = blockColors(p, EXPECTED_TONE[category], "strong");
       expect(cardStyle()).toMatchObject({
-        backgroundColor: mixColor(color, p.surface1, planBlockTint.fill),
-        borderColor: tint(color, planBlockTint.border),
+        backgroundColor: strong.background,
+        borderColor: strong.border,
+        borderLeftColor: strong.accent,
         borderWidth: 1,
       });
     },
   );
 
   it.each(GOAL_KEYS)(
-    "laufende Aktivität „%s“: gleiche Fläche, Rand im vollen Ton",
+    "laufende Aktivität „%s“: gleiche Fläche, breiter Rand im vollen Ton",
     async (goal) => {
       const running = session(goal, "2026-10-06T14:40:00.000Z", null);
       await render(<NowView result={planWith("duty", [running])} now={NOW} actions={actions()} />);
-      const color = p[EXPECTED_TONE[goal]];
+      const strong = blockColors(p, EXPECTED_TONE[goal], "strong");
       expect(cardStyle()).toMatchObject({
-        backgroundColor: mixColor(color, p.surface1, planBlockTint.fill),
-        borderColor: color,
-        borderWidth: 1,
+        backgroundColor: strong.background,
+        borderColor: strong.accent,
+        borderWidth: 2,
       });
     },
   );
@@ -120,7 +115,40 @@ describe.each(SCHEMES)("Fokusfläche – Kategoriefarbe (%s)", (scheme) => {
     if (!week || !block) throw new Error("Block fehlt");
     week.schedule_entries = [{ ...block, completion_status: "completed" }];
     await render(<NowView result={result} now={NOW} actions={actions()} />);
-    expect(cardStyle().backgroundColor).toBe(mixColor(p.sport, p.surface1, planBlockTint.fill));
+    expect(cardStyle().backgroundColor).toBe(blockColors(p, "sport", "strong").background);
+  });
+
+  it("Nachbarn und „Als Nächstes“: gedämpfte Variante ihrer Kategorie", async () => {
+    // Davor Dienst (Vormittag), jetzt Gewerbe, danach Training (Sport) – alles heute.
+    const base = snapshot("2026-10-06T14:55:00.000Z");
+    const week = base.weeks[0];
+    if (!week) throw new Error("Woche fehlt");
+    const morning = entry("Vormittag (Beispiel)", "duty", "2026-10-06", "09:00", "12:00");
+    const result: PlanResult = {
+      snapshot: {
+        ...base,
+        weeks: [{ ...week, schedule_entries: [...week.schedule_entries, morning] }],
+      },
+      origin: "network",
+    };
+    await render(<NowView result={result} now={NOW} actions={actions()} />);
+    const hidden = { includeHiddenElements: true };
+    const style = (id: string) => StyleSheet.flatten(screen.getByTestId(id, hidden).props.style);
+    const mutedSport = blockColors(p, "sport", "muted");
+    expect(style("focus-ghost-next-block")).toMatchObject({
+      backgroundColor: mutedSport.background,
+      borderColor: mutedSport.border,
+      borderLeftColor: mutedSport.accent,
+    });
+    expect(style("focus-ghost-prev-block").backgroundColor).toBe(
+      blockColors(p, "duty", "muted").background,
+    );
+    const [upcoming] = screen.getAllByTestId("upcoming-block");
+    expect(StyleSheet.flatten(upcoming?.props.style)).toMatchObject({
+      backgroundColor: mutedSport.background,
+    });
+    // Hauptphase deutlich kräftiger als die Nebenblöcke derselben Kategorie.
+    expect(cardStyle().backgroundColor).toBe(blockColors(p, "business", "strong").background);
   });
 
   it("freie Zeit bleibt neutral: surface1, gestrichelter Rand", async () => {
