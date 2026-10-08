@@ -7,5 +7,6 @@ export * from "./schemas";
 export * from "./format";
 export * from "./focus";
 export * from "./daily-notes";
+export * from "./week-grid";
 export * from "./agent-contract";
 export type { Database, Json } from "./database.types";
