@@ -46,8 +46,9 @@ pnpm db:upgrade-test
 ```
 
 `db:upgrade-test` spielt einen Stand wie in Produktion (nur Initialmigration) mit Beispieldaten
-ein, prüft die Vorprüfung in allen drei Fällen des Migrationsverlaufs (siehe Abschnitt 4), wendet
-beide Migrationen an, vergleicht den Fingerabdruck der Altdaten, führt die Nachprüfungen dieses
+ein, prüft die Vorprüfung in allen drei Fällen des Migrationsverlaufs (siehe Abschnitt 4) und die
+Rechteprüfung (auch mit einer Rolle ohne Rechte), wendet beide Migrationen **einzeln** wie in
+Weg A an, vergleicht nach jeder den Fingerabdruck der Altdaten, führt die Nachprüfungen dieses
 Runbooks aus (inklusive Tagesnotiz anlegen, ändern, Konflikt, löschen) und testet beide
 Rückfall-Skripte in der richtigen Reihenfolge. Alle Schritte müssen grün sein. Zusätzlich prüft
 `pnpm db:concurrency-test` gleichzeitige Wechsel, Starts und Notiz-Speicherungen mit zwei echten
@@ -55,7 +56,9 @@ Datenbanksitzungen.
 
 ## 1. Zugang zur Produktionsdatenbank
 
-Supabase läuft als eigene Coolify-Ressource. Zwei Wege – je nachdem, was eingerichtet ist:
+Supabase läuft als eigene Coolify-Ressource. Zwei Wege – je nachdem, was eingerichtet ist.
+**Festgelegt (08.10.2026): nur Weg A.** Der Datenbankzugang bleibt im Coolify-Terminal des
+Benutzers; Claude gibt jeweils genau einen Befehl vor und wartet auf dessen Ausgabe.
 
 - **A – Terminal im Datenbank-Container** (Coolify → Supabase-Ressource → Container `supabase-db`
   → Terminal): dort steht `psql` zur Verfügung. Die SQL-Dateien werden per Kopieren/Einfügen oder
@@ -69,10 +72,20 @@ Die Befehle unten sind für Weg B geschrieben; bei Weg A `"$TT_PROD_DB_URL"` dur
 `-U postgres -d postgres` ersetzen. Immer mit `-v ON_ERROR_STOP=1`, damit jeder Fehler sofort
 abbricht.
 
+**Dateien in den Container bringen (Weg A):** benötigt werden die beiden Migrationen,
+`production-precheck.sql`, `data-fingerprint.sql`, `production-postcheck-20261007120000.sql`,
+`production-postcheck.sql` und die beiden Rückfall-Skripte, z. B. nach
+`/tmp/tagestakt-migration/`. Am robustesten als ein Paket (`tar.gz`, base64-kodiert) per
+Einfügen ins Terminal. Danach **immer** `sha256sum` im Container mit den lokal berechneten
+Prüfsummen derselben Git-Stände vergleichen – bei jeder Abweichung nicht fortfahren. Die
+Dateien enthalten nur SQL, keine Daten oder Zugangsdaten; nach Abschluss `/tmp/tagestakt-migration`
+löschen.
+
 ## 2. Sicherung
 
 1. Vollständige Sicherung **vor** jeder Änderung, z. B. `pg_dump -Fc` der Datenbank `postgres`
-   bzw. das Backup-Werkzeug von Coolify für die Supabase-Ressource.
+   bzw. das Backup-Werkzeug von Coolify für die Supabase-Ressource – lokal **und** auf S3,
+   jeweils mit Zeitpunkt und Größe nachgewiesen.
 2. Prüfen, dass die Sicherung lesbar ist (`pg_restore -l <datei> | head`).
 3. Die Datei **außerhalb** des Repositorys verschlüsselt aufbewahren (enthält alle Termine).
 
@@ -94,14 +107,63 @@ Erwartung der Vorprüfung:
 | `migrationsverlauf_vorhanden`      | `true` oder `false`                                          |
 | `migrationsverlauf_fall`           | `1-…`, `2-…` oder `3-…` – entscheidet den Weg in Abschnitt 4 |
 | `eingetragene_versionen` (Hinweis) | z. B. `20261006120000` oder „kein Migrationsverlauf“         |
+| `migrationsverlauf_spalten`        | enthält `version` und `name` (Fall 2/3)                      |
+| `ausfuehrende_rolle`               | `postgres`                                                   |
+| `eigentuemer_bestehender_tabellen` | Hinweis, z. B. `postgres`                                    |
+| `fehlende_rechte`                  | leer                                                         |
+| `rechte_fuer_migration`            | `true` (sonst nicht migrieren, sondern gemeinsam klären)     |
 
 Der Fingerabdruck enthält je Tabelle nur Zeilenzahl und MD5-Prüfsumme – **keine Inhalte**. Die
 Datei `fingerprint-vorher.txt` trotzdem außerhalb des Repositorys ablegen.
 
 ## 4. Migration anwenden
 
+**Tatsächlicher Weg in Produktion (09.10.2026): Studio-SQL-Editor als `supabase_admin`.** Die
+Vorprüfung im Coolify-Terminal ergab PostgreSQL 15.8, Fall `1-tabelle-fehlt` und
+`eigentuemer_bestehender_tabellen=supabase_admin`. Der Rolle `postgres` fehlten
+`create_private`, `eigentuemer_schedule_entries`, `eigentuemer_user_settings` und
+`execute_set_updated_at`, und sie darf nicht zu `supabase_admin` wechseln. Die Initialmigration
+war also über den SQL-Editor von Studio eingespielt worden. Eigentümer, Rollen und Rechte werden
+**nicht** geändert; stattdessen laufen die Migrationen dort, wo die Initialmigration lief:
+
+1. In Studio prüfen: `select current_user, session_user;` muss `supabase_admin` liefern (die
+   Rollenauswahl unten im Editor bleibt auf dem Standard).
+2. „Backup Now“ in Coolify, Erfolg lokal und auf S3, Inhaltsverzeichnis per `pg_restore -l`.
+3. Fingerabdruck vorher (`data-fingerprint.sql` mit vorangestelltem `set transaction read only;`).
+4. Jede Datei als **eigene** Query, vollständig und ohne Markierung ausführen. Ein Run ist eine
+   Transaktion (mehrere Anweisungen in einem Aufruf): Scheitert eine Anweisung, wird der ganze
+   Run zurückgerollt. Reihenfolge: Migration 1 → Zwischenprüfung → Migration 2 → Nachprüfung.
+5. Die Prüfungen laufen in Studio-Form: `set transaction read only;` als erste Anweisung, ohne
+   eigenes `begin`/`commit`, mit eingebautem Vergleich gegen die Fingerabdruck-Werte von vorher;
+   die letzte Anweisung liefert die Erfolgszeile. Jede Abweichung bricht mit Meldung ab.
+
+**Ergebnis 09.10.2026:** frisches Backup (Success, 245 KB, S3 hochgeladen, alle fünf
+Fachtabellen im Inhaltsverzeichnis), beide Migrationen „Success“, Zwischen- und Nachprüfung
+erfolgreich, Fingerabdruck der Altdaten unverändert.
+
+Lokal abgedeckt durch `pnpm db:upgrade-test`, Szenario „produktion“: Die Initialmigration wird
+als `supabase_admin` eingespielt, die Vorprüfung muss genau den obigen Befund liefern, dann wird
+als `supabase_admin` einzeln migriert, geprüft und zurückgefallen.
+
 Die Vorprüfung meldet in `migrationsverlauf_fall` genau einen von drei Fällen. **Nur den
 passenden Weg** gehen; niemals `--include-seed` oder `--include-all` verwenden.
+
+**Weg A (Coolify-Terminal, festgelegt): Migrationen einzeln.** Je Migration genau ein Befehl;
+Datei und Eintrag im Migrationsverlauf laufen in **einer** Transaktion – scheitert etwas, bleibt
+die Datenbank unverändert. Nach jeder Migration Fingerabdruck und Prüfung (Abschnitt 5), erst
+dann die nächste. In Fall 2 und 3 mit `-c` (Eintrag im Verlauf), in Fall 1 ohne:
+
+```bash
+cd /tmp/tagestakt-migration
+psql -U postgres -d postgres -v ON_ERROR_STOP=1 --single-transaction -f 20261007120000_focus_tracking_and_goals.sql -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261007120000', 'focus_tracking_and_goals')"
+# Prüfen (Abschnitt 5, Zwischenprüfung), dann:
+psql -U postgres -d postgres -v ON_ERROR_STOP=1 --single-transaction -f 20261008120000_daily_notes.sql -c "insert into supabase_migrations.schema_migrations (version, name) values ('20261008120000', 'daily_notes')"
+```
+
+Genau dieser Ablauf (inklusive Eintrag im Verlauf, nach dem die Supabase-CLI nichts mehr
+anzuwenden hat) wird in `pnpm db:upgrade-test` lokal geprüft.
+
+**Weg B (nicht gewählt)** – die bisherigen Befehle für ein lokales `psql` bzw. die Supabase-CLI:
 
 **Fall 3 – `3-initialmigration-eingetragen`** (Initialmigration wurde mit der Supabase-CLI
 eingespielt):
@@ -142,6 +204,18 @@ bleibt im Ausgangszustand. Dann **nicht** improvisieren, sondern Fehlermeldung s
 gemeinsam analysieren.
 
 ## 5. Nachprüfung (nur lesend)
+
+Bei Weg A nach der **ersten** Migration (Zwischenstand, Tagesnotizen noch nicht vorhanden):
+
+```bash
+psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -f data-fingerprint.sql > fingerprint-nach-1.txt
+diff fingerprint-vorher.txt fingerprint-nach-1.txt
+psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -f production-postcheck-20261007120000.sql
+```
+
+Erwartung: `diff` ohne Ausgabe, „Zwischenprüfung nach 20261007120000 erfolgreich“. Nach der
+**zweiten** Migration wie folgt (Weg B gezeigt; bei Weg A `"$TT_PROD_DB_URL"` durch
+`-U postgres -d postgres` und `scripts/db/` durch die Dateien in `/tmp/tagestakt-migration` ersetzen):
 
 ```bash
 psql "$TT_PROD_DB_URL" -v ON_ERROR_STOP=1 -At -f scripts/db/data-fingerprint.sql > fingerprint-nachher.txt
