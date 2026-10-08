@@ -196,21 +196,58 @@ Cache verschwunden ist und Offline-Lesen weiter funktioniert.
 | `POST_NOTIFICATIONS`     | lokale Erinnerungen (Abfrage erst beim Einschalten)                                        |
 | `RECEIVE_BOOT_COMPLETED` | geplante Erinnerungen nach Neustart wiederherstellen                                       |
 | `VIBRATE`                | aus der Expo-Vorlage; Vibration von Benachrichtigungen (normale Berechtigung, keine Daten) |
+| `DETECT_SCREEN_CAPTURE`  | nur, weil `expo-screen-capture` sie ab Android 14 beim Laden benötigt (siehe unten)        |
 
 Ausdrücklich gesperrt (`blockedPermissions`, im generierten Manifest als `tools:node="remove"`):
 Standort, Kamera, Mikrofon, Kontakte, Kalender, Speicher, `SYSTEM_ALERT_WINDOW`, `USE_FINGERPRINT`
 (veraltet), `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `com.google.android.c2dm.permission.RECEIVE`
-(Push) sowie `READ_MEDIA_IMAGES` und `DETECT_SCREEN_CAPTURE` (bringt `expo-screen-capture` für
-einen Screenshot-Melder mit, den TagesTakt nicht nutzt). `allowBackup` bleibt `false`.
+(Push) sowie `READ_MEDIA_IMAGES`. `allowBackup` bleibt `false`.
+
+**`DETECT_SCREEN_CAPTURE`** (Android 14+, normale Berechtigung ohne Abfrage) erlaubt **keine**
+Aufnahme oder Auslesung des Bildschirms. Sie informiert die App nur darüber, dass ein Screenshot
+ihrer **eigenen** Oberfläche erstellt wurde. `expo-screen-capture` registriert diesen Melder unter
+Android 14 und neuer bereits beim Laden des Moduls; ohne die Berechtigung scheitert das Laden und
+damit der App-Start („Permission Denial: registerScreenCaptureObserver … requires
+android.permission.DETECT_SCREEN_CAPTURE“, gefunden beim ersten Gerätetest mit einem lokalen
+Debug-Build). Deshalb ist sie nicht mehr gesperrt. TagesTakt wertet Screenshot-Meldungen nicht aus
+und nutzt das Modul weiterhin nur für `preventScreenCaptureAsync` (`FLAG_SECURE`): Schutz sensibler
+Inhalte bzw. leere Vorschau im App-Umschalter bei eingeschalteter App-Sperre. Ein Regressionstest
+(`apps/mobile/src/__tests__/app-config.test.ts`) hält diese Konfiguration fest.
 
 `USE_FINGERPRINT` wird nur von Android 7.0–8.1 (API 24–27) für Fingerabdrücke benötigt. Ab
 Android 9 genügt `USE_BIOMETRIC`. Auf Android 7–8.1 meldet die App die App-Sperre daher als
 „nicht unterstützt“ (der Fehler des Biometrie-Moduls wird abgefangen) – auf dem Gerät zu prüfen,
 falls ein so altes Gerät genutzt werden soll.
 
+**Nur im Release entfernt** (Plugin `apps/mobile/plugins/with-android-release.js`, Manifest des
+Build-Typs `release`): die Launcher-Badge-Berechtigungen aus Bibliotheken von
+`expo-notifications` (Samsung, Huawei, Oppo, HTC, Sony, …, `READ_APP_BADGE`) und
+`com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE` (Play-Store-Zuordnung).
+TagesTakt nutzt keine Badges (`shouldSetBadge`/`showBadge: false`) und keinen Store. Debug-Builds
+behalten sie, ebenso `SYSTEM_ALERT_WINDOW` nur im Debug (Entwickler-Overlay von React Native).
+
+**Release-Builds (eigenständige App):**
+
+- **Nur HTTPS:** Die App startet im Release nur mit einer `https://`-Supabase-URL
+  (`apps/mobile/src/lib/env.ts`). HTTP ist ausschließlich im Debug-Build und nur zu diesem
+  Rechner erlaubt (`127.0.0.1`/`localhost` über `adb reverse`, Emulator `10.0.2.2`) – nie über
+  WLAN, damit Tokens nicht unverschlüsselt übertragen werden. Release-Builds erlauben ohnehin
+  keinen Klartext-Verkehr (`usesCleartextTraffic` nur im Debug).
+- **Getrennte Pakete:** Debug `app.tagestakt.privat.dev`, Release `app.tagestakt.privat`.
+- **Eigener Signierschlüssel:** Pfad, Alias und Passwörter stehen nur in einer
+  `gradle.properties` außerhalb des Repositorys (`TAGESTAKT_RELEASE_STORE_FILE`,
+  `…_STORE_PASSWORD`, `…_KEY_ALIAS`, `…_KEY_PASSWORD`). Fehlen sie, entsteht eine unsignierte APK –
+  nie eine mit dem öffentlich bekannten Debug-Schlüssel signierte. Der Schlüssel wird vom
+  Benutzer selbst erzeugt und im Passwortmanager sowie offline gesichert; `*.jks`/`*.keystore`
+  sind per `.gitignore` und Secret-Scan geschützt. Ohne den Schlüssel sind keine Updates der
+  installierten App möglich (nur Neuinstallation mit Verlust der lokalen App-Daten).
+- **Nur der öffentliche Publishable/Anon-Key** im Bundle; die App verweigert den Start mit einem
+  Secret-/Service-Role-Key.
+
 Geprüft per `expo prebuild` (temporär, außerhalb des Repositorys): angefordert werden nur
 `INTERNET`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `USE_BIOMETRIC` und `VIBRATE`; alle
-gesperrten tragen `tools:node="remove"`. Das endgültige, per Gradle **zusammengeführte**
+gesperrten tragen `tools:node="remove"`. `DETECT_SCREEN_CAPTURE` kommt erst über das Manifest von
+`expo-screen-capture` hinzu. Das endgültige, per Gradle **zusammengeführte**
 Manifest (inklusive Bibliotheken aus Maven) lässt sich erst in einem nativen Build prüfen (siehe
 [mobile-preview-build.md](mobile-preview-build.md)).
 
@@ -249,7 +286,24 @@ Zusätzlich denkbar: Supabase-MFA (TOTP) für das Konto.
 - **Erinnerungen sind nicht minutengenau:** ohne Exact-Alarm-Berechtigung kann Android sie im
   Energiesparmodus verzögern.
 - **Kein Audit-Log** für Änderungen; Versionen werden aber nie überschrieben.
-- **Kein automatisches Backup-Konzept** dokumentiert; im kostenlosen Supabase-Plan regelmäßig
-  selbst exportieren (z. B. `supabase db dump --data-only` lokal, nicht ins Repo).
-- Supabase-Projekte im kostenlosen Plan können bei Inaktivität pausieren.
+- **Backups (Stand 08.10.2026):** Coolify sichert die Datenbank `postgres` täglich um 02:30 UTC
+  lokal (7 Sicherungen) und auf S3 (privater Bucket in einem anderen Rechenzentrum, 30
+  Sicherungen). Vor jeder Produktionsmigration zusätzlich „Backup Now“ mit Prüfung von Erfolg,
+  S3-Upload und Inhaltsverzeichnis (`pg_restore -l`). **Offen:** eine Probe-Wiederherstellung in
+  eine getrennte Datenbank.
+- Supabase-Projekte im kostenlosen Cloud-Plan können bei Inaktivität pausieren – betrifft nur
+  Supabase Cloud; die Produktion läuft selbst gehostet in Coolify.
+- **Härtung für später** (Prüfung vom 08.10.2026, kein akuter Befund): HSTS auch für die
+  API-Domain, Versionsangabe im `Server`-Header des API-Gateways ausblenden, Studio zusätzlich nur
+  per IP-Freigabe oder SSH-Tunnel erreichbar machen, `ufw` als zweite Firewall neben der
+  Hetzner-Cloud-Firewall (eingehend nur 22/80/443; Datenbank-Ports sind nicht veröffentlicht).
+- **Eigentümer in Produktion:** Die Initialmigration wurde über den SQL-Editor von Studio
+  eingespielt; alle Objekte gehören `supabase_admin`, einen Migrationsverlauf gibt es nicht.
+  Migrationen laufen deshalb ebenfalls als `supabase_admin` (siehe
+  [production-migration-runbook.md](production-migration-runbook.md)).
 - Die Seed-Datei legt lokal einen Demo-Benutzer an – sie darf nie gegen Produktion laufen.
+- **Kein Staging-System** (Entscheidung vom 08.10.2026 für den Einzelbenutzerbetrieb): Absicherung
+  über lokale Tests, `db:upgrade-test`, frisches Backup vor jeder Migration, kontrollierte
+  Produktionsmigration und Smoke-Test. **Empfehlung für später:** ein getrenntes Staging (eigene
+  Supabase-Ressource, eigene URL/Schlüssel, eigene App-Variante), sobald weitere Nutzer, ein
+  automatischer Agent oder häufigere Releases hinzukommen.
