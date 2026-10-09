@@ -1,11 +1,29 @@
 import type { Metadata } from "next";
 
+import {
+  type IsoWeekday,
+  type PlannerSlotGoal,
+  type PlanningGoalSlot,
+  type PlanningPreferences,
+  SLOT_GOAL_LABELS,
+} from "@tagestakt/schedule-schema";
+import Link from "next/link";
+
 import { Notice } from "@/components/notice";
+import {
+  type GoalSlotDefaults,
+  GoalSlotsForm,
+  type PlanningRulesDefaults,
+  PlanningRulesForm,
+} from "@/components/planning-rules-form";
 import { GoalSettingsForm, ReminderSettingsForm } from "@/components/settings-form";
 import { logoutAction } from "@/server/actions/auth";
+import { saveGoalSlotsAction, savePlanningPreferencesAction } from "@/server/actions/planner";
 import { saveGoalsAction, saveRemindersAction } from "@/server/actions/settings";
 import { requireUser } from "@/server/auth";
+import { getPlanningRules } from "@/server/data/planner";
 import { getSettings } from "@/server/data/settings";
+import { settle } from "@/server/settle";
 
 export const metadata: Metadata = { title: "Einstellungen" };
 
@@ -15,8 +33,47 @@ function hoursField(minutes: number | null): string {
   return String(Math.round((minutes / 60) * 100) / 100).replace(".", ",");
 }
 
+/** Gespeicherte Regeln als Formularwerte; nicht gespeichert → leer (nichts wird vorgeschlagen). */
+function rulesDefaults(preferences: PlanningPreferences | null): PlanningRulesDefaults {
+  const text = (value: number | undefined) => (value === undefined ? "" : String(value));
+  return {
+    businessEarliestStart: preferences?.businessEarliestStart ?? "",
+    businessLatestEnd: preferences?.businessLatestEnd ?? "",
+    businessMinBlockMinutes: text(preferences?.businessMinBlockMinutes),
+    businessMaxBlockMinutes: text(preferences?.businessMaxBlockMinutes),
+    businessMaxDailyMinutes: text(preferences?.businessMaxDailyMinutes),
+    businessSaturdayMaxMinutes: text(preferences?.businessSaturdayMaxMinutes),
+    businessSundayMaxMinutes: text(preferences?.businessSundayMaxMinutes),
+    bufferMinutes: text(preferences?.bufferMinutes),
+  };
+}
+
+function slotDefaults(
+  slots: readonly PlanningGoalSlot[],
+  goal: PlannerSlotGoal,
+): GoalSlotDefaults[] {
+  return ([1, 2, 3, 4, 5, 6, 7] as const).map((weekday: IsoWeekday) => {
+    const slot = slots.find((s) => s.goal === goal && s.weekday === weekday);
+    return {
+      weekday,
+      active: Boolean(slot),
+      requirement: slot?.requirement ?? "required",
+      title: slot?.title ?? SLOT_GOAL_LABELS[goal],
+      duration: slot ? String(slot.durationMinutes) : "",
+      start: slot?.windowStart ?? "",
+      end: slot?.windowEnd ?? "",
+    };
+  });
+}
+
 export default async function SettingsPage() {
-  const [user, settings] = await Promise.all([requireUser(), getSettings()]);
+  const [user, settings, loadedRules] = await Promise.all([
+    requireUser(),
+    getSettings(),
+    // Ein Ladefehler der Planungsregeln blockiert die übrigen Einstellungen nicht.
+    settle(getPlanningRules(), { preferences: null, slots: [] }),
+  ]);
+  const rules = loadedRules.value;
 
   return (
     <>
@@ -27,7 +84,7 @@ export default async function SettingsPage() {
         </div>
       </header>
 
-      <section className="section" aria-labelledby="ziele-titel">
+      <section className="section" id="wochenziele" aria-labelledby="ziele-titel">
         <div className="section-head">
           <h2 id="ziele-titel">Wochenziele</h2>
         </div>
@@ -42,6 +99,51 @@ export default async function SettingsPage() {
             sport: hoursField(settings.weeklySportTargetMinutes),
             relationship: hoursField(settings.weeklyRelationshipTargetMinutes),
           }}
+        />
+      </section>
+
+      <section className="section" id="planungsregeln" aria-labelledby="regeln-titel">
+        <div className="section-head">
+          <h2 id="regeln-titel">Planungsregeln für den Wochenplaner</h2>
+          <Link href="/planen" className="btn btn--ghost btn--sm">
+            Zum Wochenplaner
+          </Link>
+        </div>
+        <p className="muted">
+          Der Wochenplaner nutzt nur diese Angaben, deine Wochenziele und deine aktiven
+          Wiederholungen (z. B. Dienst). Leere Felder gelten als nicht festgelegt – dann wird nicht
+          geplant, statt Werte zu raten.
+        </p>
+        {loadedRules.failed ? (
+          <Notice tone="error" role="alert">
+            Die Planungsregeln konnten nicht geladen werden. Bitte später erneut versuchen.
+          </Notice>
+        ) : null}
+        <h3>Gewerbe</h3>
+        <PlanningRulesForm
+          action={savePlanningPreferencesAction}
+          defaults={rulesDefaults(rules.preferences)}
+        />
+        <h3>{SLOT_GOAL_LABELS.sport}</h3>
+        <p className="muted small">
+          Je Tag höchstens ein Block. „Verbindlich“ wird immer geplant, „optional“ nur bei genug
+          freier Zeit.
+        </p>
+        <GoalSlotsForm
+          action={saveGoalSlotsAction.bind(null, "sport")}
+          goalLabel={SLOT_GOAL_LABELS.sport}
+          idPrefix="training"
+          slots={slotDefaults(rules.slots, "sport")}
+        />
+        <h3>{SLOT_GOAL_LABELS.relationship}</h3>
+        <p className="muted small">
+          An Claude geht nur die neutrale Bezeichnung „Beziehungszeit“ mit Zeiten – nie der Titel.
+        </p>
+        <GoalSlotsForm
+          action={saveGoalSlotsAction.bind(null, "relationship")}
+          goalLabel={SLOT_GOAL_LABELS.relationship}
+          idPrefix="laila"
+          slots={slotDefaults(rules.slots, "relationship")}
         />
       </section>
 

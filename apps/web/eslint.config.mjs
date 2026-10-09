@@ -48,6 +48,11 @@ export default defineConfig([
               group: ["@supabase/*"],
               message: "Supabase wird ausschließlich in src/server verwendet.",
             },
+            {
+              group: ["@anthropic-ai/*"],
+              message:
+                "Anthropic wird ausschließlich serverseitig in src/server/planner verwendet.",
+            },
           ],
         },
       ],

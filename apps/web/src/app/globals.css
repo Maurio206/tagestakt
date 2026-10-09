@@ -2315,3 +2315,87 @@ html.grid-fullscreen-open body {
   align-items: center;
   min-height: 44px;
 }
+
+/* ---------------------------------------------------------------------------
+   Wochenplaner (Prüfübersicht, Zeitfenster)
+   --------------------------------------------------------------------------- */
+.check-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 1px solid var(--tt-line);
+  border-radius: var(--r-lg);
+  background: var(--tt-surface1);
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 16px;
+  min-height: 44px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--tt-line);
+  font-size: 15px;
+}
+
+.check-row:first-child {
+  border-top: 0;
+}
+
+.check-row dt {
+  color: var(--tt-text-muted);
+}
+
+.check-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.check-row.is-open dd {
+  color: var(--tt-warning);
+}
+
+.check-row dd ul {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-left: 18px;
+  text-align: left;
+  font-weight: 500;
+}
+
+.check-row:has(dd ul) {
+  grid-template-columns: 1fr;
+}
+
+.check-row:has(dd ul) dd {
+  text-align: left;
+}
+
+.planner-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--tt-line-strong);
+}
+
+.planner-note h3 {
+  font-size: 14px;
+}
+
+.pre-line {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.slot-list > li.slot-row {
+  display: block;
+}
+
+.slot-fields {
+  margin-top: 8px;
+}

@@ -31,6 +31,12 @@ export function toUserFacingError(operation: string, error: DatabaseErrorLike): 
   if (isActivityErrorCode(error.code)) {
     return new UserFacingError(ACTIVITY_ERROR_MESSAGES[error.code]);
   }
+  // Wochenplaner: Entwurf wurde zwischen Anzeige/Planung und Speichern geändert.
+  if (error.code === "TT008") {
+    return new UserFacingError(
+      "Der Entwurf wurde inzwischen geändert. Bitte die aktuelle Fassung prüfen und erneut versuchen.",
+    );
+  }
   if (error.code && OWN_MESSAGE_CODES.has(error.code) && message) {
     return new UserFacingError(message);
   }

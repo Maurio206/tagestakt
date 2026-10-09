@@ -46,6 +46,13 @@ export function weekPlanPath(
   return `/wochenplan?${params.toString()}${anchor}`;
 }
 
+/** Wochenplaner-Seite einer Woche (optional mit festem Hinweis). */
+export function planPath(weekStart: string, notice?: NoticeKey): string {
+  const params = new URLSearchParams({ woche: weekStart });
+  if (notice) params.set("hinweis", notice);
+  return `/planen?${params.toString()}`;
+}
+
 export function evaluationPath(
   weekStart: string,
   options: { correctId?: string; notice?: NoticeKey } = {},

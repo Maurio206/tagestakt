@@ -46,8 +46,8 @@ export const base = tseslint.config(
 export const forbiddenSecretEnvSyntax = [
   {
     selector:
-      "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/SECRET|SERVICE_ROLE/]",
+      "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/SECRET|SERVICE_ROLE|ANTHROPIC/]",
     message:
-      "Secret-/Service-Role-Keys dürfen in diesem Paket nicht gelesen werden (nur serverseitig in apps/web/src/server).",
+      "Secret-/Service-Role-/Anthropic-Keys dürfen in diesem Paket nicht gelesen werden (nur serverseitig in apps/web/src/server).",
   },
 ];

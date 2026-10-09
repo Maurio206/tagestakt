@@ -4,7 +4,7 @@ const expoConfig = require("eslint-config-expo/flat");
 const prettier = require("eslint-config-prettier/flat");
 
 const secretEnvSelector =
-  "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/SECRET|SERVICE_ROLE/]";
+  "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/SECRET|SERVICE_ROLE|ANTHROPIC/]";
 
 const asyncStorageRestriction = {
   name: "@react-native-async-storage/async-storage",
@@ -19,6 +19,10 @@ const webPatterns = [
   {
     group: ["@tagestakt/web*", "../../web/*"],
     message: "Mobile darf keine Web-Dateien importieren.",
+  },
+  {
+    group: ["@anthropic-ai/*"],
+    message: "Die App spricht nie direkt mit Anthropic – nur der Web-Server plant.",
   },
 ];
 // Tagesnotizen bleiben online und flüchtig: nie in Offline-Cache, Plan-Abruf, Erinnerungen oder
@@ -50,7 +54,7 @@ module.exports = defineConfig([
         "error",
         {
           selector: secretEnvSelector,
-          message: "Secret-/Service-Role-Keys gehören niemals in die App.",
+          message: "Secret-/Service-Role-/Anthropic-Keys gehören niemals in die App.",
         },
       ],
       "no-restricted-imports": [

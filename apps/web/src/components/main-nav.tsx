@@ -8,6 +8,7 @@ import {
   Menu,
   Repeat,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -16,6 +17,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 const LINKS: readonly { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "Übersicht", icon: LayoutDashboard },
   { href: "/wochenplan", label: "Wochenplan", icon: CalendarDays },
+  { href: "/planen", label: "Planen", icon: Sparkles },
   { href: "/wiederholungen", label: "Wiederholungen", icon: Repeat },
   { href: "/auswertung", label: "Auswertung", icon: ChartColumn },
   { href: "/einstellungen", label: "Einstellungen", icon: Settings },

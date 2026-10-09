@@ -35,7 +35,7 @@ import { PlanningNoteForm } from "@/components/planning-note-form";
 import { WeekGrid } from "@/components/week-grid";
 import { WeekGridFrame } from "@/components/week-grid-frame";
 import { WeekPicker } from "@/components/week-picker";
-import { noticeText, parseUndoTimes, weekPlanPath } from "@/lib/paths";
+import { noticeText, parseUndoTimes, planPath, weekPlanPath } from "@/lib/paths";
 import { saveDailyNoteAction } from "@/server/actions/daily-notes";
 import {
   createDraftAction,
@@ -272,6 +272,13 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
               <p>
                 Noch nicht in der App sichtbar. Änderungen werden sofort im Entwurf gespeichert.
               </p>
+              {entries.some((entry) => entry.source === "agent") ? (
+                <p>
+                  Vom Claude-Wochenplaner erstellt:{" "}
+                  <Link href={planPath(weekStart)}>Prüfübersicht im Wochenplaner</Link> vor dem
+                  Veröffentlichen ansehen.
+                </p>
+              ) : null}
               <div className="button-row">
                 <ActionButton
                   action={publishDraftAction.bind(null, week.id, weekStart)}
