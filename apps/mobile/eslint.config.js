@@ -21,7 +21,8 @@ const webPatterns = [
     message: "Mobile darf keine Web-Dateien importieren.",
   },
 ];
-// Tagesnotizen bleiben online und flüchtig: nie in Offline-Cache, Plan-Abruf oder Erinnerungen.
+// Tagesnotizen bleiben online und flüchtig: nie in Offline-Cache, Plan-Abruf, Erinnerungen oder
+// das Startbildschirm-Widget.
 const dailyNotePatterns = [
   {
     group: [
@@ -79,7 +80,13 @@ module.exports = defineConfig([
     rules: { "no-restricted-imports": ["error", { patterns: dailyNotePatterns }] },
   },
   {
-    files: ["src/lib/notifications.ts", "src/hooks/use-reminder-sync.ts", "src/lib/plan-api.ts"],
+    files: [
+      "src/lib/notifications.ts",
+      "src/hooks/use-reminder-sync.ts",
+      "src/lib/plan-api.ts",
+      "src/lib/home-widget.ts",
+      "src/hooks/use-widget-sync.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",

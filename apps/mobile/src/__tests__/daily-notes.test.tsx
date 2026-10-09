@@ -364,12 +364,14 @@ describe("Datenschutz", () => {
   const resolve = (require as unknown as { resolve: (path: string) => string }).resolve;
   const read = (path: string) => fs.readFileSync(resolve(`../${path}`), "utf8");
 
-  it("Erinnerungen und Offline-Plan kennen keine Tagesnotizen", () => {
+  it("Erinnerungen, Startbildschirm-Widget und Offline-Plan kennen keine Tagesnotizen", () => {
     for (const file of [
       "lib/notifications.ts",
       "hooks/use-reminder-sync.ts",
       "lib/plan-cache.ts",
       "lib/plan-api.ts",
+      "lib/home-widget.ts",
+      "hooks/use-widget-sync.ts",
     ]) {
       const source = read(file);
       expect(source).not.toMatch(/daily[-_]?note/i);

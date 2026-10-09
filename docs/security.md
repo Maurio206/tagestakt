@@ -96,14 +96,15 @@ den Plan-Cache auch offline.
 
 ### Lokale Daten, die nur durch den Betriebssystem-/Sandbox-Schutz gesichert sind
 
-| Daten                                                                                                                                                               | Ort                                         | Schutz                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Zuletzt geladener **veröffentlichter** Plan (Vor-, aktuelle, nächste Woche): Titel, Kategorie, Zeiten, Ort, Erledigt-Status – **ohne** Notizen und Planungshinweise | AsyncStorage (App-Sandbox)                  | nur App-Sandbox / Geräteverschlüsselung; nicht zusätzlich verschlüsselt; Android-Backup deaktiviert; beim Logout gelöscht |
-| Erfasste Aktivitäten dieser Wochen (Ziel, Titel, Zeiten), Wochenziele, Erinnerungs-Vorgaben, Zeitzone, letzte Synchronisierung                                      | AsyncStorage (gleicher Eintrag)             | wie oben                                                                                                                  |
-| Geräteeinstellungen (App-Sperre an/aus, Sperrzeit, Erinnerungen an/aus, „Titel zeigen“) – keine Inhalte                                                             | SecureStore                                 | Android Keystore; beim Logout gelöscht                                                                                    |
-| Geplante lokale Erinnerungen (Zeitpunkt, kurzer Text, `kind`)                                                                                                       | Benachrichtigungsdienst des Betriebssystems | standardmäßig **ohne** Titel, Ort oder Notiz („Gewerbe in 10 Min.“); beim Logout gelöscht                                 |
-| Abfrage-Zwischenspeicher im Arbeitsspeicher                                                                                                                         | RAM (TanStack Query)                        | nur solange die App läuft; beim Logout geleert                                                                            |
-| **Tagesnotizen** (zuletzt geöffneter Tag)                                                                                                                           | nur RAM (TanStack Query)                    | **nie** in AsyncStorage/SecureStore oder im Plan-Cache; ohne Verbindung nicht verfügbar; beim Logout geleert              |
+| Daten                                                                                                                                                                    | Ort                                         | Schutz                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Zuletzt geladener **veröffentlichter** Plan (Vor-, aktuelle, nächste Woche): Titel, Kategorie, Zeiten, Ort, Erledigt-Status – **ohne** Notizen und Planungshinweise      | AsyncStorage (App-Sandbox)                  | nur App-Sandbox / Geräteverschlüsselung; nicht zusätzlich verschlüsselt; Android-Backup deaktiviert; beim Logout gelöscht |
+| Erfasste Aktivitäten dieser Wochen (Ziel, Titel, Zeiten), Wochenziele, Erinnerungs-Vorgaben, Zeitzone, letzte Synchronisierung                                           | AsyncStorage (gleicher Eintrag)             | wie oben                                                                                                                  |
+| Geräteeinstellungen (App-Sperre an/aus, Sperrzeit, Erinnerungen an/aus, „Titel zeigen“) – keine Inhalte                                                                  | SecureStore                                 | Android Keystore; beim Logout gelöscht                                                                                    |
+| Geplante lokale Erinnerungen (Zeitpunkt, kurzer Text, `kind`)                                                                                                            | Benachrichtigungsdienst des Betriebssystems | standardmäßig **ohne** Titel, Ort oder Notiz („Gewerbe in 10 Min.“); beim Logout gelöscht                                 |
+| Startbildschirm-Widget: vorberechnete Segmente der nächsten höchstens 48 h (Titel bzw. bei App-Sperre nur Kategorie, Zeiten, Farbton) – keine IDs, Orte, Notizen, Tokens | SharedPreferences der App (`MODE_PRIVATE`)  | nur App-Sandbox; kein Backup; nach 48 h ab Abruf nicht mehr angezeigt; beim Logout gelöscht                               |
+| Abfrage-Zwischenspeicher im Arbeitsspeicher                                                                                                                              | RAM (TanStack Query)                        | nur solange die App läuft; beim Logout geleert                                                                            |
+| **Tagesnotizen** (zuletzt geöffneter Tag)                                                                                                                                | nur RAM (TanStack Query)                    | **nie** in AsyncStorage/SecureStore oder im Plan-Cache; ohne Verbindung nicht verfügbar; beim Logout geleert              |
 
 Auf einem gerooteten oder kompromittierten Gerät kann der Plan-Cache gelesen werden. Eine
 Bildschirmsperre auf dem Gerät ist daher Voraussetzung.
@@ -140,7 +141,8 @@ Cache verschwunden ist und Offline-Lesen weiter funktioniert.
 - **Keine Inhalte in Logs, Fehlermeldungen oder Telemetrie:** Server Action und Data-Access-
   Schicht protokollieren nur Fehlercodes; Statustexte des Editors enthalten nie den Notiztext.
 - **App:** nur online; nicht im Offline-Cache, nicht in Erinnerungen. ESLint verbietet, dass
-  `plan-cache.ts`, `plan-api.ts`, `notifications.ts` oder `use-reminder-sync.ts` die
+  `plan-cache.ts`, `plan-api.ts`, `notifications.ts`, `use-reminder-sync.ts` oder die Widget-Module
+  (`home-widget.ts`, `use-widget-sync.ts`) die
   Notiz-Module importieren; ein Test prüft das zusätzlich.
 - **Keine KI und keine automatische Auswertung** von Notizen. Ein späterer Agent darf Notizen
   nur nach ausdrücklicher Freigabe lesen (siehe [notes-roadmap.md](notes-roadmap.md)).
@@ -194,7 +196,7 @@ Cache verschwunden ist und Offline-Lesen weiter funktioniert.
 | `INTERNET`               | Verbindung zu Supabase (von Expo/React Native)                                             |
 | `USE_BIOMETRIC`          | App-Sperre                                                                                 |
 | `POST_NOTIFICATIONS`     | lokale Erinnerungen (Abfrage erst beim Einschalten)                                        |
-| `RECEIVE_BOOT_COMPLETED` | geplante Erinnerungen nach Neustart wiederherstellen                                       |
+| `RECEIVE_BOOT_COMPLETED` | geplante Erinnerungen und das Startbildschirm-Widget nach Neustart wiederherstellen        |
 | `VIBRATE`                | aus der Expo-Vorlage; Vibration von Benachrichtigungen (normale Berechtigung, keine Daten) |
 | `DETECT_SCREEN_CAPTURE`  | nur, weil `expo-screen-capture` sie ab Android 14 beim Laden benötigt (siehe unten)        |
 

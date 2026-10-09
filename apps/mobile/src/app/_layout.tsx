@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -9,7 +9,9 @@ import { AuthProvider, useAuth } from "@/auth/auth-context";
 import { AppLockGate } from "@/components/app-lock";
 import { DeviceSettingsProvider } from "@/hooks/device-settings";
 import { useReminderSync } from "@/hooks/use-reminder-sync";
+import { useWidgetSync } from "@/hooks/use-widget-sync";
 import { readMobileEnv } from "@/lib/env";
+import { clearHomeWidget } from "@/lib/home-widget";
 import { spacing, useTheme } from "@/theme";
 
 const envResult = readMobileEnv();
@@ -19,7 +21,15 @@ function ReminderSync() {
   return null;
 }
 
-/** Dienste, die nur mit gültiger Sitzung laufen: Geräteeinstellungen, Erinnerungen, App-Sperre. */
+function WidgetSync() {
+  useWidgetSync();
+  return null;
+}
+
+/**
+ * Dienste, die nur mit gültiger Sitzung laufen: Geräteeinstellungen, Erinnerungen,
+ * Startbildschirm-Widget, App-Sperre.
+ */
 function SessionServices({
   userId,
   onSignOut,
@@ -32,6 +42,7 @@ function SessionServices({
   return (
     <DeviceSettingsProvider key={userId}>
       <ReminderSync />
+      <WidgetSync />
       <AppLockGate onSignOut={onSignOut}>{children}</AppLockGate>
     </DeviceSettingsProvider>
   );
@@ -40,6 +51,11 @@ function SessionServices({
 function RootNavigator() {
   const { session, initializing, signOut } = useAuth();
   const theme = useTheme();
+
+  // Ohne Sitzung (auch nach Ablauf oder Widerruf) zeigt das Widget keine Planinhalte.
+  useEffect(() => {
+    if (!initializing && !session) void clearHomeWidget().catch(() => undefined);
+  }, [initializing, session]);
 
   if (initializing) {
     return (

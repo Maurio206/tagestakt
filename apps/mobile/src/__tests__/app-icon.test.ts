@@ -209,10 +209,10 @@ describe("app.json", () => {
     expect(appConfig.expo.backgroundColor).toBe(dark.bg);
   });
 
-  it("Paketname, Version und Release-Plugin unverändert, versionCode 3", () => {
+  it("Paketname, Version und Release-Plugin unverändert, versionCode ab 3 (Logo)", () => {
     expect(android.package).toBe("app.tagestakt.privat");
     expect(appConfig.expo.version).toBe("0.1.0");
-    expect(android.versionCode).toBe(3);
+    expect(android.versionCode).toBeGreaterThanOrEqual(3);
     expect(appConfig.expo.plugins).toContain("./plugins/with-android-release");
   });
 });

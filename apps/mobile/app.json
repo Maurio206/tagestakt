@@ -10,7 +10,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "app.tagestakt.privat",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
@@ -65,6 +65,7 @@
       ],
       "expo-notifications",
       "./plugins/with-android-release",
+      "./plugins/with-android-widget",
       [
         "./plugins/with-android-splash",
         {

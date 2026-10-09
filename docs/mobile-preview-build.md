@@ -201,6 +201,18 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 - [ ] Gerät neu starten → kommende Erinnerungen kommen weiterhin.
 - [ ] Abmelden → keine Erinnerungen mehr, App-Sperre zurückgesetzt, Plan-Cache gelöscht.
 
+**Startbildschirm-Widget** ([design/widget.md](design/widget.md))
+
+- [ ] „TagesTakt“ erscheint in der Widget-Auswahl mit „Jetzt und danach“; Standard 4 × 2,
+      kleiner als 3 × 2 nicht möglich.
+- [ ] Aktueller Block hervorgehoben, nächster Block mit Uhrzeit; Antippen öffnet „Jetzt“ (auch
+      wenn die App auf einem anderen Tab offen war).
+- [ ] Ohne veröffentlichten Plan: „Kein aktueller Wochenplan“ / „TagesTakt öffnen“.
+- [ ] Blockwechsel bei geschlossener App innerhalb von etwa 10 Minuten; nach Datums- bzw.
+      Zeitzonenwechsel und Neustart korrekt.
+- [ ] App-Sperre ein → Widget zeigt nur Kategorie und Zeit; Abmelden → „Nicht angemeldet“.
+- [ ] Nach mehr als 48 h ohne App-Start: „Plan nicht aktuell“ statt alter Inhalte.
+
 **Offline-Cache**
 
 - [ ] Nach dem Update auf diese Version: Offline-Anzeige funktioniert weiter; Notizen zu
@@ -216,7 +228,8 @@ Mit Beispieldaten oder dem eigenen Konto; keine Bildschirmfotos mit echten Daten
 
 ## 5. Bekannte Grenzen
 
-- Erinnerungen sind nicht minutengenau (keine Exact-Alarm-Berechtigung, bewusst).
+- Erinnerungen sind nicht minutengenau (keine Exact-Alarm-Berechtigung, bewusst); dasselbe gilt
+  für Blockwechsel im Startbildschirm-Widget (bis etwa 10 Minuten später).
 - `expo-notifications` bündelt auf Android die Firebase-Messaging-Bibliothek; sie bleibt ohne
   `google-services.json` und ohne Push-Token ungenutzt.
 - Die Vorschau im Task-Wechsler ist nur bei eingeschalteter App-Sperre geschützt; dann sind auch
