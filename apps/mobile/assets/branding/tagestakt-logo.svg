@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024" data-version="1">
+  <!--
+    TagesTakt-Logo „Fokusstapel“, Version 1 – Quelle der Wahrheit für App-Icon, Adaptive Icon,
+    Themed Icon und Splashscreen (erzeugt mit `pnpm --filter @tagestakt/mobile icons`).
+
+    Fläche 108 × 108 = Android-Adaptive-Icon (sichtbar die mittleren 72, Safe Zone Kreis ⌀ 66).
+    Erlaubt sind nur <rect> und <circle>; data-layer trennt Hintergrund und Vordergrund,
+    data-mono-opacity bestimmt die Deckkraft im einfarbigen Themed Icon.
+    Farben aus packages/design-tokens (Palette „dark“): bg, lineStrong, business sowie
+    blockColors(…, "muted").accent für duty und relationship.
+  -->
+  <rect id="hintergrund" data-layer="background" x="0" y="0" width="108" height="108" fill="#121110"/>
+  <rect id="zeitachse" data-layer="foreground" data-mono-opacity="0.5" x="31.75" y="33" width="3.5" height="42" rx="1.75" fill="#76716A"/>
+  <rect id="vorher" data-layer="foreground" data-mono-opacity="0.55" x="39.5" y="33" width="26" height="10" rx="5" fill="#5B6C7E"/>
+  <rect id="jetzt" data-layer="foreground" data-mono-opacity="1" x="39.5" y="47" width="40" height="14" rx="7" fill="#E2B04A"/>
+  <rect id="danach" data-layer="foreground" data-mono-opacity="0.55" x="39.5" y="65" width="32" height="10" rx="5" fill="#955E69"/>
+  <circle id="jetzt-punkt" data-layer="foreground" data-mono-opacity="1" cx="33.5" cy="54" r="5" fill="#E2B04A"/>
+</svg>

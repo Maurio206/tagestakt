@@ -64,11 +64,16 @@ der **Publishable Key** der Produktion – nur in der Shell des Builds oder in
 `apps/mobile/.env.production.local` (per `.gitignore` ausgeschlossen), niemals ein Secret- oder
 Service-Role-Key. Mit einer HTTP-URL startet der Release nicht.
 
-**Bauen:** nach `prebuild` zuerst die Codegen-Tasks vom normalen Pfad, dann
-`gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a` (unter Windows mit kurzen
-Laufwerksbuchstaben für Repository und `GRADLE_USER_HOME`, sonst scheitert CMake an der
-Pfadlänge). Ein Release ohne die vier Eigenschaften bricht nicht ab, ist aber unsigniert und
-nicht installierbar – nie mit dem Debug-Schlüssel signiert.
+**Bauen:** unter Windows aus einem `git worktree` des gepushten Stands unter einem **kurzen
+echten Pfad** (z. B. `C:\tt`; CMake scheitert sonst an der Pfadlänge), dort
+`pnpm install --frozen-lockfile --prefer-offline`, `.env.production.local` hineinkopieren,
+`expo prebuild -p android --clean`, dann
+`gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a` (`GRADLE_USER_HOME` über ein
+kurzes Laufwerk wie `G:`). **Nicht** das Repository per `subst` ansprechen: Die pnpm-Links der
+Workspace-Pakete zeigen auf den echten Pfad, Metro bündelt dann unvollständig (beobachtet: 1 196
+statt rund 3 500 Module – App-Seiten fehlten, der Build meldete trotzdem Erfolg). Ein Release ohne
+die vier Eigenschaften bricht nicht ab, ist aber unsigniert und nicht installierbar – nie mit dem
+Debug-Schlüssel signiert.
 
 **Vor der Installation prüfen** (alles muss stimmen, sonst nicht installieren):
 
@@ -77,8 +82,15 @@ nicht installierbar – nie mit dem Debug-Schlüssel signiert.
 - JavaScript eingebettet (`assets/index.android.bundle`), keine Verbindung zu Metro nötig.
 - Nur `arm64-v8a` unter `lib/`.
 - Manifest: `allowBackup="false"`, kein `usesCleartextTraffic`, Berechtigungen wie in Abschnitt 3.
-- Im Bundle nur die HTTPS-Produktions-URL, kein `127.0.0.1`/`10.0.2.2`, kein `sb_secret_`, kein
-  `service_role`.
+- Bundle vollständig (Hermes-Bytecode, App-Texte wie „Anmelden“ enthalten), nur die
+  HTTPS-Produktions-URL, kein `127.0.0.1`/`10.0.2.2`. Schlüssel: nur der öffentliche
+  anon/Publishable Key. Hermes legt Zeichenketten ohne Trennzeichen ab – Treffer für
+  `sb_secret_` deshalb über die Source-Map auf ihre Herkunft prüfen (nur Präfix-Literale aus
+  `supabase-js` und `env.ts` sind unkritisch).
+- App-Icon und Startbildschirm: Adaptive Icon mit Vorder-, Hintergrund und Monochrom-Ebene,
+  kein Vorlagen-Platzhalter (siehe [design/app-icon.md](design/app-icon.md)).
+- Update statt Neuinstallation: gleicher Paketname, gleiches Zertifikat, höherer `versionCode`;
+  nur `adb install -r` – nie deinstallieren oder mit `-d` erzwingen.
 
 Staging gibt es bewusst noch nicht; Empfehlung für später siehe [security.md](security.md).
 

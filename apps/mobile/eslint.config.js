@@ -59,6 +59,17 @@ module.exports = defineConfig([
     },
   },
   {
+    // Build-Werkzeuge (Icon-Generator, Config-Plugins) laufen in Node, nie im App-Bundle.
+    files: ["scripts/**/*.js", "plugins/**/*.js"],
+    languageOptions: {
+      globals: { __dirname: "readonly", Buffer: "readonly", process: "readonly" },
+    },
+  },
+  {
+    files: ["scripts/app-icons.js"],
+    rules: { "no-console": "off" },
+  },
+  {
     // Einzige erlaubte Stelle für AsyncStorage: Zwischenspeicher des veröffentlichten Plans (plus Tests).
     files: ["src/lib/plan-cache.ts", "jest.setup.js", "src/__tests__/**"],
     rules: { "no-restricted-imports": "off" },

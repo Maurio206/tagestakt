@@ -10,6 +10,7 @@ Erfassung tatsächlicher Zeit für die drei Lebensziele **Gewerbe, Sport und Lai
 | [design-system.md](design-system.md)       | Markenidee, Tokens (Farben, Typografie, Abstände, Motion …)         |
 | [ui-spec.md](ui-spec.md)                   | Bildschirme, Komponenten, Zustände, Texte, Barrierefreiheit         |
 | [visual-qa.md](visual-qa.md)               | Visuelle Prüfung der Umsetzung gegen das Artefakt                   |
+| [app-icon.md](app-icon.md)                 | App-Icon „Fokusstapel“, Themed Icon, Startbildschirm, Erzeugung     |
 | [../notes-roadmap.md](../notes-roadmap.md) | Konzept für Notizbücher, Import (OneNote), Export – nicht umgesetzt |
 
 ## Bestandsaufnahme vor der Umsetzung (Phase 1)

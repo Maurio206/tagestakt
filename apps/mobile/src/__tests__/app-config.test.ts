@@ -49,8 +49,8 @@ describe("Android-Berechtigungen (app.json)", () => {
     expect(appConfig.expo.orientation).toBe("default");
   });
 
-  it("Release: nächster versionCode, eigenes Release-Plugin eingebunden", () => {
-    expect(android.versionCode).toBe(2);
+  it("Release: versionCode 3 (Logo-Update), eigenes Release-Plugin eingebunden", () => {
+    expect(android.versionCode).toBe(3);
     expect(appConfig.expo.plugins).toContain("./plugins/with-android-release");
   });
 

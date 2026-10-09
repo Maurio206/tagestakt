@@ -7,9 +7,15 @@
     "scheme": "tagestakt",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#121110",
+    "icon": "./assets/icon.png",
     "android": {
       "package": "app.tagestakt.privat",
-      "versionCode": 2,
+      "versionCode": 3,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#121110"
+      },
       "allowBackup": false,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
@@ -58,7 +64,15 @@
         }
       ],
       "expo-notifications",
-      "./plugins/with-android-release"
+      "./plugins/with-android-release",
+      [
+        "./plugins/with-android-splash",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#121110"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
