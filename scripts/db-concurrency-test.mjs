@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Lokaler Nebenläufigkeitstest für Fokus-Erfassung und Tagesnotizen (nur lokale Supabase-Instanz).
+ * Lokaler Nebenläufigkeitstest für Fokus-Erfassung, Tagesnotizen und Wochenplaner (nur lokale
+ * Supabase-Instanz).
  *
  * pgTAP läuft in einer einzigen Transaktion und kann echte Gleichzeitigkeit nicht prüfen.
  * Dieses Skript öffnet zwei gleichzeitige Datenbanksitzungen desselben Test-Benutzers:
@@ -11,6 +12,11 @@
  *  3. zwei gleichzeitige Speichervorgänge einer Tagesnotiz auf demselben Stand → genau einer
  *     gelingt, der andere wird mit TT007 abgewiesen (kein stilles Überschreiben),
  *  4. zwei gleichzeitige Erstanlagen derselben Tagesnotiz → genau eine Notiz,
+ *  5. Wochenplaner: zwei gleichzeitige Planungen ohne Entwurf → genau ein Entwurf, die zweite
+ *     wird mit TT008 abgewiesen (kein stilles Überschreiben),
+ *  6. zwei gleichzeitige Freigaben desselben geprüften Entwurfs (Doppelklick in zwei Tabs) →
+ *     beide gelingen, veröffentlicht ist genau eine Version,
+ *  7. gleichzeitiges Veröffentlichen und Neu-Planen → genau eines gelingt, das andere TT008,
  *
  * und prüft danach, dass nie mehr als eine Aktivität läuft. Der Test-Benutzer wird am Ende
  * samt Daten wieder gelöscht. Niemals gegen Produktion verwenden.
@@ -67,6 +73,17 @@ commit;
     });
     child.stdin.end(sql);
   });
+}
+
+/** Einzelne Abfrage als Test-Benutzer (Rolle authenticated, RLS aktiv). */
+function asUser(expression) {
+  return psql(`begin;
+    set local role authenticated;
+    do $$ begin
+      perform set_config('request.jwt.claims', '{"sub":"${USER_ID}","role":"authenticated"}', true);
+    end $$;
+    select ${expression};
+    commit;`);
 }
 
 function runningCount() {
@@ -163,6 +180,68 @@ try {
     psql(`select count(*) from public.daily_notes
            where owner_id = '${USER_ID}' and note_date = '2026-10-15';`) === "1",
     "für den Tag existiert genau eine Notiz",
+  );
+
+  // 5.–7. Wochenplaner (Prüfstand + Sperre je Woche).
+  psql(`delete from public.schedule_weeks where owner_id = '${USER_ID}';`);
+  const entries = `'[{"title":"Gewerbe-Fokus (Beispiel)","category":"business",
+    "start_at":"2026-10-20T07:00:00Z","end_at":"2026-10-20T10:00:00Z",
+    "location":null,"note":null,"source":"agent"}]'::jsonb`;
+  const generate = (expected) =>
+    `public.save_generated_schedule_draft('2026-10-19', ${expected}, ${entries})`;
+  const plans = await Promise.all([
+    session(generate("null, null"), 0),
+    session(generate("null, null"), 300),
+  ]);
+  assert(plans.filter((r) => r.ok).length === 1, "genau eine gleichzeitige Planung gelingt");
+  assert(
+    plans.some((r) => !r.ok && r.sqlstate === "TT008"),
+    "die zweite Planung wird abgewiesen (TT008) statt den Entwurf zu überschreiben",
+  );
+  assert(
+    psql(`select count(*) from public.schedule_weeks
+           where owner_id = '${USER_ID}' and week_start = '2026-10-19';`) === "1",
+    "es existiert genau ein Entwurf",
+  );
+
+  const draft = psql(`select id from public.schedule_weeks
+                       where owner_id = '${USER_ID}' and week_start = '2026-10-19';`);
+  const fingerprint = asUser(`public.schedule_week_fingerprint('${draft}')`);
+  const publishes = await Promise.all([
+    session(`public.publish_reviewed_schedule_week('${draft}', '${fingerprint}')`, 0),
+    session(`public.publish_reviewed_schedule_week('${draft}', '${fingerprint}')`, 300),
+  ]);
+  assert(
+    publishes.every((r) => r.ok),
+    "doppelte gleichzeitige Freigabe ist harmlos",
+  );
+  assert(
+    psql(`select count(*) from public.schedule_weeks
+           where owner_id = '${USER_ID}' and week_start = '2026-10-19'
+             and status = 'published';`) === "1",
+    "veröffentlicht ist genau eine Version",
+  );
+
+  // Neuer Entwurf (Version 2) als Test-Benutzer, dann Freigabe und Neu-Planen gleichzeitig.
+  const nextDraft = asUser(`(${generate("null, null")}).id`);
+  const nextFingerprint = asUser(`public.schedule_week_fingerprint('${nextDraft}')`);
+  const race = await Promise.all([
+    session(`public.publish_reviewed_schedule_week('${nextDraft}', '${nextFingerprint}')`, 0),
+    session(generate(`'${nextDraft}', '${nextFingerprint}'`), 300),
+  ]);
+  assert(
+    race.filter((r) => r.ok).length === 1,
+    "Veröffentlichen und Neu-Planen: genau eines gelingt",
+  );
+  assert(
+    race.some((r) => !r.ok && r.sqlstate === "TT008"),
+    "das andere wird mit TT008 abgewiesen",
+  );
+  assert(
+    psql(`select count(*) from public.schedule_weeks
+           where owner_id = '${USER_ID}' and week_start = '2026-10-19'
+             and status = 'published';`) === "1",
+    "auch danach ist genau eine Version veröffentlicht",
   );
 } catch (error) {
   failed = true;

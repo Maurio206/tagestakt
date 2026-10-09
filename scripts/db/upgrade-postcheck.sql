@@ -22,6 +22,9 @@ declare
   v_session public.activity_sessions;
   v_note public.daily_notes;
   v_count integer;
+  v_week public.schedule_weeks;
+  v_live uuid;
+  v_fingerprint text;
 begin
   -- 1. Bestehende Einstellungen bleiben, neue Felder haben neutrale Standardwerte.
   select * into strict v_settings from public.user_settings;
@@ -96,6 +99,45 @@ begin
   values ('sport', 'Laufen (Beispiel)', now() - interval '26 hours', now() - interval '25 hours')
   returning * into v_session;
   assert v_session.corrected_at is not null, 'Nachtrag nicht gekennzeichnet';
+
+  -- 6. Wochenplaner (20261009120000): Regeln speichern (owner_id setzt die Datenbank),
+  --    Entwurf atomar erzeugen, veröffentlichte Version bleibt bis zur Freigabe unverändert.
+  insert into public.planning_preferences (
+    business_earliest_start, business_latest_end, business_min_block_minutes,
+    business_max_block_minutes, business_max_daily_minutes, business_saturday_max_minutes,
+    business_sunday_max_minutes, buffer_minutes)
+  values ('08:00', '20:00', 60, 180, 240, 0, 0, 15);
+  insert into public.planning_goal_slots (goal_category, weekday, requirement, title,
+                                          duration_minutes, window_start, window_end)
+  values ('sport', 2, 'required', 'Training (Beispiel)', 60, '18:00', '21:00');
+  assert (select count(*) from public.planning_goal_slots
+           where owner_id = '0d3e0000-0000-4000-8000-0000000000a1') = 1,
+    'Zeitfenster nicht dem Benutzer zugeordnet';
+
+  select id into strict v_live
+    from public.schedule_weeks where week_start = date '2026-10-12' and status = 'published';
+  v_week := public.save_generated_schedule_draft(
+    date '2026-10-12', null, null,
+    '[{"title":"Gewerbe-Fokus","category":"business","start_at":"2026-10-13T07:00:00Z",
+       "end_at":"2026-10-13T10:00:00Z","location":null,"note":"Beispiel","source":"agent"}]'::jsonb,
+    'Vorschlag des Claude-Wochenplaners (Beispiel)');
+  assert v_week.status = 'draft', 'Planer-Entwurf ist kein Entwurf';
+  assert (select count(*) from public.schedule_entries where schedule_week_id = v_week.id) = 1,
+    'Planer-Entwurf ersetzt die Einträge nicht';
+  assert (select status from public.schedule_weeks where id = v_live) = 'published',
+    'veröffentlichte Version durch den Entwurf verändert';
+  select count(*) into v_count from public.schedule_entries where schedule_week_id = v_live;
+  assert v_count = 5, 'Einträge der veröffentlichten Version verändert';
+
+  v_fingerprint := public.schedule_week_fingerprint(v_week.id);
+  perform public.publish_reviewed_schedule_week(v_week.id, v_fingerprint);
+  -- Doppelklick: zweites Veröffentlichen ist harmlos.
+  perform public.publish_reviewed_schedule_week(v_week.id, v_fingerprint);
+  assert (select status from public.schedule_weeks where id = v_live) = 'archived',
+    'bisherige Version nicht archiviert';
+  select count(*) into v_count
+    from public.schedule_weeks where week_start = date '2026-10-12' and status = 'published';
+  assert v_count = 1, 'nicht genau eine veröffentlichte Version';
 
   raise notice 'Upgrade-Nachprüfung erfolgreich';
 end;

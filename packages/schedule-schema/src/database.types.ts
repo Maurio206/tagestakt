@@ -80,6 +80,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      planning_goal_slots: {
+        Row: {
+          created_at: string;
+          duration_minutes: number;
+          goal_category: string;
+          id: string;
+          owner_id: string;
+          requirement: string;
+          title: string;
+          updated_at: string;
+          weekday: number;
+          window_end: string;
+          window_start: string;
+        };
+        Insert: {
+          created_at?: string;
+          duration_minutes: number;
+          goal_category: string;
+          id?: string;
+          owner_id?: string;
+          requirement: string;
+          title: string;
+          updated_at?: string;
+          weekday: number;
+          window_end: string;
+          window_start: string;
+        };
+        Update: {
+          created_at?: string;
+          duration_minutes?: number;
+          goal_category?: string;
+          id?: string;
+          owner_id?: string;
+          requirement?: string;
+          title?: string;
+          updated_at?: string;
+          weekday?: number;
+          window_end?: string;
+          window_start?: string;
+        };
+        Relationships: [];
+      };
+      planning_preferences: {
+        Row: {
+          buffer_minutes: number;
+          business_earliest_start: string;
+          business_latest_end: string;
+          business_max_block_minutes: number;
+          business_max_daily_minutes: number;
+          business_min_block_minutes: number;
+          business_saturday_max_minutes: number;
+          business_sunday_max_minutes: number;
+          created_at: string;
+          owner_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          buffer_minutes: number;
+          business_earliest_start: string;
+          business_latest_end: string;
+          business_max_block_minutes: number;
+          business_max_daily_minutes: number;
+          business_min_block_minutes: number;
+          business_saturday_max_minutes?: number;
+          business_sunday_max_minutes?: number;
+          created_at?: string;
+          owner_id?: string;
+          updated_at?: string;
+        };
+        Update: {
+          buffer_minutes?: number;
+          business_earliest_start?: string;
+          business_latest_end?: string;
+          business_max_block_minutes?: number;
+          business_max_daily_minutes?: number;
+          business_min_block_minutes?: number;
+          business_saturday_max_minutes?: number;
+          business_sunday_max_minutes?: number;
+          created_at?: string;
+          owner_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       recurring_commitments: {
         Row: {
           active: boolean;
@@ -312,6 +396,26 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      publish_reviewed_schedule_week: {
+        Args: { p_expected_fingerprint: string; p_week_id: string };
+        Returns: {
+          created_at: string;
+          id: string;
+          owner_id: string;
+          planning_note: string | null;
+          published_at: string | null;
+          status: string;
+          updated_at: string;
+          version: number;
+          week_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "schedule_weeks";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       publish_schedule_week: {
         Args: { p_week_id: string };
         Returns: {
@@ -355,6 +459,33 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      save_generated_schedule_draft: {
+        Args: {
+          p_entries: Json;
+          p_expected_draft_id: string;
+          p_expected_fingerprint: string;
+          p_planning_note?: string;
+          p_week_start: string;
+        };
+        Returns: {
+          created_at: string;
+          id: string;
+          owner_id: string;
+          planning_note: string | null;
+          published_at: string | null;
+          status: string;
+          updated_at: string;
+          version: number;
+          week_start: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "schedule_weeks";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      schedule_week_fingerprint: { Args: { p_week_id: string }; Returns: string };
       start_activity_session: {
         Args: { p_goal_category: string; p_schedule_entry_id?: string; p_title?: string };
         Returns: {

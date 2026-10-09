@@ -20,9 +20,9 @@
  *     `-c "<Eintrag im Verlauf>"`), danach Fingerabdruck vergleichen (muss identisch sein) und
  *     die passende lesende Prüfung (Zwischenprüfung bzw. scripts/db/production-postcheck.sql),
  *  5. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql),
- *  6. Rückfall-Skripte des Runbooks (erst Tagesnotizen, dann Fokus-Erfassung) anwenden und
- *     prüfen, dass die Altdaten unverändert sind und vorhandene Notizen nicht still gelöscht
- *     werden.
+ *  6. Rückfall-Skripte der Runbooks (erst Wochenplaner, dann Tagesnotizen, dann
+ *     Fokus-Erfassung) anwenden und prüfen, dass die Altdaten unverändert sind und vorhandene
+ *     Planungsregeln bzw. Notizen nicht still gelöscht werden.
  * Zum Schluss wird die lokale Datenbank wieder vollständig zurückgesetzt.
  *
  * Arbeitet ausschließlich mit der lokalen Supabase-Instanz (Docker). Niemals gegen
@@ -50,6 +50,16 @@ const MIGRATIONS = [
     name: "daily_notes",
     check: "scripts/db/production-postcheck.sql",
     expect: "Nachprüfung erfolgreich",
+  },
+  {
+    // Prüfungen in Studio-Form (wie in Produktion im SQL-Editor als supabase_admin).
+    version: "20261009120000",
+    name: "planning_rules",
+    precheck: "scripts/db/production-precheck-20261009120000.sql",
+    ready: "bereit_fuer_20261009120000=true",
+    check: "scripts/db/production-postcheck-20261009120000.sql",
+    expect: "Nachprüfung 20261009120000 erfolgreich",
+    studio: true,
   },
 ];
 
@@ -105,6 +115,14 @@ function psqlText(sql, user = "postgres") {
     ],
     { encoding: "utf8", input: sql, stdio: ["pipe", "pipe", "inherit"] },
   ).trim();
+}
+
+/**
+ * Prüfung in Studio-Form (`set transaction read only;` als erste Anweisung, ohne eigenes
+ * begin/commit): Der SQL-Editor führt eine Query als eine Transaktion aus – hier ebenso.
+ */
+function psqlStudio(file, user = "postgres") {
+  return psqlText(`begin;\n${readFileSync(file, "utf8")}\ncommit;`, user);
 }
 
 /** Führt eine Datei im Container wie im Runbook aus (`psql --single-transaction -f …`). */
@@ -282,8 +300,58 @@ function checkOwnership() {
   process.stdout.write("Alle Tabellen und Funktionen gehören supabase_admin.\n");
 }
 
+/** Vorprüfung vor 20261009120000: bereit für die migrierende Rolle, sonst fehlende Rechte. */
+function checkPlanningPrecheck(migration, scenario) {
+  const output = psqlStudio(migration.precheck, scenario.migrateAs);
+  process.stdout.write(`Vorprüfung ${migration.version} (${scenario.migrateAs}):\n${output}\n`);
+  if (!output.split("\n").includes(migration.ready)) {
+    throw new Error(`Vorprüfung ${migration.version} meldet nicht bereit.`);
+  }
+  if (scenario.id === "produktion") {
+    // Wie in Produktion: postgres fehlen Rechte – die Vorprüfung muss das erkennen.
+    const asPostgres = psqlStudio(migration.precheck, "postgres");
+    if (
+      !asPostgres.includes(migration.ready.replace("=true", "=false")) ||
+      !/fehlende_rechte=\S*execute_set_updated_at/.test(asPostgres)
+    ) {
+      throw new Error("Vorprüfung erkennt die fehlenden Rechte von postgres nicht.");
+    }
+  }
+}
+
+/** Rückfall 20261009120000: bricht bei gespeicherten Planungsregeln ohne Bestätigung ab. */
+function checkPlanningRollback(scenario) {
+  psqlText(`insert into public.planning_preferences (
+              owner_id, business_earliest_start, business_latest_end, business_min_block_minutes,
+              business_max_block_minutes, business_max_daily_minutes,
+              business_saturday_max_minutes, business_sunday_max_minutes, buffer_minutes)
+            values ('${FIXTURE_OWNER}', '08:00', '20:00', 60, 180, 240, 0, 0, 15);`);
+  let aborted = false;
+  try {
+    psql("scripts/db/rollback-20261009120000.sql", scenario.migrateAs);
+  } catch {
+    aborted = true;
+  }
+  if (!aborted || psqlText("select count(*) from public.planning_preferences;") !== "1") {
+    throw new Error("Der Rückfall hätte Planungsregeln ohne Bestätigung gelöscht.");
+  }
+  process.stdout.write("Rückfall 20261009120000 bricht bei vorhandenen Planungsregeln ab.\n");
+  psqlText("delete from public.planning_preferences;");
+  psql("scripts/db/rollback-20261009120000.sql", scenario.migrateAs);
+  const left = psqlText(
+    `select (to_regclass('public.planning_preferences') is null
+             and to_regclass('public.planning_goal_slots') is null
+             and to_regprocedure('public.publish_reviewed_schedule_week(uuid, text)') is null)::text;`,
+  );
+  if (left !== "true") throw new Error("Der Rückfall 20261009120000 hat Objekte übrig gelassen.");
+}
+
 /** Rückfall des Runbooks: entfernt nur die neuen Objekte, Altdaten bleiben identisch. */
 function checkRollback(scenario, before) {
+  checkPlanningRollback(scenario);
+  if (psql("scripts/db/data-fingerprint.sql") !== before) {
+    throw new Error("Der Rückfall 20261009120000 hat bestehende Daten verändert.");
+  }
   // Vorhandene Tagesnotizen dürfen ohne ausdrückliche Bestätigung nicht verloren gehen.
   psqlText(`insert into public.daily_notes (owner_id, note_date, content)
             values ('${FIXTURE_OWNER}', '2026-10-14', 'Beispielnotiz');`);
@@ -331,11 +399,14 @@ function runScenario(scenario) {
   }
 
   for (const migration of MIGRATIONS) {
+    if (migration.precheck) checkPlanningPrecheck(migration, scenario);
     applyLikeProduction(migration, scenario);
     if (psql("scripts/db/data-fingerprint.sql") !== before) {
       throw new Error(`Bestehende Daten wurden durch ${migration.version} verändert.`);
     }
-    const result = psql(migration.check);
+    const result = migration.studio
+      ? psqlStudio(migration.check, scenario.migrateAs)
+      : psql(migration.check);
     if (!result.includes(migration.expect)) {
       throw new Error(`Prüfung nach ${migration.version} fehlgeschlagen.`);
     }

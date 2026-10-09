@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+select plan(83);
 
 -- -----------------------------------------------------------------------------
 -- Testdaten (als postgres; Tabelleneigentümer umgeht RLS)
@@ -38,6 +38,15 @@ values ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', '11111111-1111-4111-8111-1111111
 insert into public.daily_notes (id, owner_id, note_date, content)
 values ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '11111111-1111-4111-8111-111111111111',
         '2026-10-05', 'Beispielnotiz');
+
+insert into public.planning_preferences (owner_id, business_earliest_start, business_latest_end,
+  business_min_block_minutes, business_max_block_minutes, business_max_daily_minutes, buffer_minutes)
+values ('11111111-1111-4111-8111-111111111111', '08:00', '21:00', 60, 180, 240, 15);
+
+insert into public.planning_goal_slots (id, owner_id, goal_category, weekday, requirement, title,
+  duration_minutes, window_start, window_end)
+values ('ffffffff-ffff-4fff-8fff-ffffffffffff', '11111111-1111-4111-8111-111111111111', 'sport', 1,
+        'required', 'Training (Beispiel)', 60, '17:00', '20:00');
 
 -- -----------------------------------------------------------------------------
 -- 1. Anonym
@@ -87,6 +96,21 @@ select throws_ok(
 select throws_ok(
   $$ select * from public.save_daily_note('2026-10-06', 'x') $$,
   '42501', null, 'anon: kann keine Tagesnotiz per RPC speichern');
+select throws_ok($$ select * from public.planning_preferences $$, '42501', null,
+  'anon: kein Lesezugriff auf planning_preferences');
+select throws_ok($$ select * from public.planning_goal_slots $$, '42501', null,
+  'anon: kein Lesezugriff auf planning_goal_slots');
+select throws_ok(
+  $$ select public.schedule_week_fingerprint('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') $$,
+  '42501', null, 'anon: kein Fingerabdruck fremder Wochen');
+select throws_ok(
+  $$ select public.save_generated_schedule_draft('2026-10-12', null, null,
+       '[{"title":"x","category":"business","start_at":"2026-10-12T07:00:00Z","end_at":"2026-10-12T08:00:00Z","source":"agent"}]') $$,
+  '42501', null, 'anon: kann keinen Planer-Entwurf speichern');
+select throws_ok(
+  $$ select public.publish_reviewed_schedule_week('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+       repeat('a', 64)) $$,
+  '42501', null, 'anon: kann nicht geprüft veröffentlichen');
 
 reset role;
 
@@ -194,6 +218,34 @@ select throws_ok(
        'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 1) $$,
   'TT007', null, 'fremd: kann eine fremde Tagesnotiz nicht per RPC überschreiben');
 
+select is_empty($$ select * from public.planning_preferences $$,
+  'fremd: sieht keine fremden Planungsregeln');
+select is_empty($$ select * from public.planning_goal_slots $$,
+  'fremd: sieht keine fremden Zeitfenster');
+select is_empty(
+  $$ update public.planning_preferences set buffer_minutes = 0 returning owner_id $$,
+  'fremd: kann fremde Planungsregeln nicht ändern');
+select is_empty(
+  $$ delete from public.planning_goal_slots returning id $$,
+  'fremd: kann fremde Zeitfenster nicht löschen');
+select throws_ok(
+  $$ insert into public.planning_goal_slots (owner_id, goal_category, weekday, requirement, title,
+       duration_minutes, window_start, window_end)
+     values ('11111111-1111-4111-8111-111111111111', 'sport', 2, 'required', 'x', 60, '17:00', '19:00') $$,
+  '42501', null, 'fremd: kann keine Zeitfenster im Namen eines anderen anlegen');
+select throws_ok(
+  $$ select public.schedule_week_fingerprint('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') $$,
+  'P0002', null, 'fremd: kein Fingerabdruck fremder Wochen');
+select throws_ok(
+  $$ select public.publish_reviewed_schedule_week('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+       repeat('a', 64)) $$,
+  'P0002', null, 'fremd: kann fremde Wochen nicht geprüft veröffentlichen');
+select is(
+  (public.save_generated_schedule_draft('2026-10-05', null, null,
+     '[{"title":"Fremd (Beispiel)","category":"business","start_at":"2026-10-06T07:00:00Z","end_at":"2026-10-06T08:00:00Z","source":"agent"}]')).owner_id,
+  '22222222-2222-4222-8222-222222222222'::uuid,
+  'fremd: Planer-Entwurf entsteht nur im eigenen Konto (nie in einer fremden Woche)');
+
 -- Eigene Daten anlegen funktioniert; owner_id kann nicht auf einen anderen umgeschrieben werden
 select lives_ok(
   $$ insert into public.user_settings default values $$,
@@ -225,6 +277,18 @@ select is(
   'Beispielnotiz',
   'Tagesnotiz des Eigentümers ist nach den Angriffen unverändert'
 );
+select is(
+  (select buffer_minutes from public.planning_preferences
+    where owner_id = '11111111-1111-4111-8111-111111111111'),
+  15::smallint,
+  'Planungsregeln des Eigentümers sind nach den Angriffen unverändert'
+);
+select is(
+  (select count(*)::int from public.schedule_entries
+    where schedule_week_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+  1,
+  'Woche des Eigentümers ist nach dem fremden Planer-Aufruf unverändert'
+);
 
 -- -----------------------------------------------------------------------------
 -- 3. Eigentümer
@@ -239,6 +303,10 @@ select is((select count(*)::int from public.schedule_weeks), 1,
   'Eigentümer: sieht seine Wochenpläne');
 select is((select count(*)::int from public.activity_sessions), 1,
   'Eigentümer: sieht seine Aktivitäten');
+select is((select count(*)::int from public.planning_goal_slots), 1,
+  'Eigentümer: sieht seine Zeitfenster');
+select is((select count(*)::int from public.schedule_weeks), 1,
+  'Eigentümer: sieht den fremden Planer-Entwurf nicht');
 select lives_ok(
   $$ select public.start_activity_session('sport', 'Laufen (Beispiel)') $$,
   'Eigentümer: kann eine Aktivität starten');
