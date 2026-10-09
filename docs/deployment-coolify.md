@@ -41,6 +41,8 @@ In Coolify unter **Environment Variables** der Anwendung anlegen (Werte nie in D
 NEXT_PUBLIC_SUPABASE_URL=https://api.plan.north-frame.de
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<öffentlicher Publishable-/Anon-Key>
 TAGESTAKT_OWNER_USER_ID=<UUID des einzigen angelegten Supabase-Benutzers>
+ANTHROPIC_API_KEY=<nur als Secret, gibt der Benutzer selbst ein>
+ANTHROPIC_MODEL=<optional, Standard claude-opus-5-5>
 ```
 
 | Variable                               | Build    | Laufzeit | Hinweis                                                          |
@@ -48,6 +50,8 @@ TAGESTAKT_OWNER_USER_ID=<UUID des einzigen angelegten Supabase-Benutzers>
 | `NEXT_PUBLIC_SUPABASE_URL`             | **ja**   | **ja**   | öffentlich; muss mit `https://` beginnen                         |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | **ja**   | **ja**   | öffentlich; nur Publishable Key oder Legacy-JWT mit Rolle `anon` |
 | `TAGESTAKT_OWNER_USER_ID`              | **nein** | **ja**   | serverseitig, Pflicht in Produktion                              |
+| `ANTHROPIC_API_KEY`                    | **nein** | **ja**   | Secret, nur serverseitig; ohne ihn ist nur der Wochenplaner aus  |
+| `ANTHROPIC_MODEL`                      | **nein** | **ja**   | optional; Standard `claude-opus-5-5`                             |
 
 - In Coolify heißen die Schalter je nach Version „Build Variable?“ bzw. „Available at Buildtime“
   und „Available at Runtime“. Die beiden `NEXT_PUBLIC_*`-Variablen brauchen **beides**: Next.js
@@ -57,6 +61,26 @@ TAGESTAKT_OWNER_USER_ID=<UUID des einzigen angelegten Supabase-Benutzers>
 - Fehlt eine Variable oder ist sie ungültig, bricht der Container beim Start mit einer klaren
   Meldung im Coolify-Log ab (`[tagestakt] Konfigurationsfehler …`) – die Website läuft dann nie
   ungeschützt an. Fehlen die `NEXT_PUBLIC_*`-Werte schon beim Build, bricht der Build ab.
+
+### Claude-Wochenplaner: `ANTHROPIC_API_KEY` eintragen
+
+Den Schlüssel trägt **nur der Benutzer selbst** in Coolify ein – er wird nie in einen Chat,
+ein Ticket, eine Datei oder das Repository kopiert.
+
+1. Anthropic Console → API Keys → neuen Schlüssel für TagesTakt anlegen (eigener Workspace mit
+   Ausgabenlimit empfohlen) und direkt aus der Zwischenablage weiterverwenden.
+2. Coolify → Anwendung der Website → **Environment Variables** → **+ Add**:
+   Name `ANTHROPIC_API_KEY`, Wert einfügen, **„Is Secret?“/„Lock“ aktivieren**,
+   **„Available at Buildtime“/„Build Variable?“ aus**, „Available at Runtime“ an. Speichern.
+3. Optional `ANTHROPIC_MODEL` genauso anlegen (ohne Secret-Schalter), nur wenn ein anderes Modell
+   als `claude-opus-5-5` gewünscht ist.
+4. **Neu deployen** (Laufzeitvariablen wirken erst nach einem Neustart des Containers).
+5. Prüfen, ohne den Wert zu sehen: `/planen` zeigt **nicht** mehr „Wochenplaner nicht
+   eingerichtet“. Niemals `NEXT_PUBLIC_ANTHROPIC_…` anlegen – die Website verweigert dann den
+   Start, weil der Wert im Browser-Bundle landen würde.
+
+Bei Verdacht auf Offenlegung: Schlüssel in der Anthropic Console widerrufen, neuen anlegen,
+in Coolify ersetzen, neu deployen.
 
 ### Woher kommen die Werte?
 
@@ -72,6 +96,8 @@ TAGESTAKT_OWNER_USER_ID=<UUID des einzigen angelegten Supabase-Benutzers>
   Coolify-Vorlage z. B. `SERVICE_SUPABASESERVICE_KEY`), **kein** `SUPABASE_SECRET_KEY`,
   **kein** `JWT_SECRET`, **keine** Datenbankpasswörter. Die Website braucht sie nicht; wird ein
   solcher Schlüssel als öffentlicher Schlüssel eingetragen, verweigert sie den Start.
+- **Kein** `NEXT_PUBLIC_ANTHROPIC_*`/`NEXT_PUBLIC_CLAUDE_*` – der Anthropic-Schlüssel ist ein
+  reines Server-Secret (die Startprüfung bricht sonst ab).
 - **Keine** Login-E-Mail und **kein** Passwort als Umgebungsvariable – die Anmeldung erfolgt
   ausschließlich über das Login-Formular.
 - **Keine** echten Werte in `.env`-Dateien im Repository. `.env.example` enthält nur Platzhalter.
@@ -130,6 +156,8 @@ docker run --rm -p 3000:3000 -e NEXT_PUBLIC_SUPABASE_URL=https://supabase.exampl
 | Anmeldung mit einem anderen, gültigen Supabase-Konto (falls zum Test vorhanden) | „Dieses Konto ist für TagesTakt nicht freigeschaltet.“                                                             |
 | Browser-Quelltext (`Strg+U`) und Entwicklerwerkzeuge                            | keine Owner-UUID, keine Secret-Keys, keine Passwörter; Cookies nicht per `document.cookie` lesbar                  |
 | Coolify-Logs                                                                    | keine Tokens, Passwörter oder Termininhalte                                                                        |
+| `/planen` (angemeldet)                                                          | ohne Schlüssel: „Wochenplaner nicht eingerichtet“; mit Schlüssel: Voraussetzungen bzw. „Woche mit Claude planen“   |
+| Browser-Bundle (`/_next/static`) durchsuchen                                    | kein `sk-ant-`, kein `ANTHROPIC_API_KEY`                                                                           |
 | Response-Header (Entwicklerwerkzeuge → Netzwerk)                                | `Content-Security-Policy`, `X-Robots-Tag: noindex, nofollow`, `X-Frame-Options: DENY`, `Strict-Transport-Security` |
 
 Der öffentliche Schlüssel und die Supabase-URL dürfen im Client-Code auftauchen – sie sind

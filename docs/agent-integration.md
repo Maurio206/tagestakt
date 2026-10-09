@@ -1,5 +1,10 @@
 # Späterer Claude-Agent-Anschluss (Konzept – nicht implementiert)
 
+> **Umgesetzt ist inzwischen der serverseitige Claude-Wochenplaner** in der Website
+> ([claude-planner.md](claude-planner.md)): Er erzeugt nur Entwürfe, veröffentlicht nie selbst und
+> nutzt die Sitzung des angemeldeten Benutzers. Dieses Dokument beschreibt weiterhin den
+> **externen** Agent-Endpunkt, der noch nicht existiert.
+
 In einer späteren Phase soll ein separater Claude-Agent aus einer Unterhaltung einen Wochenplan
 erstellen und hochladen. **In dieser Phase existieren dafür weder Endpunkt noch Schlüssel noch
 Tabellen.** Vorbereitet sind nur der Entwurfs-Workflow, die Quelle `source = 'agent'` und das

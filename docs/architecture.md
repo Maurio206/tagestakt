@@ -159,9 +159,20 @@ der Modus gesperrt.
 - Neue Wochen können **nur als Entwurf** angelegt werden – auch ein späterer Agent kann also nie
   direkt veröffentlichen.
 
+## Claude-Wochenplaner
+
+Der Planer läuft ausschließlich im Next.js-Server: Browser und App sprechen nie mit Anthropic,
+der Schlüssel liegt nur als Server-Secret vor. Er liest die eigenen Einstellungen, Regeln und
+Wiederholungen mit der Sitzung des Benutzers (RLS, kein Service-Role-Key), schickt nur bereinigte
+Zeiten an Claude, prüft die strukturierte Antwort deterministisch und speichert sie atomar als
+Entwurf. Veröffentlicht wird nur durch den Benutzer, mit Prüfstand gegen veraltete Ansichten.
+App und Widget lesen unverändert nur veröffentlichte Wochen. Details:
+[claude-planner.md](claude-planner.md).
+
 ## Grenze zum späteren Agenten
 
-Der Claude-Agent ist **nicht** Teil dieser Phase. Vorbereitet sind:
+Ein **externer** Claude-Agent (eigener Endpunkt, eigene Tokens) ist **nicht** Teil dieser Phase.
+Vorbereitet sind:
 
 - der Entwurfs-Workflow (Agent → Entwurf, Mensch → Veröffentlichen),
 - die Quelle `source = 'agent'` in `schedule_entries`,
@@ -189,4 +200,5 @@ Es gibt keinen Agent-Endpunkt, keinen Agent-Schlüssel und keine Agent-Tabellen.
 | Symbole                          | Lucide (`lucide-react`, `lucide-react-native`) | Einheitlich in Web und App, als Komponenten gebündelt (keine externen Ressourcen, CSP bleibt streng).              |
 | Erinnerungen                     | `expo-notifications`, nur lokal                | Kein Push-Dienst nötig; keine Exact-Alarm-Berechtigung (dafür nicht minutengenau).                                 |
 | Tagesnotiz                       | eigene Tabelle `daily_notes`, eigene Migration | Unabhängig von Planversionen; additive Migration mit eigenem Rollback statt Änderung der Aktivitäts-Migration.     |
+| Wochenplaner                     | Server Action + Hintergrundauftrag (`after`)   | Planen dauert Minuten; die Seite fragt den Zustand ab, statt eine lange Anfrage offen zu halten (Proxy-Timeouts).  |
 | Unschärfe der Nachbarblöcke      | CSS `filter: blur` bzw. RN `filter` (Android)  | iOS unterstützt `blur` in React Native nicht – dort nur blass und angeschnitten.                                   |

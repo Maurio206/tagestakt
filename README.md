@@ -6,8 +6,11 @@ Geplant wird über eine geschützte Verwaltungswebsite.
 
 > Status: MVP plus Designsystem, Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
 > Sport und Laila), Fokusfläche auf der Startseite und Tagesnotiz (reiner Text je Kalendertag;
-> Ausbau zu Notizbüchern nur als Konzept: [docs/notes-roadmap.md](docs/notes-roadmap.md)). Ein späterer Claude-Agent, der Wochenpläne als Entwurf hochlädt, ist
-> konzipiert ([docs/agent-integration.md](docs/agent-integration.md)), aber **nicht** implementiert.
+> Ausbau zu Notizbüchern nur als Konzept: [docs/notes-roadmap.md](docs/notes-roadmap.md)) sowie der
+> serverseitige **Claude-Wochenplaner** (Entwurf aus eigenen Regeln, Veröffentlichen nur nach
+> Prüfung: [docs/claude-planner.md](docs/claude-planner.md)). Ein externer Claude-Agent mit
+> eigenem Endpunkt ist konzipiert ([docs/agent-integration.md](docs/agent-integration.md)), aber
+> **nicht** implementiert.
 
 ## Architektur auf einen Blick
 
@@ -68,7 +71,8 @@ Die Website wird als Docker-Image (Next.js Standalone, `Dockerfile` im Wurzelver
 Coolify betrieben; Supabase läuft als eigene Ressource. Einstellungen, Variablen und Prüfungen
 nach dem Deployment: **[docs/deployment-coolify.md](docs/deployment-coolify.md)**. Neue
 Migrationen werden nur gemeinsam mit dem Benutzer nach
-**[docs/production-migration-runbook.md](docs/production-migration-runbook.md)** angewendet;
+**[docs/production-migration-runbook.md](docs/production-migration-runbook.md)** bzw.
+[docs/production-migration-20261009.md](docs/production-migration-20261009.md) angewendet;
 private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.md)**.
 
 ## Befehle

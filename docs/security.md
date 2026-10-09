@@ -69,6 +69,21 @@ zusammen mit korrekt getesteter RLS verwendet werden.
   (das Entfernen aus Git allein genügt nicht).
 - Protokolliert werden nur Fehlercodes – keine Passwörter, Tokens oder vollständigen Termine.
 
+## Claude-Wochenplaner
+
+- `ANTHROPIC_API_KEY` nur als Server-Secret (Coolify, Laufzeit). ESLint verbietet
+  `process.env.*ANTHROPIC*` in Komponenten, `src/lib` und der App sowie Importe von
+  `@anthropic-ai/*` in Komponenten, `src/lib` und der App; die Startprüfung bricht bei
+  `NEXT_PUBLIC_`/`EXPO_PUBLIC_`-Varianten ab; `pnpm check:secrets` erkennt `sk-ant-…`.
+- Jede Planung läuft mit der geprüften Sitzung des Owners (RLS), `owner_id` setzt die Datenbank.
+- An Anthropic gehen nur Zeiten, neutrale Arten und Regeln – keine Titel, Notizen, Orte, Namen,
+  IDs, E-Mail, Tokens oder Tagesnotizen (Test: `apps/web/src/server/planner/planner.test.ts`).
+  Texte aus der Datenbank können deshalb keine Anweisungen an das Modell sein.
+- Modellantworten sind Daten: strenges Schema, deterministische Prüfung, nur Klartext in der UI.
+- Begrenzung: ein laufender Auftrag, höchstens 8 Planungen je Stunde (Kostenschutz).
+- Logs enthalten nur Fehlerart/Status, nie Prompt, Antwort oder Inhalte.
+- Siehe [claude-planner.md](claude-planner.md).
+
 ## Ein-Benutzer-Modell
 
 - Keine Registrierung in Web oder App, kein „Registrieren“-Button.
@@ -288,6 +303,10 @@ Zusätzlich denkbar: Supabase-MFA (TOTP) für das Konto.
 - **Erinnerungen sind nicht minutengenau:** ohne Exact-Alarm-Berechtigung kann Android sie im
   Energiesparmodus verzögern.
 - **Kein Audit-Log** für Änderungen; Versionen werden aber nie überschrieben.
+- **Planer-Aufträge nur im Speicher:** Rate-Limit und Auftragsstatus gehen bei einem Neustart des
+  Web-Containers verloren (für einen Benutzer und einen Prozess ausreichend).
+- **Drittanbieter:** Für die Planung verarbeitet Anthropic die bereinigten Zeiten und Regeln
+  gemäß dessen API-Bedingungen.
 - **Backups (Stand 08.10.2026):** Coolify sichert die Datenbank `postgres` täglich um 02:30 UTC
   lokal (7 Sicherungen) und auf S3 (privater Bucket in einem anderen Rechenzentrum, 30
   Sicherungen). Vor jeder Produktionsmigration zusätzlich „Backup Now“ mit Prüfung von Erfolg,
