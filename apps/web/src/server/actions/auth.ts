@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { loginErrorMessage } from "@/lib/auth-messages";
 import { type ActionState, formValues, readString, validationError } from "@/lib/form";
+import { safeReturnPath } from "@/lib/paths";
 
 import { isAllowedUser } from "../auth";
 import { createSupabaseServerClient } from "../supabase";
@@ -21,7 +22,7 @@ const loginSchema = z.object({
 
 export async function loginAction(_state: ActionState, formData: FormData): Promise<ActionState> {
   // Das Passwort wird niemals zurückgegeben oder protokolliert.
-  const values = formValues(formData, ["password"]);
+  const values = formValues(formData, ["password", "weiter"]);
   const parsed = loginSchema.safeParse({
     email: readString(formData, "email")?.trim(),
     password: readString(formData, "password"),
@@ -41,7 +42,8 @@ export async function loginAction(_state: ActionState, formData: FormData): Prom
       values,
     };
   }
-  redirect("/");
+  // Rücksprung nur zur Connector-Freigabe; alles andere führt zur Startseite.
+  redirect(safeReturnPath(readString(formData, "weiter")) ?? "/");
 }
 
 export async function logoutAction(): Promise<void> {

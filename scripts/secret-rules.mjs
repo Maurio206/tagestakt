@@ -24,7 +24,13 @@ const PATTERNS = [
   { name: "Anthropic API Key", regex: /sk-ant-[A-Za-z0-9_-]{20,}/g },
   {
     name: "Secret in öffentlicher Variable",
-    regex: /\b(NEXT_PUBLIC|EXPO_PUBLIC)_[A-Z0-9_]*(SECRET|SERVICE_ROLE)[A-Z0-9_]*\s*=/g,
+    regex:
+      /\b(NEXT_PUBLIC|EXPO_PUBLIC)_[A-Z0-9_]*(SECRET|SERVICE_ROLE|DATABASE_URL)[A-Z0-9_]*\s*=/g,
+  },
+  // OAuth-Codes, Tokens und Bestätigungen des Claude-Connectors (gespeichert nur als Hash).
+  {
+    name: "TagesTakt-Connector-Token",
+    regex: /\btt_(ac|at|rt|pc)_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
   },
   {
     name: "Postgres-Verbindung mit Passwort",

@@ -63,6 +63,41 @@ export function evaluationPath(
   return `/auswertung?${params.toString()}`;
 }
 
+/** Zustimmungsseite des Claude-Connectors (OAuth-Autorisierung). */
+export const AUTHORIZE_PATH = "/oauth/authorize";
+
+/** Öffentliche Connector-Endpunkte: eigene Authentifizierung (OAuth), keine Website-Sitzung. */
+export function isConnectorApiPath(pathname: string): boolean {
+  return (
+    pathname === "/mcp" ||
+    pathname === "/api/oauth/token" ||
+    pathname === "/api/oauth/revoke" ||
+    pathname.startsWith("/.well-known/")
+  );
+}
+
+const RETURN_BASE = "https://tagestakt.invalid";
+
+/**
+ * Rücksprung nach der Anmeldung – ausschließlich zur Connector-Freigabe derselben Website.
+ * Alles andere (fremde Hosts, andere Pfade, `//…`) wird verworfen: keine offenen Redirects.
+ */
+export function safeReturnPath(value: string | null | undefined): string | null {
+  if (!value || value.length > 4096 || !value.startsWith(`${AUTHORIZE_PATH}?`)) return null;
+  let url: URL;
+  try {
+    url = new URL(value, RETURN_BASE);
+  } catch {
+    return null;
+  }
+  if (url.origin !== RETURN_BASE || url.pathname !== AUTHORIZE_PATH) return null;
+  return `${url.pathname}${url.search}`;
+}
+
+export function loginPathWithReturn(returnPath: string | null): string {
+  return returnPath ? `/login?${new URLSearchParams({ weiter: returnPath }).toString()}` : "/login";
+}
+
 /** Liest „vorher“ (`start_ende` als ISO-Zeitstempel) aus der URL; ungültig → undefined. */
 export function parseUndoTimes(
   value: string | undefined,

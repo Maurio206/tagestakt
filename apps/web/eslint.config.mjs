@@ -49,9 +49,9 @@ export default defineConfig([
               message: "Supabase wird ausschließlich in src/server verwendet.",
             },
             {
-              group: ["@anthropic-ai/*"],
+              group: ["@modelcontextprotocol/*", "postgres"],
               message:
-                "Anthropic wird ausschließlich serverseitig in src/server/planner verwendet.",
+                "Connector (MCP) und Datenbankzugang nur serverseitig in src/server/connector.",
             },
           ],
         },

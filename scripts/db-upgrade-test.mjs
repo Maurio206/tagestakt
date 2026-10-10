@@ -20,7 +20,7 @@
  *     `-c "<Eintrag im Verlauf>"`), danach Fingerabdruck vergleichen (muss identisch sein) und
  *     die passende lesende Prüfung (Zwischenprüfung bzw. scripts/db/production-postcheck.sql),
  *  5. Nachprüfungen als angemeldeter Benutzer (scripts/db/upgrade-postcheck.sql),
- *  6. Rückfall-Skripte der Runbooks (erst Wochenplaner, dann Tagesnotizen, dann
+ *  6. Rückfall-Skripte der Runbooks (erst Wochenplanung/Connector, dann Tagesnotizen, dann
  *     Fokus-Erfassung) anwenden und prüfen, dass die Altdaten unverändert sind und vorhandene
  *     Planungsregeln bzw. Notizen nicht still gelöscht werden.
  * Zum Schluss wird die lokale Datenbank wieder vollständig zurückgesetzt.
@@ -286,11 +286,11 @@ function checkOwnership() {
     `select coalesce(string_agg(name, ', '), '') from (
        select c.oid::regclass::text as name, c.relowner as owner
          from pg_class c join pg_namespace n on n.oid = c.relnamespace
-        where n.nspname in ('public', 'private') and c.relkind in ('r', 'p')
+        where n.nspname in ('public', 'private', 'connector') and c.relkind in ('r', 'p')
        union all
        select p.oid::regprocedure::text, p.proowner
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname in ('public', 'private')
+        where n.nspname in ('public', 'private', 'connector')
      ) objekte
      where pg_get_userbyid(owner) <> 'supabase_admin';`,
   );
@@ -319,8 +319,17 @@ function checkPlanningPrecheck(migration, scenario) {
   }
 }
 
-/** Rückfall 20261009120000: bricht bei gespeicherten Planungsregeln ohne Bestätigung ab. */
+/**
+ * Rückfall 20261009120000: bricht bei gespeicherten Planungsregeln ohne Bestätigung ab; entfernt
+ * Connector-Schema (auch mit vorhandener Freigabe) und Connector-Rolle.
+ */
 function checkPlanningRollback(scenario) {
+  psqlText(
+    `insert into connector.oauth_grants (owner_id, client_id, client_name, scopes, resource)
+            values ('${FIXTURE_OWNER}', 'https://client.tagestakt.test/metadata.json',
+                    'Claude (Beispiel)', array['planning:read'], 'https://plan.tagestakt.test/mcp');`,
+    scenario.migrateAs,
+  );
   psqlText(`insert into public.planning_preferences (
               owner_id, business_earliest_start, business_latest_end, business_min_block_minutes,
               business_max_block_minutes, business_max_daily_minutes,
@@ -341,7 +350,10 @@ function checkPlanningRollback(scenario) {
   const left = psqlText(
     `select (to_regclass('public.planning_preferences') is null
              and to_regclass('public.planning_goal_slots') is null
-             and to_regprocedure('public.publish_reviewed_schedule_week(uuid, text)') is null)::text;`,
+             and to_regprocedure('public.publish_reviewed_schedule_week(uuid, text)') is null
+             and to_regprocedure('public.discard_reviewed_schedule_draft(uuid, text)') is null
+             and not exists (select 1 from pg_namespace where nspname = 'connector')
+             and not exists (select 1 from pg_roles where rolname = 'tagestakt_connector'))::text;`,
   );
   if (left !== "true") throw new Error("Der Rückfall 20261009120000 hat Objekte übrig gelassen.");
 }
@@ -381,9 +393,25 @@ function checkRollback(scenario, before) {
   process.stdout.write("Rückfall geprüft: Altdaten unverändert, neue Objekte entfernt.\n");
 }
 
+/**
+ * Rollen gelten für den ganzen Cluster und überstehen `supabase db reset`. Damit die Vorprüfung
+ * wie in Produktion einen Cluster ohne Connector-Rolle vorfindet, wird sie lokal entfernt.
+ */
+function dropLocalConnectorRole() {
+  psqlText(`do $$
+             begin
+               if exists (select 1 from pg_roles where rolname = 'tagestakt_connector') then
+                 revoke authenticated from tagestakt_connector;
+                 drop role tagestakt_connector;
+               end if;
+             end;
+             $$;`);
+}
+
 function runScenario(scenario) {
   process.stdout.write(`\n=== Szenario ${scenario.id}: ${scenario.label}\n`);
   supabase(["db", "reset", "--version", BASE_VERSION]);
+  dropLocalConnectorRole();
   docker(["exec", DB_CONTAINER, "mkdir", "-p", CONTAINER_DIR]);
   if (scenario.id === "produktion") recreateBaseAsSupabaseAdmin();
   psql("scripts/db/upgrade-fixture.sql");

@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.132.1",
+    "@modelcontextprotocol/server": "2.3.1",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "@tagestakt/design-tokens": "workspace:*",
@@ -20,12 +20,14 @@
     "geist": "1.7.2",
     "lucide-react": "1.52.0",
     "next": "16.3.8",
+    "postgres": "3.4.9",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "server-only": "0.0.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
     "@tagestakt/config": "workspace:*",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",

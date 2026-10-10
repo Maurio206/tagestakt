@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(53);
+select plan(58);
 
 -- RLS überall aktiv
 select is(
@@ -161,10 +161,19 @@ select function_privs_are('public', 'publish_reviewed_schedule_week', array['uui
   'anon', array[]::text[]);
 select function_privs_are('public', 'publish_reviewed_schedule_week', array['uuid', 'text'],
   'authenticated', array['EXECUTE']);
+select function_privs_are('public', 'discard_reviewed_schedule_draft', array['uuid', 'text'],
+  'anon', array[]::text[]);
+select function_privs_are('public', 'discard_reviewed_schedule_draft', array['uuid', 'text'],
+  'authenticated', array['EXECUTE']);
 
 -- Das interne Schema ist nicht erreichbar
 select schema_privs_are('private', 'anon', array[]::text[]);
 select schema_privs_are('private', 'authenticated', array[]::text[]);
+
+-- Das Connector-Schema (OAuth, Bestätigungen) ist für die API-Rollen nicht erreichbar
+select schema_privs_are('connector', 'anon', array[]::text[]);
+select schema_privs_are('connector', 'authenticated', array[]::text[]);
+select schema_privs_are('connector', 'service_role', array[]::text[]);
 
 -- Indizes für RLS-Spalten und Fremdschlüssel
 select has_index('public', 'schedule_entries', 'schedule_entries_week_owner_idx',

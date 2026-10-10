@@ -25,6 +25,7 @@ declare
   v_week public.schedule_weeks;
   v_live uuid;
   v_fingerprint text;
+  v_replay public.schedule_weeks;
 begin
   -- 1. Bestehende Einstellungen bleiben, neue Felder haben neutrale Standardwerte.
   select * into strict v_settings from public.user_settings;
@@ -100,8 +101,9 @@ begin
   returning * into v_session;
   assert v_session.corrected_at is not null, 'Nachtrag nicht gekennzeichnet';
 
-  -- 6. Wochenplaner (20261009120000): Regeln speichern (owner_id setzt die Datenbank),
-  --    Entwurf atomar erzeugen, veröffentlichte Version bleibt bis zur Freigabe unverändert.
+  -- 6. Wochenplanung (20261009120000): Regeln speichern (owner_id setzt die Datenbank),
+  --    Entwurf atomar und idempotent speichern (manuelle Einzeltermine bleiben),
+  --    veröffentlichte Version bleibt bis zur Freigabe unverändert.
   insert into public.planning_preferences (
     business_earliest_start, business_latest_end, business_min_block_minutes,
     business_max_block_minutes, business_max_daily_minutes, business_saturday_max_minutes,
@@ -120,10 +122,24 @@ begin
     date '2026-10-12', null, null,
     '[{"title":"Gewerbe-Fokus","category":"business","start_at":"2026-10-13T07:00:00Z",
        "end_at":"2026-10-13T10:00:00Z","location":null,"note":"Beispiel","source":"agent"}]'::jsonb,
-    'Vorschlag des Claude-Wochenplaners (Beispiel)');
-  assert v_week.status = 'draft', 'Planer-Entwurf ist kein Entwurf';
-  assert (select count(*) from public.schedule_entries where schedule_week_id = v_week.id) = 1,
-    'Planer-Entwurf ersetzt die Einträge nicht';
+    'Wochenentwurf über den Connector (Beispiel)');
+  assert v_week.status = 'draft', 'Connector-Entwurf ist kein Entwurf';
+  assert (select count(*) from public.schedule_entries
+           where schedule_week_id = v_week.id and source <> 'manual') = 1,
+    'Connector-Entwurf ersetzt die geplanten Einträge nicht';
+  assert (select count(*) from public.schedule_entries
+           where schedule_week_id = v_week.id and source = 'manual') = 4,
+    'manuelle Einzeltermine nicht erhalten';
+
+  -- Wiederholung desselben Vorschlags (veralteter Stand) ändert nichts.
+  v_fingerprint := public.schedule_week_fingerprint(v_week.id);
+  v_replay := public.save_generated_schedule_draft(
+    date '2026-10-12', null, null,
+    '[{"title":"Gewerbe-Fokus","category":"business","start_at":"2026-10-13T07:00:00Z",
+       "end_at":"2026-10-13T10:00:00Z","location":null,"note":"Beispiel","source":"agent"}]'::jsonb,
+    'Wochenentwurf über den Connector (Beispiel)');
+  assert v_replay.id = v_week.id and public.schedule_week_fingerprint(v_week.id) = v_fingerprint,
+    'Wiederholung nicht idempotent';
   assert (select status from public.schedule_weeks where id = v_live) = 'published',
     'veröffentlichte Version durch den Entwurf verändert';
   select count(*) into v_count from public.schedule_entries where schedule_week_id = v_live;
@@ -138,6 +154,16 @@ begin
   select count(*) into v_count
     from public.schedule_weeks where week_start = date '2026-10-12' and status = 'published';
   assert v_count = 1, 'nicht genau eine veröffentlichte Version';
+
+  -- Eigener Entwurf der Folgewoche lässt sich im gesehenen Stand verwerfen.
+  v_week := public.save_generated_schedule_draft(
+    date '2026-10-19', null, null,
+    '[{"title":"Gewerbe-Fokus","category":"business","start_at":"2026-10-20T07:00:00Z",
+       "end_at":"2026-10-20T09:00:00Z","location":null,"note":null,"source":"agent"}]'::jsonb);
+  assert public.discard_reviewed_schedule_draft(v_week.id, public.schedule_week_fingerprint(v_week.id)),
+    'Verwerfen fehlgeschlagen';
+  assert not exists (select 1 from public.schedule_weeks where week_start = date '2026-10-19'),
+    'verworfener Entwurf noch vorhanden';
 
   raise notice 'Upgrade-Nachprüfung erfolgreich';
 end;

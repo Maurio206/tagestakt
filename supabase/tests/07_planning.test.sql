@@ -1,13 +1,16 @@
--- Wochenplaner: Planungsregeln (Prüfregeln), Fingerabdruck, atomares Speichern eines erzeugten
--- Entwurfs und geprüftes, idempotentes Veröffentlichen. Alle Daten frei erfunden (Beispiel).
+-- Wochenplanung: Planungsregeln (Prüfregeln), Fingerabdruck, atomares und idempotentes Speichern
+-- eines geprüften Vorschlags (manuelle Einzeltermine bleiben), geprüftes, idempotentes
+-- Veröffentlichen und Verwerfen. Alle Daten frei erfunden (Beispiel).
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(35);
+select plan(46);
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '33333333-3333-4333-8333-333333333333',
-        'authenticated', 'authenticated', 'planer@tagestakt.test', '', now(), now());
+        'authenticated', 'authenticated', 'planer@tagestakt.test', '', now(), now()),
+       ('00000000-0000-0000-0000-000000000000', '44444444-4444-4444-8444-444444444444',
+        'authenticated', 'authenticated', 'fremd@tagestakt.test', '', now(), now());
 
 -- Veröffentlichte Version 1 der Woche 12.10.2026 mit einem Eintrag (als Tabelleneigentümer).
 insert into public.schedule_weeks (id, owner_id, week_start, version, status)
@@ -122,8 +125,14 @@ select results_eq(
 select is(
   (select count(*)::int from public.schedule_entries e join public.schedule_weeks w on w.id = e.schedule_week_id
     where w.status = 'draft'),
-  2,
-  'Entwurf enthält genau den Vorschlag (Kopie der veröffentlichten Version ersetzt)');
+  3,
+  'Entwurf: Vorschlag ersetzt geplante Einträge, Einzeltermin der Kopie bleibt');
+select is(
+  (select string_agg(e.title, ',') from public.schedule_entries e
+     join public.schedule_weeks w on w.id = e.schedule_week_id
+    where w.status = 'draft' and e.source = 'manual'),
+  'Bisheriger Block (Beispiel)',
+  'manueller Einzeltermin bleibt im Entwurf unverändert erhalten');
 select is(
   (select title from public.schedule_entries where schedule_week_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'),
   'Bisheriger Block (Beispiel)',
@@ -149,10 +158,24 @@ select is(
   2,
   'Neu planen ersetzt den eigenen, unveränderten Entwurf (gleiche Version)');
 select is(
-  (select string_agg(title, ',') from public.schedule_entries e
+  (select string_agg(title, ',' order by title) from public.schedule_entries e
      join public.schedule_weeks w on w.id = e.schedule_week_id where w.status = 'draft'),
-  'Neu geplant (Beispiel)',
-  'Entwurf enthält nur den neuen Vorschlag');
+  'Bisheriger Block (Beispiel),Neu geplant (Beispiel)',
+  'Entwurf: neuer Vorschlag und unveränderter Einzeltermin');
+
+create temporary table nach_speichern on commit drop as
+  select id, public.schedule_week_fingerprint(id) as fingerprint
+    from public.schedule_weeks where week_start = '2026-10-12' and status = 'draft';
+select is(
+  (select (public.save_generated_schedule_draft('2026-10-12', id, fingerprint,
+     '[{"title":"Neu geplant (Beispiel)","category":"business","start_at":"2026-10-14T07:00:00Z","end_at":"2026-10-14T09:00:00Z","source":"agent"}]')).id
+     from planer_stand),
+  (select id from nach_speichern),
+  'Wiederholung desselben Vorschlags mit veraltetem Stand: Entwurf unverändert zurück');
+select is(
+  (select public.schedule_week_fingerprint(id) from nach_speichern),
+  (select fingerprint from nach_speichern),
+  'idempotent: Fingerabdruck nach der Wiederholung unverändert');
 
 -- -----------------------------------------------------------------------------
 -- 4. Geprüft veröffentlichen
@@ -199,6 +222,47 @@ select throws_ok(
   $$ select public.publish_reviewed_schedule_week('a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
        public.schedule_week_fingerprint('a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1')) $$,
   'P0001', null, 'archivierte Versionen können nicht erneut veröffentlicht werden');
+
+-- -----------------------------------------------------------------------------
+-- 5. Eigenen Entwurf verwerfen
+-- -----------------------------------------------------------------------------
+select is(
+  (public.save_generated_schedule_draft('2026-10-19', null, null,
+     '[{"title":"Gewerbe (Beispiel)","category":"business","start_at":"2026-10-19T15:00:00Z","end_at":"2026-10-19T17:00:00Z","source":"agent"}]')).status,
+  'draft',
+  'Entwurf für die Folgewoche');
+create temporary table verwerfen on commit drop as
+  select id, public.schedule_week_fingerprint(id) as fingerprint
+    from public.schedule_weeks where week_start = '2026-10-19';
+
+select throws_ok(
+  $$ select public.discard_reviewed_schedule_draft((select id from verwerfen), 'kein-fingerabdruck') $$,
+  '22023', null, 'Verwerfen: ungültiger Prüfstand wird abgelehnt');
+select throws_ok(
+  $$ select public.discard_reviewed_schedule_draft((select id from verwerfen), repeat('0', 64)) $$,
+  'TT008', null, 'Verwerfen nur im gesehenen Stand');
+select throws_ok(
+  $$ select public.discard_reviewed_schedule_draft((select id from geprueft), (select fingerprint from geprueft)) $$,
+  'P0001', null, 'veröffentlichte Versionen können nicht verworfen werden');
+
+select set_config('request.jwt.claims',
+  '{"sub":"44444444-4444-4444-8444-444444444444","role":"authenticated"}', true);
+select throws_ok(
+  $$ select public.discard_reviewed_schedule_draft((select id from verwerfen), (select fingerprint from verwerfen)) $$,
+  'P0002', null, 'fremder Entwurf: nicht gefunden (Verwerfen)');
+select throws_ok(
+  $$ select public.publish_reviewed_schedule_week((select id from verwerfen), (select fingerprint from verwerfen)) $$,
+  'P0002', null, 'fremder Entwurf: nicht gefunden (Veröffentlichen)');
+select set_config('request.jwt.claims',
+  '{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated"}', true);
+
+select ok(
+  (select public.discard_reviewed_schedule_draft(id, fingerprint) from verwerfen),
+  'eigener, unveränderter Entwurf wird verworfen');
+select is(
+  (select count(*)::int from public.schedule_weeks where week_start = '2026-10-19'),
+  0,
+  'verworfener Entwurf ist samt Einträgen entfernt');
 
 select * from finish();
 rollback;

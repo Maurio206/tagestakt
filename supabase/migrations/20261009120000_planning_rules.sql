@@ -1,19 +1,24 @@
 -- =============================================================================
--- TagesTakt – Planungsregeln und geprüftes Veröffentlichen (Claude-Wochenplaner)
+-- TagesTakt – Planungsregeln, geprüfte Wochenentwürfe und Claude-Connector
 --
 -- Rein additiv:
 --   * neue Tabelle planning_preferences (eine Zeile je Benutzer): Rahmen für Gewerbeblöcke
 --     und Pausen zwischen Blöcken,
 --   * neue Tabelle planning_goal_slots: Zeitfenster für Sport- und Beziehungsblöcke je
 --     Wochentag (verbindlich oder optional, mit fester Dauer),
---   * neue RPCs schedule_week_fingerprint, save_generated_schedule_draft und
---     publish_reviewed_schedule_week,
+--   * neue RPCs schedule_week_fingerprint, save_generated_schedule_draft,
+--     publish_reviewed_schedule_week und discard_reviewed_schedule_draft,
+--   * neue Datenbankrolle tagestakt_connector (ohne Anmeldung angelegt) und neues, nicht
+--     exponiertes Schema connector für die OAuth-Autorisierung des Remote-MCP-Connectors
+--     (nur Hashes) und einmalige Veröffentlichungsbestätigungen,
 --   * keine bestehende Tabelle, Spalte, Funktion oder Policy wird geändert.
 --
--- Der Planer speichert ausschließlich Entwürfe. Ein erzeugter Vorschlag ersetzt höchstens den
--- eigenen Entwurf der Woche – und nur, wenn dieser seit dem Start der Planung unverändert ist
--- (Fingerabdruck). Veröffentlicht wird nur genau der geprüfte Stand. Veröffentlichte und
--- archivierte Versionen bleiben unberührt (bestehende Trigger).
+-- Claude (geplante Aufgabe in der Claude-App) speichert über den Connector ausschließlich
+-- Entwürfe. Ein Vorschlag ersetzt höchstens die geplanten Einträge des eigenen Entwurfs der
+-- Woche – und nur, wenn dieser seit dem Lesen unverändert ist (Fingerabdruck); manuelle
+-- Einzeltermine bleiben erhalten. Veröffentlicht wird nur genau der geprüfte Stand und nur nach
+-- ausdrücklicher Bestätigung. Veröffentlichte und archivierte Versionen bleiben unberührt
+-- (bestehende Trigger).
 --
 -- Grundsätze wie bisher: RLS mit vier getrennten Policies, explizite Grants (anon erhält
 -- nichts), RPCs als SECURITY INVOKER mit leerem search_path, keine Inhalte in Fehlermeldungen.
@@ -59,7 +64,7 @@ create table public.planning_preferences (
 );
 
 comment on table public.planning_preferences is
-  'Persönlicher Rahmen für den Wochenplaner: Gewerbezeiten, Blocklängen, Tageshöchstwerte, Pausen.';
+  'Persönlicher Rahmen für die Wochenplanung: Gewerbezeiten, Blocklängen, Tageshöchstwerte, Pausen.';
 
 create table public.planning_goal_slots (
   id uuid primary key default gen_random_uuid(),
@@ -68,7 +73,7 @@ create table public.planning_goal_slots (
   weekday smallint not null,
   -- required = muss geplant werden; optional = nur bei ausreichend freier Zeit.
   requirement text not null,
-  -- Sichtbarer Titel des geplanten Blocks (wird nicht an das Sprachmodell übertragen).
+  -- Sichtbarer Titel des geplanten Blocks (wird nicht an den Connector übertragen).
   title text not null,
   duration_minutes smallint not null,
   window_start time not null,
@@ -88,7 +93,7 @@ create table public.planning_goal_slots (
 );
 
 comment on table public.planning_goal_slots is
-  'Zeitfenster je Wochentag für Sport- und Beziehungsblöcke (Dauer fest, Lage wählt der Planer).';
+  'Zeitfenster je Wochentag für Sport- und Beziehungsblöcke (Dauer fest, Lage wird geplant).';
 
 create trigger planning_preferences_set_updated_at
   before update on public.planning_preferences
@@ -180,13 +185,17 @@ end;
 $$;
 
 -- =============================================================================
--- 4. RPC: erzeugten Vorschlag als Entwurf speichern (atomar)
+-- 4. RPC: geprüften Vorschlag als Entwurf speichern (atomar, idempotent)
 -- =============================================================================
 -- Legt bei Bedarf den Entwurf der Woche an (nächste Version, Kopie der veröffentlichten) und
--- ersetzt dessen Einträge vollständig durch den geprüften Vorschlag – alles in einer
--- Transaktion. Bestand beim Start der Planung bereits ein Entwurf, muss er unverändert sein
--- (ID + Fingerabdruck); sonst wird nichts geschrieben (SQLSTATE TT008). Bestand keiner, darf
--- inzwischen auch keiner entstanden sein. Erlaubte Herkunft: recurring und agent.
+-- ersetzt dessen geplante Einträge (Herkunft recurring/agent) durch den geprüften Vorschlag.
+-- Manuelle Einträge (Einzeltermine) bleiben unverändert erhalten. Alles in einer Transaktion.
+--   * Optimistische Nebenläufigkeit: Bestand beim Lesen bereits ein Entwurf, muss er unverändert
+--     sein (ID + Fingerabdruck); bestand keiner, darf inzwischen auch keiner entstanden sein.
+--     Sonst wird nichts geschrieben (SQLSTATE TT008).
+--   * Idempotent: Enthält der Entwurf bereits genau diesen Vorschlag (z. B. Wiederholung nach
+--     einer Zeitüberschreitung), wird er unverändert zurückgegeben.
+--   * Veröffentlichte und archivierte Versionen werden nie verändert.
 create function public.save_generated_schedule_draft(
   p_week_start date,
   p_expected_draft_id uuid,
@@ -202,6 +211,8 @@ as $$
 declare
   v_owner uuid := auth.uid();
   v_draft public.schedule_weeks;
+  v_current jsonb;
+  v_requested jsonb;
 begin
   if v_owner is null then
     raise exception 'Nicht angemeldet' using errcode = 'insufficient_privilege';
@@ -225,7 +236,8 @@ begin
     raise exception 'Ungültiger Bearbeitungsstand' using errcode = 'invalid_parameter_value';
   end if;
 
-  -- Gleichzeitige Planungen bzw. Veröffentlichungen derselben Woche nacheinander verarbeiten.
+  -- Gleichzeitige Speicher-, Verwerfen- und Veröffentlichungsaufrufe derselben Woche
+  -- nacheinander verarbeiten.
   perform pg_advisory_xact_lock(
     hashtextextended('tagestakt.schedule_week:' || v_owner::text || ':' || p_week_start::text, 0)
   );
@@ -236,6 +248,30 @@ begin
      for update;
 
   if found then
+    -- Wiederholung desselben Vorschlags: nichts ändern (Vergleich ohne IDs und Zeitstempel).
+    select coalesce(jsonb_agg(x.item order by x.item), '[]'::jsonb) into v_current
+      from (
+        select jsonb_build_object(
+                 'title', e.title, 'category', e.category,
+                 'start_at', extract(epoch from e.start_at), 'end_at', extract(epoch from e.end_at),
+                 'location', e.location, 'note', e.note, 'source', e.source) as item
+          from public.schedule_entries e
+         where e.schedule_week_id = v_draft.id and e.source <> 'manual'
+      ) as x;
+    select coalesce(jsonb_agg(x.item order by x.item), '[]'::jsonb) into v_requested
+      from (
+        select jsonb_build_object(
+                 'title', e.title, 'category', e.category,
+                 'start_at', extract(epoch from e.start_at), 'end_at', extract(epoch from e.end_at),
+                 'location', e.location, 'note', e.note, 'source', e.source) as item
+          from jsonb_to_recordset(p_entries) as e(
+            title text, category text, start_at timestamptz, end_at timestamptz,
+            location text, note text, source text)
+      ) as x;
+    if v_current = v_requested and v_draft.planning_note is not distinct from p_planning_note then
+      return v_draft;
+    end if;
+
     if p_expected_draft_id is distinct from v_draft.id
        or p_expected_fingerprint is distinct from public.schedule_week_fingerprint(v_draft.id) then
       raise exception 'Der Entwurf wurde inzwischen geändert.' using errcode = 'TT008';
@@ -247,7 +283,10 @@ begin
     select * into v_draft from public.create_schedule_draft(p_week_start);
   end if;
 
-  perform public.add_schedule_entries(v_draft.id, p_entries, true);
+  -- Nur geplante Einträge ersetzen; manuelle Einzeltermine bleiben erhalten.
+  delete from public.schedule_entries
+   where schedule_week_id = v_draft.id and source <> 'manual';
+  perform public.add_schedule_entries(v_draft.id, p_entries, false);
 
   update public.schedule_weeks
      set planning_note = p_planning_note
@@ -312,13 +351,250 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- 6. RPC: eigenen, geprüften Entwurf verwerfen (atomar)
+-- =============================================================================
+-- Löscht ausschließlich den eigenen Entwurf, und nur in genau dem gesehenen Stand
+-- (Fingerabdruck, sonst TT008). Veröffentlichte und archivierte Versionen bleiben unberührt.
+create function public.discard_reviewed_schedule_draft(p_week_id uuid, p_expected_fingerprint text)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_owner uuid := auth.uid();
+  v_week public.schedule_weeks;
+begin
+  if v_owner is null then
+    raise exception 'Nicht angemeldet' using errcode = 'insufficient_privilege';
+  end if;
+  if p_expected_fingerprint is null or p_expected_fingerprint !~ '^[0-9a-f]{64}$' then
+    raise exception 'Ungültiger Prüfstand' using errcode = 'invalid_parameter_value';
+  end if;
+
+  select * into v_week
+    from public.schedule_weeks
+   where id = p_week_id and owner_id = v_owner;
+  if not found then
+    raise exception 'Wochenplan nicht gefunden' using errcode = 'no_data_found';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('tagestakt.schedule_week:' || v_owner::text || ':' || v_week.week_start::text, 0)
+  );
+
+  select * into v_week
+    from public.schedule_weeks
+   where id = p_week_id and owner_id = v_owner
+     for update;
+  if v_week.status <> 'draft' then
+    raise exception 'Nur Entwürfe können verworfen werden' using errcode = 'raise_exception';
+  end if;
+  if public.schedule_week_fingerprint(v_week.id) <> p_expected_fingerprint then
+    raise exception 'Der Entwurf wurde inzwischen geändert.' using errcode = 'TT008';
+  end if;
+
+  delete from public.schedule_weeks where id = v_week.id;
+  return true;
+end;
+$$;
+
 revoke all on function public.schedule_week_fingerprint(uuid) from public, anon;
 revoke all on function public.save_generated_schedule_draft(date, uuid, text, jsonb, text)
   from public, anon;
 revoke all on function public.publish_reviewed_schedule_week(uuid, text) from public, anon;
+revoke all on function public.discard_reviewed_schedule_draft(uuid, text) from public, anon;
 
 grant execute on function public.schedule_week_fingerprint(uuid) to authenticated, service_role;
 grant execute on function public.save_generated_schedule_draft(date, uuid, text, jsonb, text)
   to authenticated, service_role;
 grant execute on function public.publish_reviewed_schedule_week(uuid, text)
   to authenticated, service_role;
+grant execute on function public.discard_reviewed_schedule_draft(uuid, text)
+  to authenticated, service_role;
+
+-- =============================================================================
+-- 7. Claude-Connector: eigene Datenbankrolle und nicht exponiertes Schema
+-- =============================================================================
+-- Der Remote-MCP-Connector der Website verbindet sich mit einer eigenen, minimal berechtigten
+-- Rolle direkt mit der Datenbank (kein Service-Role-Key, kein JWT-Secret):
+--   * NOLOGIN hier; Anmeldung und Passwort setzt der Betreiber außerhalb des Repositorys,
+--   * NOINHERIT + Mitglied von authenticated: Planungsdaten liest und schreibt der Connector
+--     nur nach `set local role authenticated` mit den Claims des autorisierten Eigentümers –
+--     also unter denselben RLS-Policies und RPCs wie die Website,
+--   * eigene Rechte nur auf das Schema connector (OAuth-Codes, Freigaben, Token-Hashes,
+--     Veröffentlichungsbestätigungen). Das Schema ist nicht über PostgREST exponiert;
+--     anon, authenticated und service_role erhalten darauf keinerlei Rechte.
+-- Gespeichert werden nur SHA-256-Hashes von Codes, Tokens und Bestätigungen, nie Klartext.
+-- owner_id stammt immer aus der serverseitig geprüften Anmeldung bzw. aus der Freigabe des
+-- vorgelegten Tokens – nie aus Eingaben von Claude. Ein Default auth.uid() entfällt bewusst:
+-- die Connector-Rolle arbeitet auf diesem Schema ohne Supabase-JWT-Claims.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'tagestakt_connector') then
+    create role tagestakt_connector nologin noinherit;
+  end if;
+end;
+$$;
+
+grant authenticated to tagestakt_connector;
+
+create schema connector;
+revoke all on schema connector from public;
+grant usage on schema connector to tagestakt_connector;
+
+comment on schema connector is
+  'Claude-Connector (Remote MCP): OAuth-Codes, Freigaben, Token-Hashes, Bestätigungen. Nicht exponiert.';
+
+create table connector.oauth_authorization_codes (
+  code_hash text primary key,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  client_id text not null,
+  client_name text not null,
+  redirect_uri text not null,
+  code_challenge text not null,
+  scopes text[] not null,
+  resource text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  -- Beim Einlösen erzeugte Freigabe (erneute Vorlage des Codes widerruft sie).
+  grant_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint oauth_authorization_codes_hash_check check (code_hash ~ '^[0-9a-f]{64}$'),
+  constraint oauth_authorization_codes_client_check
+    check (char_length(client_id) between 1 and 512 and char_length(client_name) between 1 and 200),
+  constraint oauth_authorization_codes_redirect_check
+    check (char_length(redirect_uri) between 1 and 512),
+  constraint oauth_authorization_codes_challenge_check
+    check (code_challenge ~ '^[A-Za-z0-9_-]{43,128}$'),
+  constraint oauth_authorization_codes_scopes_check
+    check (cardinality(scopes) between 1 and 3
+           and scopes <@ array['planning:read', 'planning:draft', 'planning:publish']),
+  constraint oauth_authorization_codes_resource_check check (char_length(resource) between 1 and 512)
+);
+create index oauth_authorization_codes_owner_idx on connector.oauth_authorization_codes (owner_id);
+
+create table connector.oauth_grants (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  client_id text not null,
+  client_name text not null,
+  scopes text[] not null,
+  resource text not null,
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint oauth_grants_client_check
+    check (char_length(client_id) between 1 and 512 and char_length(client_name) between 1 and 200),
+  constraint oauth_grants_scopes_check
+    check (cardinality(scopes) between 1 and 3
+           and scopes <@ array['planning:read', 'planning:draft', 'planning:publish']),
+  constraint oauth_grants_resource_check check (char_length(resource) between 1 and 512)
+);
+create index oauth_grants_owner_idx on connector.oauth_grants (owner_id);
+
+alter table connector.oauth_authorization_codes
+  add constraint oauth_authorization_codes_grant_fkey foreign key (grant_id)
+  references connector.oauth_grants (id) on delete cascade;
+create index oauth_authorization_codes_grant_idx on connector.oauth_authorization_codes (grant_id);
+
+create table connector.oauth_tokens (
+  token_hash text primary key,
+  grant_id uuid not null references connector.oauth_grants (id) on delete cascade,
+  kind text not null,
+  expires_at timestamptz not null,
+  -- Refresh-Token wurde gegen ein neues getauscht (erneute Vorlage = Diebstahlverdacht).
+  rotated_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint oauth_tokens_hash_check check (token_hash ~ '^[0-9a-f]{64}$'),
+  constraint oauth_tokens_kind_check check (kind in ('access', 'refresh'))
+);
+create index oauth_tokens_grant_idx on connector.oauth_tokens (grant_id);
+
+create table connector.publish_confirmations (
+  confirmation_hash text primary key,
+  grant_id uuid not null references connector.oauth_grants (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  schedule_week_id uuid not null references public.schedule_weeks (id) on delete cascade,
+  fingerprint text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint publish_confirmations_hash_check check (confirmation_hash ~ '^[0-9a-f]{64}$'),
+  constraint publish_confirmations_fingerprint_check check (fingerprint ~ '^[0-9a-f]{64}$')
+);
+create index publish_confirmations_grant_idx on connector.publish_confirmations (grant_id);
+create index publish_confirmations_owner_idx on connector.publish_confirmations (owner_id);
+create index publish_confirmations_week_idx on connector.publish_confirmations (schedule_week_id);
+
+create trigger oauth_authorization_codes_set_updated_at
+  before update on connector.oauth_authorization_codes
+  for each row execute function private.set_updated_at();
+create trigger oauth_grants_set_updated_at
+  before update on connector.oauth_grants
+  for each row execute function private.set_updated_at();
+create trigger oauth_tokens_set_updated_at
+  before update on connector.oauth_tokens
+  for each row execute function private.set_updated_at();
+create trigger publish_confirmations_set_updated_at
+  before update on connector.publish_confirmations
+  for each row execute function private.set_updated_at();
+
+-- Nur die Connector-Rolle; anon, authenticated und service_role erhalten nichts. RLS ist
+-- zusätzlich aktiv: ohne passende Policy sieht keine andere Rolle eine Zeile. Die Policies der
+-- Connector-Rolle sind bewusst nicht auf einen Eigentümer eingeschränkt, weil Codes und Tokens
+-- über ihren Hash nachgeschlagen werden, bevor der Eigentümer bekannt ist; die Bindung an den
+-- Eigentümer prüft der Server bei jedem Zugriff.
+revoke all on all tables in schema connector from public, anon, authenticated, service_role;
+grant select, insert, update, delete on table
+  connector.oauth_authorization_codes,
+  connector.oauth_grants,
+  connector.oauth_tokens,
+  connector.publish_confirmations
+  to tagestakt_connector;
+
+alter table connector.oauth_authorization_codes enable row level security;
+alter table connector.oauth_grants enable row level security;
+alter table connector.oauth_tokens enable row level security;
+alter table connector.publish_confirmations enable row level security;
+
+create policy "oauth_authorization_codes: connector lesen" on connector.oauth_authorization_codes
+  for select to tagestakt_connector using (true);
+create policy "oauth_authorization_codes: connector anlegen" on connector.oauth_authorization_codes
+  for insert to tagestakt_connector with check (true);
+create policy "oauth_authorization_codes: connector ändern" on connector.oauth_authorization_codes
+  for update to tagestakt_connector using (true) with check (true);
+create policy "oauth_authorization_codes: connector löschen" on connector.oauth_authorization_codes
+  for delete to tagestakt_connector using (true);
+
+create policy "oauth_grants: connector lesen" on connector.oauth_grants
+  for select to tagestakt_connector using (true);
+create policy "oauth_grants: connector anlegen" on connector.oauth_grants
+  for insert to tagestakt_connector with check (true);
+create policy "oauth_grants: connector ändern" on connector.oauth_grants
+  for update to tagestakt_connector using (true) with check (true);
+create policy "oauth_grants: connector löschen" on connector.oauth_grants
+  for delete to tagestakt_connector using (true);
+
+create policy "oauth_tokens: connector lesen" on connector.oauth_tokens
+  for select to tagestakt_connector using (true);
+create policy "oauth_tokens: connector anlegen" on connector.oauth_tokens
+  for insert to tagestakt_connector with check (true);
+create policy "oauth_tokens: connector ändern" on connector.oauth_tokens
+  for update to tagestakt_connector using (true) with check (true);
+create policy "oauth_tokens: connector löschen" on connector.oauth_tokens
+  for delete to tagestakt_connector using (true);
+
+create policy "publish_confirmations: connector lesen" on connector.publish_confirmations
+  for select to tagestakt_connector using (true);
+create policy "publish_confirmations: connector anlegen" on connector.publish_confirmations
+  for insert to tagestakt_connector with check (true);
+create policy "publish_confirmations: connector ändern" on connector.publish_confirmations
+  for update to tagestakt_connector using (true) with check (true);
+create policy "publish_confirmations: connector löschen" on connector.publish_confirmations
+  for delete to tagestakt_connector using (true);

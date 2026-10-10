@@ -396,6 +396,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      discard_reviewed_schedule_draft: {
+        Args: { p_expected_fingerprint: string; p_week_id: string };
+        Returns: boolean;
+      };
       publish_reviewed_schedule_week: {
         Args: { p_expected_fingerprint: string; p_week_id: string };
         Returns: {

@@ -1,24 +1,23 @@
 import "server-only";
 
 import {
-  type Database,
   type GoalSlotsInputParsed,
   type LocalDate,
-  type PlannedEntry,
   type PlannerSlotGoal,
   type PlanningContext,
   type PlanningGoalSlot,
   type PlanningPreferences,
   type PlanningPreferencesInputParsed,
+  type ScheduleEntry,
   type ScheduleWeek,
   buildPlanningContext,
+  manualOneOffs,
   planningGoalSlotRowSchema,
   planningPreferencesRowSchema,
   preferencesFromRow,
   scheduleWeekRowSchema,
   slotFromRow,
 } from "@tagestakt/schedule-schema";
-import { type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { authorizedClient } from "../auth";
@@ -27,8 +26,8 @@ import { listRecurring } from "./recurring";
 import { getSettings } from "./settings";
 
 /**
- * Datenzugriff des Wochenplaners. Alles läuft mit der Sitzung des angemeldeten Benutzers (RLS);
- * `owner_id` setzt die Datenbank selbst (`default auth.uid()`), nie der Client.
+ * Datenzugriff der Wochenplanung (Website). Alles läuft mit der Sitzung des angemeldeten
+ * Benutzers (RLS); `owner_id` setzt die Datenbank selbst (`default auth.uid()`), nie der Client.
  */
 
 export interface PlanningRules {
@@ -52,10 +51,15 @@ export async function getPlanningRules(): Promise<PlanningRules> {
   };
 }
 
-/** Planungskontext einer Woche aus eigenen Einstellungen, Regeln und aktiven Wiederholungen. */
+/**
+ * Planungskontext einer Woche aus eigenen Einstellungen, Regeln und aktiven Wiederholungen.
+ * `baseEntries`: Einträge der Basisversion (Entwurf, sonst veröffentlichte Version) – deren
+ * manuelle Einzeltermine gehören fest zur Woche (wie beim Connector).
+ */
 export async function loadPlanningContext(
   weekStart: LocalDate,
   now: Date,
+  baseEntries: readonly ScheduleEntry[] = [],
 ): Promise<PlanningContext> {
   const [settings, rules, commitments] = await Promise.all([
     getSettings(),
@@ -75,6 +79,7 @@ export async function loadPlanningContext(
     preferences: rules.preferences,
     slots: rules.slots,
     commitments,
+    oneOffEntries: manualOneOffs(baseEntries),
   });
 }
 
@@ -142,32 +147,6 @@ export async function getWeekFingerprint(weekId: string): Promise<string> {
   const { data, error } = await supabase.rpc("schedule_week_fingerprint", { p_week_id: weekId });
   if (error) throw toUserFacingError("Prüfstand ermitteln", error);
   return data;
-}
-
-/**
- * Speichert einen geprüften Vorschlag atomar als neue Entwurfsversion. Läuft im Hintergrund mit
- * einem eigenen Client (Zugriffstoken des Benutzers, RLS). Der erwartete Stand verhindert, dass
- * ein inzwischen geänderter oder neuer Entwurf überschrieben wird (TT008).
- */
-export async function saveGeneratedDraft(
-  client: SupabaseClient<Database>,
-  input: {
-    weekStart: LocalDate;
-    expected: { draftId: string; fingerprint: string } | null;
-    entries: readonly PlannedEntry[];
-    planningNote: string;
-  },
-): Promise<ScheduleWeek> {
-  const { data, error } = await client.rpc("save_generated_schedule_draft", {
-    p_week_start: input.weekStart,
-    // Kein Entwurf erwartet → beide Werte null (die generierten Typen kennen nur string).
-    p_expected_draft_id: input.expected?.draftId ?? (null as unknown as string),
-    p_expected_fingerprint: input.expected?.fingerprint ?? (null as unknown as string),
-    p_entries: input.entries.map((entry) => ({ ...entry })),
-    p_planning_note: input.planningNote,
-  });
-  if (error) throw toUserFacingError("Entwurf des Wochenplaners speichern", error);
-  return scheduleWeekRowSchema.parse(data);
 }
 
 /** Veröffentlicht genau den geprüften Stand eines Entwurfs (idempotent bei Doppelklick). */

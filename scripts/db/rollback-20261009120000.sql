@@ -1,14 +1,17 @@
 -- =============================================================================
--- TagesTakt – Rückfall für Migration 20261009120000 (Planungsregeln, geprüftes Veröffentlichen)
+-- TagesTakt – Rückfall für Migration 20261009120000 (Planungsregeln, Entwürfe, Claude-Connector)
 --
 -- NUR im Notfall und NUR gemeinsam mit dem Benutzer (docs/production-migration-runbook.md).
 -- Die Migration ist rein additiv; die bisherige Website läuft auch mit migrierter Datenbank.
 -- Ein Rückfall ist deshalb normalerweise NICHT nötig – stattdessen die vorherige Website-Version
 -- erneut deployen.
 --
--- Entfernt ausschließlich die Objekte dieser Migration. Wochenpläne, Einträge (auch vom Planer
--- erzeugte Entwürfe), Wiederholungen, Ziele, erfasste Aktivitäten und Tagesnotizen bleiben
--- unverändert (per Fingerabdruck prüfbar).
+-- Entfernt ausschließlich die Objekte dieser Migration. Wochenpläne, Einträge (auch über den
+-- Connector gespeicherte Entwürfe), Wiederholungen, Ziele, erfasste Aktivitäten und Tagesnotizen
+-- bleiben unverändert (per Fingerabdruck prüfbar).
+-- Das Schema connector (OAuth-Freigaben, Token-Hashes, Bestätigungen) und die Rolle
+-- tagestakt_connector werden entfernt; Claude muss danach neu verbunden werden. Vorher die
+-- Website-Variable CONNECTOR_DATABASE_URL entfernen bzw. die Website zurückrollen.
 -- ACHTUNG: Gespeicherte Planungsregeln gehen verloren. Sind bereits welche vorhanden, bricht das
 -- Skript ab – außer es wurde vorher in derselben Sitzung ausdrücklich bestätigt:
 --
@@ -37,6 +40,17 @@ begin
 end;
 $$;
 
+drop schema if exists connector cascade;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'tagestakt_connector') then
+    execute 'revoke authenticated from tagestakt_connector';
+    execute 'drop role tagestakt_connector';
+  end if;
+end;
+$$;
+
+drop function if exists public.discard_reviewed_schedule_draft(uuid, text);
 drop function if exists public.publish_reviewed_schedule_week(uuid, text);
 drop function if exists public.save_generated_schedule_draft(date, uuid, text, jsonb, text);
 drop function if exists public.schedule_week_fingerprint(uuid);

@@ -1,5 +1,5 @@
 -- =============================================================================
--- TagesTakt – Vorprüfung vor Migration 20261009120000 (Wochenplaner; nur lesend)
+-- TagesTakt – Vorprüfung vor Migration 20261009120000 (Wochenplanung, Connector; nur lesend)
 --
 -- Studio-Form: Im SQL-Editor als eigene Query vollständig ausführen. Die erste Anweisung macht
 -- die Transaktion schreibgeschützt; das Ergebnis der letzten Anweisung zeigt alle Werte.
@@ -31,7 +31,10 @@ with objekte as (
       + (to_regprocedure('public.save_generated_schedule_draft(date, uuid, text, jsonb, text)')
            is not null)::integer
       + (to_regprocedure('public.publish_reviewed_schedule_week(uuid, text)') is not null)::integer
+      + (to_regprocedure('public.discard_reviewed_schedule_draft(uuid, text)') is not null)::integer
       as neue_funktionen,
+    exists (select 1 from pg_namespace where nspname = 'connector') as connector_schema,
+    exists (select 1 from pg_roles where rolname = 'tagestakt_connector') as connector_rolle,
     (to_regprocedure('public.create_schedule_draft(date)') is not null)::integer
       + (to_regprocedure('public.add_schedule_entries(uuid, jsonb, boolean)') is not null)::integer
       + (to_regprocedure('public.publish_schedule_week(uuid)') is not null)::integer
@@ -48,7 +51,9 @@ ids as (
       as set_updated_at,
     (select oid from pg_namespace where nspname = 'public') as schema_public,
     (select oid from pg_namespace where nspname = 'private') as schema_private,
-    (select oid from pg_namespace where nspname = 'auth') as schema_auth
+    (select oid from pg_namespace where nspname = 'auth') as schema_auth,
+    (select c.oid from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname = 'schedule_weeks') as schedule_weeks
 ),
 rechte(recht, ok) as (
   select 'create_public',
@@ -62,6 +67,14 @@ rechte(recht, ok) as (
   select 'usage_auth', has_schema_privilege(schema_auth, 'usage') from ids
   union all
   select 'references_auth_users', has_table_privilege(auth_users, 'references') from ids
+  union all
+  select 'references_schedule_weeks', has_table_privilege(schedule_weeks, 'references') from ids
+  union all
+  select 'create_schema', has_database_privilege(current_database(), 'create')
+  union all
+  select 'create_role', (select rolsuper or rolcreaterole from pg_roles where rolname = current_user)
+  union all
+  select 'grant_authenticated', pg_has_role('authenticated', 'member with admin option')
 ),
 fehlend as (
   select coalesce(string_agg(recht, ',' order by recht), '') as liste, count(*) = 0 as alle_da
@@ -83,15 +96,20 @@ select zeile
     union all
     select 6, 'neue_funktionen_vorhanden=' || neue_funktionen from objekte
     union all
-    select 7, 'migrationsverlauf_vorhanden='
+    select 7, 'connector_schema_vorhanden=' || connector_schema from objekte
+    union all
+    select 8, 'connector_rolle_vorhanden=' || connector_rolle from objekte
+    union all
+    select 9, 'migrationsverlauf_vorhanden='
               || (to_regclass('supabase_migrations.schema_migrations') is not null)
     union all
-    select 8, 'fehlende_rechte=' || liste from fehlend
+    select 10, 'fehlende_rechte=' || liste from fehlend
     union all
-    select 9, 'bereit_fuer_20261009120000='
+    select 11, 'bereit_fuer_20261009120000='
               || (o.vorherige_migrationen and o.basisfunktionen = 4
                   and not o.planning_preferences and not o.planning_goal_slots
-                  and o.neue_funktionen = 0 and f.alle_da)
+                  and o.neue_funktionen = 0 and not o.connector_schema and not o.connector_rolle
+                  and f.alle_da)
       from objekte o cross join fehlend f
   ) ausgabe
  order by nr;

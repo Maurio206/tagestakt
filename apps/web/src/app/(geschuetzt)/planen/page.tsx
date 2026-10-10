@@ -7,7 +7,6 @@ import {
   WEEKDAY_SHORT_LABELS,
   evaluatePlanDraft,
   findPlanningConflicts,
-  formatTime,
   formatWeekLabel,
   getMissingPlanningRequirements,
   isoWeekdayOfLocalDate,
@@ -20,20 +19,17 @@ import { CalendarCheck, PenLine } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AutoRefresh } from "@/components/auto-refresh";
 import { Notice } from "@/components/notice";
-import { PlanStartForm, PublishPlanForm } from "@/components/planner-forms";
+import { PublishPlanForm } from "@/components/planner-forms";
 import { WeekGrid } from "@/components/week-grid";
 import { WeekGridFrame } from "@/components/week-grid-frame";
 import { noticeText, planPath, weekPlanPath } from "@/lib/paths";
-import { publishPlannedWeekAction, startPlanningAction } from "@/server/actions/planner";
+import { publishPlannedWeekAction } from "@/server/actions/planner";
 import { requireUser } from "@/server/auth";
 import { getWeekFingerprint, loadPlanningContext } from "@/server/data/planner";
 import { getWeekWithEntries, listWeekVersions } from "@/server/data/schedule";
-import { readPlannerConfig } from "@/server/planner/config";
-import { getPlanningJob } from "@/server/planner/jobs";
 
-export const metadata: Metadata = { title: "Wochenplaner" };
+export const metadata: Metadata = { title: "Wochenplanung" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -93,37 +89,38 @@ function targetOf(
   return goal === "business" ? targets.business : targets[goal];
 }
 
+/**
+ * Vorschau und Bearbeitung der Wochenentwürfe. Entwürfe entstehen über den Claude-Connector
+ * (geplante Aufgabe in der Claude-App) oder von Hand; diese Seite ruft kein Sprachmodell auf.
+ */
 export default async function PlannerPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const user = await requireUser();
+  await requireUser();
   const now = new Date();
   const weeks = plannableWeekStarts(now);
-  const job = getPlanningJob(user.id);
   const requested = single(params.woche);
+  // Standard: die kommende Woche (die Claude sonntags plant).
   const weekStart: LocalDate =
-    requested && weeks.includes(requested)
-      ? requested
-      : job && weeks.includes(job.weekStart)
-        ? job.weekStart
-        : (weeks[0] ?? toLocalDate(now));
+    requested && weeks.includes(requested) ? requested : (weeks[1] ?? weeks[0] ?? toLocalDate(now));
   const notice = noticeText(single(params.hinweis));
-  const config = readPlannerConfig();
 
-  const [context, versions] = await Promise.all([
-    loadPlanningContext(weekStart, now),
-    listWeekVersions(weekStart),
-  ]);
+  const versions = await listWeekVersions(weekStart);
   const draftMeta = versions.find((v) => v.status === "draft");
   const published = versions.find((v) => v.status === "published");
-  const [draft, fingerprint] = draftMeta
-    ? await Promise.all([getWeekWithEntries(draftMeta.id), getWeekFingerprint(draftMeta.id)])
-    : [null, null];
+  const [draft, fingerprint, publishedWeek] = await Promise.all([
+    draftMeta ? getWeekWithEntries(draftMeta.id) : null,
+    draftMeta ? getWeekFingerprint(draftMeta.id) : null,
+    !draftMeta && published ? getWeekWithEntries(published.id) : null,
+  ]);
+  // Einzeltermine der Basisversion (Entwurf, sonst veröffentlichte Version) gehören fest dazu.
+  const context = await loadPlanningContext(
+    weekStart,
+    now,
+    draft?.schedule_entries ?? publishedWeek?.schedule_entries ?? [],
+  );
 
   const missing = getMissingPlanningRequirements(context).filter((m) => m.key !== "week");
   const conflicts = missing.length === 0 ? findPlanningConflicts(context) : [];
-  const weekJob = job?.weekStart === weekStart ? job : undefined;
-  const running = job?.status === "running";
-  const canStart = config.ok && missing.length === 0 && conflicts.length === 0 && !running;
 
   const entries = draft?.schedule_entries ?? [];
   const evaluation = draft ? evaluatePlanDraft(context, entries) : null;
@@ -137,11 +134,10 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
 
   return (
     <>
-      {running ? <AutoRefresh intervalSeconds={5} /> : null}
       <header className="page-header">
         <div>
-          <p className="eyebrow">Wochenplaner</p>
-          <h1>Woche mit Claude planen</h1>
+          <p className="eyebrow">Wochenplanung</p>
+          <h1>Wochenentwurf prüfen</h1>
         </div>
       </header>
 
@@ -164,18 +160,8 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
         ))}
       </nav>
 
-      {!config.ok ? (
-        <Notice tone="error" title="Wochenplaner nicht eingerichtet" role="alert">
-          <p>{config.message}</p>
-          <p className="small">
-            Das Secret wird ausschließlich auf dem Server hinterlegt (Coolify), nie im Browser oder
-            in der App.
-          </p>
-        </Notice>
-      ) : null}
-
       {missing.length > 0 ? (
-        <Notice tone="warning" title="Es fehlen Angaben – ohne sie wird nicht geplant">
+        <Notice tone="warning" title="Es fehlen Angaben – ohne sie plant Claude diese Woche nicht">
           <ol className="stack-tight">
             {missing.map((item) => (
               <li key={item.key}>
@@ -202,44 +188,14 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
         </Notice>
       ) : null}
 
-      {running ? (
-        <Notice tone="info" title="Claude plant gerade" role="status">
-          <p>
-            {weekJob
-              ? `Seit ${formatTime(new Date(weekJob.startedAt).toISOString())} Uhr. Die Seite aktualisiert sich selbst; das dauert meist ein bis drei Minuten.`
-              : `Gerade wird ${formatWeekLabel(job.weekStart)} geplant.`}
-          </p>
-        </Notice>
-      ) : null}
-      {weekJob?.status === "failed" ? (
-        <Notice tone="error" title="Planung nicht übernommen" role="alert">
-          <p>{weekJob.message}</p>
-          {weekJob.details.length > 0 ? (
-            <ul className="stack-tight">
-              {weekJob.details.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="small">
-            Ein vorhandener Entwurf und der veröffentlichte Plan sind unverändert.
-          </p>
-        </Notice>
-      ) : null}
-      {weekJob?.status === "succeeded" && weekJob.draftId === draft?.id ? (
-        <Notice tone="success" title="Neuer Entwurf erstellt" role="status">
-          <p>Bitte prüfen. Veröffentlicht wird erst nach deiner ausdrücklichen Freigabe.</p>
-        </Notice>
-      ) : null}
-
       <section className="section" aria-labelledby="grundlage-titel">
         <div className="section-head">
           <h2 id="grundlage-titel">Grundlage für {formatWeekLabel(weekStart)}</h2>
         </div>
         <ul className="stack-tight muted">
           <li>
-            {context.fixed.length} feste Termine aus aktiven Wiederholungen, davon {dutyCount}{" "}
-            Dienst – sie werden unverändert übernommen.
+            {context.fixed.length} feste Termine (Wiederholungen und Einzeltermine), davon{" "}
+            {dutyCount} Dienst – sie werden unverändert übernommen.
           </li>
           <li>
             Training: {context.slots.filter((s) => s.goal === "sport").length} Tage mit Zeitfenster;{" "}
@@ -248,17 +204,12 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
           </li>
           <li>Gewerbe mindestens {hoursAndMinutes(targets.business)} (Dienst zählt nicht).</li>
           <li>
-            An Claude gehen nur Zeiten und neutrale Bezeichnungen – keine Titel, Notizen, Orte,
-            Namen, Tagesnotizen oder Kontodaten.
+            Claude bespricht die Woche sonntags in der Claude-App und speichert den Entwurf über den{" "}
+            <Link href="/einstellungen#claude">Claude-Connector</Link>. Claude erhält nur Zeiten und
+            neutrale Bezeichnungen – keine Titel, Notizen, Orte, Namen, Tagesnotizen oder
+            Kontodaten.
           </li>
         </ul>
-        <PlanStartForm
-          action={startPlanningAction.bind(null, weekStart)}
-          draft={
-            draft && fingerprint ? { id: draft.id, fingerprint, version: draft.version } : null
-          }
-          disabled={!canStart}
-        />
         {published ? (
           <p className="small muted">
             Veröffentlicht ist Version {published.version}. Sie bleibt in Web, App und Widget
@@ -388,7 +339,11 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
                       {entry.note ? <span className="list-meta">{entry.note}</span> : null}
                     </span>
                     <span className="list-meta">
-                      {entry.source === "agent" ? "von Claude vorgeschlagen" : "feste Wiederholung"}
+                      {entry.source === "agent"
+                        ? "von Claude vorgeschlagen"
+                        : entry.source === "manual"
+                          ? "Einzeltermin"
+                          : "feste Wiederholung"}
                     </span>
                   </li>
                 );
@@ -407,7 +362,7 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
             <PublishPlanForm
               action={publishPlannedWeekAction.bind(null, draft.id, weekStart)}
               fingerprint={fingerprint}
-              disabled={!evaluation.publishable || running}
+              disabled={!evaluation.publishable}
             />
           </div>
           {!evaluation.publishable ? (
@@ -417,16 +372,16 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
             </p>
           ) : null}
         </section>
-      ) : !running ? (
+      ) : (
         <section className="empty">
           <CalendarCheck size={28} aria-hidden="true" className="icon" />
           <h2>Noch kein Entwurf für diese Woche</h2>
           <p className="muted">
-            Claude erstellt einen Entwurf. Veröffentlicht wird erst nach deiner Prüfung und
-            Freigabe.
+            Claude erstellt den Entwurf sonntags im Gespräch mit dir. Veröffentlicht wird erst nach
+            deiner ausdrücklichen Bestätigung.
           </p>
         </section>
-      ) : null}
+      )}
     </>
   );
 }

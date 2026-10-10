@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Lokaler Nebenläufigkeitstest für Fokus-Erfassung, Tagesnotizen und Wochenplaner (nur lokale
+ * Lokaler Nebenläufigkeitstest für Fokus-Erfassung, Tagesnotizen und Wochenentwürfe (nur lokale
  * Supabase-Instanz).
  *
  * pgTAP läuft in einer einzigen Transaktion und kann echte Gleichzeitigkeit nicht prüfen.
@@ -12,11 +12,14 @@
  *  3. zwei gleichzeitige Speichervorgänge einer Tagesnotiz auf demselben Stand → genau einer
  *     gelingt, der andere wird mit TT007 abgewiesen (kein stilles Überschreiben),
  *  4. zwei gleichzeitige Erstanlagen derselben Tagesnotiz → genau eine Notiz,
- *  5. Wochenplaner: zwei gleichzeitige Planungen ohne Entwurf → genau ein Entwurf, die zweite
+ *  5. Wochenentwurf: derselbe Vorschlag zweimal gleichzeitig (Wiederholung nach Zeitüberschreitung)
+ *     → beide gelingen, genau ein Entwurf (idempotent),
+ *  6. zwei verschiedene Vorschläge gleichzeitig ohne Entwurf → genau ein Entwurf, der zweite
  *     wird mit TT008 abgewiesen (kein stilles Überschreiben),
- *  6. zwei gleichzeitige Freigaben desselben geprüften Entwurfs (Doppelklick in zwei Tabs) →
+ *  7. zwei gleichzeitige Freigaben desselben geprüften Entwurfs (Doppelklick in zwei Tabs) →
  *     beide gelingen, veröffentlicht ist genau eine Version,
- *  7. gleichzeitiges Veröffentlichen und Neu-Planen → genau eines gelingt, das andere TT008,
+ *  8. gleichzeitiges Veröffentlichen und Neu-Planen → genau eines gelingt, das andere TT008,
+ *  9. gleichzeitiges Veröffentlichen und Verwerfen → genau eines gelingt,
  *
  * und prüft danach, dass nie mehr als eine Aktivität läuft. Der Test-Benutzer wird am Ende
  * samt Daten wieder gelöscht. Niemals gegen Produktion verwenden.
@@ -50,15 +53,18 @@ function psql(sql) {
   }).trim();
 }
 
-/** Startet eine Sitzung, die als Test-Benutzer `call` ausführt und die Sperre kurz hält. */
-function session(call, delayMs) {
+/**
+ * Startet eine Sitzung, die als Test-Benutzer `call` ausführt und die Sperre kurz hält
+ * (`raw`: Ergebnis direkt statt `.id` eines Wochenplans).
+ */
+function session(call, delayMs, raw = false) {
   const sql = `\\set VERBOSITY verbose
 \\set ON_ERROR_STOP 1
 select pg_sleep(${delayMs / 1000});
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"${USER_ID}","role":"authenticated"}', true);
-select (${call}).id;
+select ${raw ? call : `(${call}).id`};
 select pg_sleep(1.5);
 commit;
 `;
@@ -182,16 +188,33 @@ try {
     "für den Tag existiert genau eine Notiz",
   );
 
-  // 5.–7. Wochenplaner (Prüfstand + Sperre je Woche).
+  // 5.–9. Wochenentwürfe (Prüfstand + Sperre je Woche).
   psql(`delete from public.schedule_weeks where owner_id = '${USER_ID}';`);
-  const entries = `'[{"title":"Gewerbe-Fokus (Beispiel)","category":"business",
-    "start_at":"2026-10-20T07:00:00Z","end_at":"2026-10-20T10:00:00Z",
+  const proposal = (day, from, to) => `'[{"title":"Gewerbe-Fokus (Beispiel)","category":"business",
+    "start_at":"${day}T${from}:00Z","end_at":"${day}T${to}:00Z",
     "location":null,"note":null,"source":"agent"}]'::jsonb`;
-  const generate = (expected) =>
-    `public.save_generated_schedule_draft('2026-10-19', ${expected}, ${entries})`;
+  const entries = proposal("2026-10-20", "07:00", "10:00");
+  const otherEntries = proposal("2026-10-21", "07:00", "09:00");
+  const generate = (expected, items = entries, week = "2026-10-19") =>
+    `public.save_generated_schedule_draft('${week}', ${expected}, ${items})`;
+
+  const replays = await Promise.all([
+    session(generate("null, null", proposal("2026-10-27", "07:00", "10:00"), "2026-10-26"), 0),
+    session(generate("null, null", proposal("2026-10-27", "07:00", "10:00"), "2026-10-26"), 300),
+  ]);
+  assert(
+    replays.every((r) => r.ok),
+    "derselbe Vorschlag zweimal gleichzeitig: beide gelingen",
+  );
+  assert(
+    psql(`select count(*) from public.schedule_weeks
+           where owner_id = '${USER_ID}' and week_start = '2026-10-26';`) === "1",
+    "dabei entsteht genau ein Entwurf (idempotent)",
+  );
+
   const plans = await Promise.all([
     session(generate("null, null"), 0),
-    session(generate("null, null"), 300),
+    session(generate("null, null", otherEntries), 300),
   ]);
   assert(plans.filter((r) => r.ok).length === 1, "genau eine gleichzeitige Planung gelingt");
   assert(
@@ -227,7 +250,7 @@ try {
   const nextFingerprint = asUser(`public.schedule_week_fingerprint('${nextDraft}')`);
   const race = await Promise.all([
     session(`public.publish_reviewed_schedule_week('${nextDraft}', '${nextFingerprint}')`, 0),
-    session(generate(`'${nextDraft}', '${nextFingerprint}'`), 300),
+    session(generate(`'${nextDraft}', '${nextFingerprint}'`, otherEntries), 300),
   ]);
   assert(
     race.filter((r) => r.ok).length === 1,
@@ -242,6 +265,28 @@ try {
            where owner_id = '${USER_ID}' and week_start = '2026-10-19'
              and status = 'published';`) === "1",
     "auch danach ist genau eine Version veröffentlicht",
+  );
+
+  // Neuer Entwurf, dann Veröffentlichen und Verwerfen gleichzeitig.
+  const thirdDraft = asUser(`(${generate("null, null", otherEntries)}).id`);
+  const thirdFingerprint = asUser(`public.schedule_week_fingerprint('${thirdDraft}')`);
+  const discardRace = await Promise.all([
+    session(`public.publish_reviewed_schedule_week('${thirdDraft}', '${thirdFingerprint}')`, 0),
+    session(
+      `public.discard_reviewed_schedule_draft('${thirdDraft}', '${thirdFingerprint}')`,
+      300,
+      true,
+    ),
+  ]);
+  assert(
+    discardRace.filter((r) => r.ok).length === 1,
+    "Veröffentlichen und Verwerfen: genau eines gelingt",
+  );
+  assert(
+    psql(`select count(*) from public.schedule_weeks
+           where owner_id = '${USER_ID}' and week_start = '2026-10-19'
+             and status = 'published';`) === "1",
+    "danach ist weiterhin genau eine Version veröffentlicht",
   );
 } catch (error) {
   failed = true;

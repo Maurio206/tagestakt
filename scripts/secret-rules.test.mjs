@@ -102,4 +102,12 @@ describe("checkContent", () => {
     assert.equal(checkContent("a.md", "demo@tagestakt.test").length, 0);
     assert.equal(checkContent("a.md", "jemand@firma.de").length, 1);
   });
+
+  it("meldet Connector-Tokens und Datenbank-Zugangsdaten in öffentlichen Variablen", () => {
+    const token = ["tt", "rt", "A".repeat(43)].join("_");
+    assert.equal(checkContent("a.ts", `const t = "${token}";`).length, 1);
+    assert.equal(checkContent("a.ts", `const t = "tt_rt_kurz";`).length, 0);
+    const publicDb = ["NEXT", "PUBLIC", "CONNECTOR", "DATABASE", "URL="].join("_");
+    assert.equal(checkContent("a.ts", publicDb).length, 1);
+  });
 });

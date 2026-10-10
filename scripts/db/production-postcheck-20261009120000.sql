@@ -1,5 +1,5 @@
 -- =============================================================================
--- TagesTakt – Nachprüfung nach Migration 20261009120000 (Wochenplaner; nur lesend)
+-- TagesTakt – Nachprüfung nach Migration 20261009120000 (Wochenplanung, Connector; nur lesend)
 --
 -- Studio-Form: Im SQL-Editor als eigene Query vollständig ausführen. Prüft Struktur, RLS,
 -- Policies, Grants und Funktionen – ohne Inhalte zu lesen. Jede fehlgeschlagene Prüfung bricht
@@ -74,7 +74,8 @@ begin
   foreach v_function in array array[
     'public.schedule_week_fingerprint(uuid)',
     'public.save_generated_schedule_draft(date, uuid, text, jsonb, text)',
-    'public.publish_reviewed_schedule_week(uuid, text)'
+    'public.publish_reviewed_schedule_week(uuid, text)',
+    'public.discard_reviewed_schedule_draft(uuid, text)'
   ] loop
     if to_regprocedure(v_function) is null then
       raise exception 'Funktion % fehlt', v_function;
@@ -92,6 +93,65 @@ begin
                     where oid = to_regprocedure(v_function)
                       and proconfig @> array['search_path=""']) then
       raise exception 'Funktion % hat keinen leeren search_path', v_function;
+    end if;
+  end loop;
+
+  -- Connector-Rolle: ohne Sonderrechte, erbt nichts, nur Mitglied von authenticated.
+  if not exists (select 1 from pg_roles
+                  where rolname = 'tagestakt_connector'
+                    and not rolsuper and not rolinherit and not rolcreaterole and not rolcreatedb
+                    and not rolreplication and not rolbypassrls) then
+    raise exception 'Rolle tagestakt_connector fehlt oder hat Sonderrechte';
+  end if;
+  if (select coalesce(string_agg(r.rolname::text, ','), '')
+        from pg_auth_members a
+        join pg_roles r on r.oid = a.roleid
+        join pg_roles m on m.oid = a.member
+       where m.rolname = 'tagestakt_connector') <> 'authenticated' then
+    raise exception 'tagestakt_connector ist nicht ausschließlich Mitglied von authenticated';
+  end if;
+  if exists (select 1 from information_schema.role_table_grants
+              where grantee = 'tagestakt_connector' and table_schema <> 'connector') then
+    raise exception 'tagestakt_connector hat Tabellenrechte außerhalb von connector';
+  end if;
+
+  -- Connector-Schema: nicht für API-Rollen erreichbar, RLS und vier Policies je Tabelle.
+  if not exists (select 1 from pg_namespace where nspname = 'connector') then
+    raise exception 'Schema connector fehlt';
+  end if;
+  if has_schema_privilege('anon', 'connector', 'usage')
+     or has_schema_privilege('authenticated', 'connector', 'usage')
+     or has_schema_privilege('service_role', 'connector', 'usage') then
+    raise exception 'Schema connector ist für eine API-Rolle erreichbar';
+  end if;
+  if not has_schema_privilege('tagestakt_connector', 'connector', 'usage')
+     or has_schema_privilege('tagestakt_connector', 'connector', 'create') then
+    raise exception 'Rechte von tagestakt_connector auf das Schema connector falsch';
+  end if;
+  foreach v_table in array array[
+    'connector.oauth_authorization_codes', 'connector.oauth_grants',
+    'connector.oauth_tokens', 'connector.publish_confirmations'
+  ] loop
+    if to_regclass(v_table) is null then
+      raise exception '% fehlt', v_table;
+    end if;
+    if not (select relrowsecurity from pg_class where oid = to_regclass(v_table)) then
+      raise exception 'RLS ist auf % nicht aktiv', v_table;
+    end if;
+    if (select count(distinct cmd) from pg_policies
+         where schemaname || '.' || tablename = v_table and roles = '{tagestakt_connector}') <> 4
+       or (select count(*) from pg_policies where schemaname || '.' || tablename = v_table) <> 4 then
+      raise exception '%: Policies nicht je Operation getrennt bzw. nicht auf den Connector beschränkt',
+        v_table;
+    end if;
+    if exists (select 1 from information_schema.role_table_grants
+                where table_schema || '.' || table_name = v_table
+                  and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'authenticator')) then
+      raise exception 'Eine API-Rolle hat Rechte auf %', v_table;
+    end if;
+    if not has_table_privilege('tagestakt_connector', v_table, 'select, insert, update, delete')
+       or has_table_privilege('tagestakt_connector', v_table, 'truncate') then
+      raise exception 'Rechte von tagestakt_connector auf % falsch', v_table;
     end if;
   end loop;
 

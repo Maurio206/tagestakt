@@ -1,13 +1,14 @@
 /**
- * Wochenplaner mit Claude – deterministischer Teil (ohne Netzwerk, ohne Sprachmodell).
+ * Wochenplanung – deterministischer Teil (ohne Netzwerk, ohne Sprachmodell).
  *
- * Ablauf: Aus den eigenen Einstellungen, Planungsregeln und aktiven Wiederholungen entsteht ein
- * Planungskontext. Fehlen Angaben oder ist die Woche mit den Regeln nicht planbar, wird gar nicht
- * erst geplant. Sonst erhält das Sprachmodell nur bereinigte Zeiten (keine Titel, Notizen, Orte,
- * Namen oder IDs) und schlägt flexible Blöcke vor (Gewerbe, Sport, Beziehung). Jeder Vorschlag
- * wird hier vollständig und unabhängig vom Modell geprüft; feste Verpflichtungen übernimmt der
- * Server selbst unverändert. `evaluatePlanDraft` bewertet einen gespeicherten Entwurf (auch nach
- * manuellen Änderungen) und entscheidet, ob er veröffentlicht werden darf.
+ * Ablauf: Aus den eigenen Einstellungen, Planungsregeln, aktiven Wiederholungen und den manuellen
+ * Einzelterminen der Woche entsteht ein Planungskontext. Fehlen Angaben oder ist die Woche mit den
+ * Regeln nicht planbar, wird nicht geplant. Ein Planungsassistent (der Claude-Connector) erhält nur
+ * bereinigte Zeiten (keine Titel, Notizen, Orte, Namen oder IDs) und schlägt flexible Blöcke vor
+ * (Gewerbe, Training, Beziehungszeit, zusätzliche Termine). Jeder Vorschlag wird hier vollständig
+ * und unabhängig geprüft; feste Verpflichtungen übernimmt der Server selbst unverändert.
+ * `evaluatePlanDraft` bewertet einen gespeicherten Entwurf (auch nach manuellen Änderungen) und
+ * entscheidet, ob er veröffentlicht werden darf.
  *
  * Zeiten: Planungszeitzone Europe/Berlin inklusive Sommer-/Winterzeit; Prüfungen auf echten
  * Zeitpunkten (Millisekunden), Beschriftungen in Ortszeit.
@@ -69,8 +70,12 @@ export const SLOT_REQUIREMENT_LABELS: Readonly<Record<SlotRequirement, string>> 
   optional: "optional (nur bei Platz)",
 };
 
-/** Was das Modell vorschlagen darf. Feste Verpflichtungen setzt ausschließlich der Server. */
-export const PLANNER_BLOCK_KINDS = ["business", "sport", "relationship"] as const;
+/**
+ * Was ein Vorschlag enthalten darf. Feste Verpflichtungen (Wiederholungen, Einzeltermine) setzt
+ * ausschließlich der Server. `appointment`: zusätzlicher Termin, den der Benutzer für diese
+ * Woche genannt hat.
+ */
+export const PLANNER_BLOCK_KINDS = ["business", "sport", "relationship", "appointment"] as const;
 export type PlannerBlockKind = (typeof PLANNER_BLOCK_KINDS)[number];
 
 export const PLANNER_MAX_BLOCKS = 60;
@@ -81,14 +86,14 @@ export const PLANNER_SUMMARY_MAX_LENGTH = 800;
 export const PLANNER_MAX_LIST_ITEMS = 10;
 /** Kürzester geplanter Block (Minuten). */
 export const PLANNER_MIN_BLOCK_MINUTES = 15;
-/** Planbar: die aktuelle Woche und so viele folgende. */
+/** Lesbar: die aktuelle Woche und so viele folgende; speicherbar nur die folgenden. */
 export const PLANNER_HORIZON_WEEKS = 4;
 /** Neue Blöcke in der laufenden Woche beginnen frühestens zum nächsten Viertelstundenschritt. */
 const NOT_BEFORE_STEP_MINUTES = 15;
 
 /**
- * Neutrale Bezeichnungen für das Sprachmodell. Bewusst ohne Namen: die Kategorie
- * `relationship` heißt in der Oberfläche „Laila“, gegenüber dem Modell „Beziehungszeit“.
+ * Neutrale Bezeichnungen für den Planungsassistenten. Bewusst ohne Namen: die Kategorie
+ * `relationship` heißt in der Oberfläche „Laila“, gegenüber Claude „Beziehungszeit“.
  */
 export const PLANNER_NEUTRAL_KIND_LABELS: Readonly<Record<EntryCategory, string>> = {
   duty: "Dienst",
@@ -105,8 +110,25 @@ export const PLANNER_NEUTRAL_KIND_LABELS: Readonly<Record<EntryCategory, string>
   other: "Sonstiges",
 };
 
-/** Titel geplanter Gewerbeblöcke, wenn das Modell keinen brauchbaren liefert. */
+/**
+ * Ersetzt private Bezeichnungen der Beziehungszeit (Anzeige in Web und App) durch die neutrale
+ * Art. Alles, was den Connector verlässt, läuft hier durch – Prüf- und Fehlermeldungen
+ * enthalten sonst z. B. „Zeit mit …“.
+ */
+export function neutralizePlannerText(text: string): string {
+  const neutral = PLANNER_NEUTRAL_KIND_LABELS.relationship;
+  const replacements: [string, string][] = [
+    [`Zeit mit ${GOAL_LABELS.relationship}`, neutral],
+    [`${GOAL_LABELS.relationship}-Tage`, "Beziehungstage"],
+    [GOAL_LABELS.relationship, neutral],
+    [CATEGORY_LABELS.relationship, neutral],
+  ];
+  return replacements.reduce((value, [from, to]) => value.split(from).join(to), text);
+}
+
+/** Titel geplanter Gewerbeblöcke bzw. Termine, wenn der Vorschlag keinen brauchbaren enthält. */
 export const DEFAULT_BUSINESS_BLOCK_TITLE = "Gewerbe-Fokus";
+export const DEFAULT_APPOINTMENT_TITLE = "Termin";
 
 // ---------------------------------------------------------------------------
 // Datenbankzeilen und Eingaben
@@ -333,11 +355,38 @@ export interface PlannerFixedEntry {
   end_at: string;
   location: string | null;
   note: string | null;
-  source: "recurring";
+  /** `recurring`: aus aktiven Wiederholungen; `manual`: Einzeltermin der Woche (bleibt erhalten). */
+  source: "recurring" | "manual";
+}
+
+/** Manueller Einzeltermin der Basisversion (Entwurf, sonst veröffentlichte Version). */
+export interface PlannerOneOffEntry {
+  title: string;
+  category: EntryCategory;
+  start_at: string;
+  end_at: string;
+  location: string | null;
+  note: string | null;
+}
+
+/** Manuelle Einträge einer Version als Einzeltermine (bleiben beim Speichern eines Vorschlags). */
+export function manualOneOffs(
+  entries: readonly (PlannerOneOffEntry & { source: string })[],
+): PlannerOneOffEntry[] {
+  return entries
+    .filter((entry) => entry.source === "manual")
+    .map((entry) => ({
+      title: entry.title,
+      category: entry.category,
+      start_at: entry.start_at,
+      end_at: entry.end_at,
+      location: entry.location,
+      note: entry.note,
+    }));
 }
 
 export interface PlannerSlotInstance extends PlanningGoalSlot {
-  /** Neutrale, nicht technische Kennung für das Modell, z. B. „sport-2026-10-12“. */
+  /** Neutrale, nicht technische Kennung, z. B. „sport-2026-10-12“. */
   slotId: string;
   date: LocalDate;
   windowStartAt: number;
@@ -387,6 +436,8 @@ export function buildPlanningContext(input: {
   preferences: PlanningPreferences | null;
   slots: readonly PlanningGoalSlot[];
   commitments: readonly RecurringTemplate[];
+  /** Manuelle Einzeltermine der Woche; sie bleiben beim Planen unverändert erhalten. */
+  oneOffEntries?: readonly PlannerOneOffEntry[];
   timeZone?: string;
 }): PlanningContext {
   const timeZone = input.timeZone ?? SCHEDULE_TIMEZONE;
@@ -427,7 +478,18 @@ export function buildPlanningContext(input: {
     settings: input.settings,
     preferences: input.preferences,
     slots,
-    fixed: expandRecurringCommitments(input.commitments, input.weekStart, timeZone),
+    fixed: [
+      ...expandRecurringCommitments(input.commitments, input.weekStart, timeZone),
+      ...(input.oneOffEntries ?? []).map((entry): PlannerFixedEntry => ({
+        title: entry.title,
+        category: entry.category,
+        start_at: entry.start_at,
+        end_at: entry.end_at,
+        location: entry.location,
+        note: entry.note,
+        source: "manual",
+      })),
+    ].sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at)),
     days,
   };
 }
@@ -465,10 +527,15 @@ export const PLANNER_LINKS = {
   commitments: "/wiederholungen",
 } as const;
 
-/** Planbare Wochen: die laufende und die nächsten `PLANNER_HORIZON_WEEKS`. */
+/** Lesbare Wochen: die laufende und die nächsten `PLANNER_HORIZON_WEEKS`. */
 export function plannableWeekStarts(now: Date, timeZone: string = SCHEDULE_TIMEZONE): LocalDate[] {
   const current = getWeekStart(now, timeZone);
   return Array.from({ length: PLANNER_HORIZON_WEEKS + 1 }, (_, i) => addDays(current, i * 7));
+}
+
+/** Über den Connector speicherbar: nur kommende Wochen (nicht die laufende). */
+export function upcomingWeekStarts(now: Date, timeZone: string = SCHEDULE_TIMEZONE): LocalDate[] {
+  return plannableWeekStarts(now, timeZone).slice(1);
 }
 
 /** Fehlende Angaben – ohne sie wird nicht geplant (nichts wird geraten). */
@@ -645,66 +712,228 @@ export function findPlanningConflicts(context: PlanningContext): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Eingabe für das Sprachmodell (bereinigt)
+// Vorschlag: strenges Eingabeschema (Werkzeuge des Claude-Connectors)
 // ---------------------------------------------------------------------------
 
-export interface PlannerModelInput {
-  timezone: string;
-  week: { start: LocalDate; end: LocalDate };
+const clockTimeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Uhrzeit im Format HH:MM erwartet" });
+
+export const weekPlanBlockSchema = z
+  .object({
+    kind: z.enum(PLANNER_BLOCK_KINDS, {
+      error: "Erlaubt sind nur business, sport, relationship und appointment",
+    }),
+    /** Pflicht für sport/relationship (aus dem Planungskontext), sonst leer. */
+    slotId: z.string().max(40).nullish(),
+    date: localDateSchema,
+    start: clockTimeSchema,
+    end: clockTimeSchema,
+    /** Nur für business und appointment; Training und Beziehungszeit benennt der Server. */
+    title: z.string().trim().min(1).max(PLANNER_TITLE_MAX_LENGTH).optional(),
+    reason: z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH).optional(),
+  })
+  .strict();
+export type WeekPlanBlock = z.infer<typeof weekPlanBlockSchema>;
+
+export const weekPlanProposalSchema = z
+  .object({
+    weekStart: weekStartSchema,
+    blocks: z.array(weekPlanBlockSchema).max(PLANNER_MAX_BLOCKS),
+    /** Kurze Zusammenfassung der Wochenbesonderheiten (wird als Planungshinweis gespeichert). */
+    summary: z.string().trim().min(1).max(PLANNER_SUMMARY_MAX_LENGTH).optional(),
+  })
+  .strict();
+export type WeekPlanProposal = z.infer<typeof weekPlanProposalSchema>;
+
+/** Prüft einen Vorschlag streng; unbekannte Felder → Fehler (ohne Inhalte zurückzuspiegeln). */
+export function parseWeekPlanProposal(
+  value: unknown,
+): { ok: true; proposal: WeekPlanProposal } | { ok: false; errors: string[] } {
+  const parsed = weekPlanProposalSchema.safeParse(value);
+  if (parsed.success) return { ok: true, proposal: parsed.data };
+  return {
+    ok: false,
+    errors: parsed.error.issues
+      .slice(0, PLANNER_MAX_LIST_ITEMS)
+      .map((issue) => `Format: ${issue.path.join(".") || "(Wurzel)"} – ${issue.code}`),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Planungskontext für den Claude-Connector (bereinigt)
+// ---------------------------------------------------------------------------
+
+const ORIGIN_LABELS = {
+  recurring: "Wiederholung",
+  manual: "Einzeltermin",
+  agent: "Vorschlag",
+} as const;
+
+/** Ein Block ohne Titel, Notiz, Ort oder ID – nur Zeit und neutrale Art. */
+export interface NeutralBlock {
+  date: LocalDate;
+  start: TimeOfDay;
+  end: TimeOfDay;
+  endsNextDay: boolean;
+  kind: string;
+  origin: (typeof ORIGIN_LABELS)[keyof typeof ORIGIN_LABELS];
+}
+
+interface SourcedEntry {
+  category: EntryCategory;
+  start_at: string;
+  end_at: string;
+  source: keyof typeof ORIGIN_LABELS;
+}
+
+export function neutralBlocks(
+  entries: readonly SourcedEntry[],
+  timeZone: string = SCHEDULE_TIMEZONE,
+): NeutralBlock[] {
+  return [...entries]
+    .sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at))
+    .map((entry) => {
+      const start = new Date(entry.start_at);
+      const end = new Date(entry.end_at);
+      return {
+        date: toLocalDate(start, timeZone),
+        start: toLocalTime(start, timeZone),
+        end: toLocalTime(end, timeZone),
+        endsNextDay: toLocalDate(end, timeZone) !== toLocalDate(start, timeZone),
+        kind: PLANNER_NEUTRAL_KIND_LABELS[entry.category],
+        origin: ORIGIN_LABELS[entry.source],
+      };
+    });
+}
+
+export interface ConnectorSlot {
+  slotId: string;
+  date: LocalDate;
+  weekday: string;
+  required: boolean;
+  durationMinutes: number;
+  windowStart: TimeOfDay;
+  windowEnd: TimeOfDay;
+}
+
+export interface ConnectorPlanningContext {
+  week: { start: LocalDate; end: LocalDate; timezone: string; locale: string };
+  /** Nur kommende Wochen dürfen gespeichert werden. */
+  saveAllowed: boolean;
   /** Neue Blöcke frühestens ab hier (laufende Woche); sonst null. */
   earliestStart: { date: LocalDate; time: TimeOfDay } | null;
-  bufferMinutes: number;
-  business: {
-    minimumMinutes: number;
-    dailyWindow: { start: TimeOfDay; end: TimeOfDay };
-    minBlockMinutes: number;
-    maxBlockMinutes: number;
+  rules: {
+    duty: { date: LocalDate; weekday: string; start: TimeOfDay; end: TimeOfDay }[];
+    training: ConnectorSlot[];
+    relationship: ConnectorSlot[];
+    business: {
+      minimumMinutesPerWeek: number;
+      earliestStart: TimeOfDay;
+      latestEnd: TimeOfDay;
+      minBlockMinutes: number;
+      maxBlockMinutes: number;
+      maxMinutesPerWeekday: number;
+      saturdayMaxMinutes: number;
+      sundayMaxMinutes: number;
+    } | null;
+    bufferMinutes: number | null;
+    weeklyTargets: { sportMinutes: number | null; relationshipMinutes: number | null };
   };
+  /** Feste Belegung je Tag (Ortszeit; 24:00 = Tagesende) und Gewerbe-Höchstwert. */
   days: {
     date: LocalDate;
     weekday: string;
-    /** Feste, unveränderliche Belegung (Ortszeit; 24:00 = Tagesende). */
-    busy: { start: string; end: string; kind: string }[];
+    busy: { start: string; end: string; kind: string; origin: NeutralBlock["origin"] }[];
     businessMaxMinutes: number;
     plannable: boolean;
   }[];
-  slots: {
-    slotId: string;
-    goal: PlannerSlotGoal;
-    label: string;
-    date: LocalDate;
-    weekday: string;
-    required: boolean;
-    durationMinutes: number;
-    windowStart: TimeOfDay;
-    windowEnd: TimeOfDay;
-  }[];
-  weeklyTargets: { sportMinutes: number | null; relationshipMinutes: number | null };
+  oneOffAppointments: NeutralBlock[];
+  existingDraft: { draftRef: string; version: number; blocks: NeutralBlock[] } | null;
+  publishedPlan: { version: number; publishedAt: string | null; blocks: NeutralBlock[] } | null;
+  missing: string[];
+  conflicts: string[];
+}
+
+function connectorSlot(slot: PlannerSlotInstance): ConnectorSlot {
+  return {
+    slotId: slot.slotId,
+    date: slot.date,
+    weekday: WEEKDAY_LABELS[slot.weekday],
+    required: slot.requirement === "required",
+    durationMinutes: slot.durationMinutes,
+    windowStart: slot.windowStart,
+    windowEnd: slot.windowEnd,
+  };
 }
 
 /**
- * Nur, was für die Planung nötig ist: Zeiten, neutrale Arten, Regeln. Keine Titel, Notizen,
- * Orte, IDs, E-Mail-Adressen oder Namen – Datenbanktexte erreichen das Modell nie.
+ * Nur, was für die Planung nötig ist: Zeiten, neutrale Arten, Regeln und ein opaker
+ * Versionsbezug des Entwurfs. Keine Titel, Notizen, Orte, IDs, E-Mail-Adressen oder Namen –
+ * Datenbanktexte erreichen Claude nie (auch nicht als mögliche Anweisungen).
  */
-export function buildPlannerModelInput(context: PlanningContext): PlannerModelInput {
-  const preferences = context.preferences;
-  if (!preferences) throw new Error("Planungsregeln fehlen");
-  const { timeZone } = context;
+export function buildConnectorPlanningContext(
+  context: PlanningContext,
+  input: {
+    locale: string;
+    saveAllowed: boolean;
+    draft: { ref: string; version: number; entries: readonly SourcedEntry[] } | null;
+    published: {
+      version: number;
+      publishedAt: string | null;
+      entries: readonly SourcedEntry[];
+    } | null;
+  },
+): ConnectorPlanningContext {
+  const { timeZone, preferences } = context;
   const notBefore = new Date(context.notBefore);
   const weekStartMs = getWeekBounds(context.weekStart, timeZone).start.getTime();
+  const missing = getMissingPlanningRequirements(context).map((m) =>
+    neutralizePlannerText(m.message),
+  );
   return {
-    timezone: timeZone,
-    week: { start: context.weekStart, end: addDays(context.weekStart, 6) },
+    week: {
+      start: context.weekStart,
+      end: addDays(context.weekStart, 6),
+      timezone: timeZone,
+      locale: input.locale,
+    },
+    saveAllowed: input.saveAllowed,
     earliestStart:
       context.notBefore > weekStartMs
         ? { date: toLocalDate(notBefore, timeZone), time: toLocalTime(notBefore, timeZone) }
         : null,
-    bufferMinutes: preferences.bufferMinutes,
-    business: {
-      minimumMinutes: context.settings.businessTargetMinutes,
-      dailyWindow: { start: preferences.businessEarliestStart, end: preferences.businessLatestEnd },
-      minBlockMinutes: preferences.businessMinBlockMinutes,
-      maxBlockMinutes: preferences.businessMaxBlockMinutes,
+    rules: {
+      duty: context.fixed
+        .filter((e) => e.category === "duty" && e.source === "recurring")
+        .map((e) => {
+          const date = toLocalDate(new Date(e.start_at), timeZone);
+          return {
+            date,
+            weekday: WEEKDAY_LABELS[isoWeekdayOfLocalDate(date)],
+            start: toLocalTime(new Date(e.start_at), timeZone),
+            end: toLocalTime(new Date(e.end_at), timeZone),
+          };
+        }),
+      training: context.slots.filter((s) => s.goal === "sport").map(connectorSlot),
+      relationship: context.slots.filter((s) => s.goal === "relationship").map(connectorSlot),
+      business: preferences
+        ? {
+            minimumMinutesPerWeek: context.settings.businessTargetMinutes,
+            earliestStart: preferences.businessEarliestStart,
+            latestEnd: preferences.businessLatestEnd,
+            minBlockMinutes: preferences.businessMinBlockMinutes,
+            maxBlockMinutes: preferences.businessMaxBlockMinutes,
+            maxMinutesPerWeekday: preferences.businessMaxDailyMinutes,
+            saturdayMaxMinutes: preferences.businessSaturdayMaxMinutes,
+            sundayMaxMinutes: preferences.businessSundayMaxMinutes,
+          }
+        : null,
+      bufferMinutes: preferences?.bufferMinutes ?? null,
+      weeklyTargets: {
+        sportMinutes: context.settings.sportTargetMinutes,
+        relationshipMinutes: context.settings.relationshipTargetMinutes,
+      },
     },
     days: context.days.map((day) => ({
       date: day.date,
@@ -718,145 +947,33 @@ export function buildPlannerModelInput(context: PlanningContext): PlannerModelIn
             start: start <= day.start ? "00:00" : toLocalTime(new Date(start), timeZone),
             end: end >= day.end ? "24:00" : toLocalTime(new Date(end), timeZone),
             kind: PLANNER_NEUTRAL_KIND_LABELS[e.category],
+            origin: ORIGIN_LABELS[e.source],
           };
         }),
       businessMaxMinutes: day.businessMaxMinutes,
       plannable: !day.past,
     })),
-    slots: context.slots.map((slot) => ({
-      slotId: slot.slotId,
-      goal: slot.goal,
-      label: PLANNER_NEUTRAL_KIND_LABELS[slot.goal],
-      date: slot.date,
-      weekday: WEEKDAY_LABELS[slot.weekday],
-      required: slot.requirement === "required",
-      durationMinutes: slot.durationMinutes,
-      windowStart: slot.windowStart,
-      windowEnd: slot.windowEnd,
-    })),
-    weeklyTargets: {
-      sportMinutes: context.settings.sportTargetMinutes,
-      relationshipMinutes: context.settings.relationshipTargetMinutes,
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Modellantwort: strenges Schema
-// ---------------------------------------------------------------------------
-
-const clockTimeSchema = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Uhrzeit im Format HH:MM erwartet" });
-
-const goalMinutesSchema = z
-  .object({
-    plannedMinutes: z.number().int().min(0).max(10080),
-    missingMinutes: z.number().int().min(0).max(10080),
-  })
-  .strict();
-
-export const plannerProposalSchema = z
-  .object({
-    weekStart: weekStartSchema,
-    blocks: z
-      .array(
-        z
-          .object({
-            kind: z.enum(PLANNER_BLOCK_KINDS),
-            slotId: z.string().max(40).nullable(),
-            date: localDateSchema,
-            start: clockTimeSchema,
-            end: clockTimeSchema,
-            title: z.string().trim().min(1).max(PLANNER_TITLE_MAX_LENGTH),
-            reason: z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH),
-          })
-          .strict(),
-      )
-      .max(PLANNER_MAX_BLOCKS),
-    goalSummary: z
-      .object({
-        business: goalMinutesSchema,
-        sport: goalMinutesSchema,
-        relationship: goalMinutesSchema,
-      })
-      .strict(),
-    warnings: z
-      .array(z.string().trim().min(1).max(PLANNER_TEXT_MAX_LENGTH))
-      .max(PLANNER_MAX_LIST_ITEMS),
-    conflicts: z
-      .array(z.string().trim().min(1).max(PLANNER_TEXT_MAX_LENGTH))
-      .max(PLANNER_MAX_LIST_ITEMS),
-    summary: z.string().trim().min(1).max(PLANNER_SUMMARY_MAX_LENGTH),
-  })
-  .strict();
-export type PlannerProposal = z.infer<typeof plannerProposalSchema>;
-
-const goalMinutesJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["plannedMinutes", "missingMinutes"],
-  properties: {
-    plannedMinutes: { type: "integer" },
-    missingMinutes: { type: "integer" },
-  },
-} as const;
-
-/**
- * JSON-Schema für die strukturierte Ausgabe der Messages API (ohne Längen-/Zahlengrenzen, die
- * die API nicht unterstützt). Maßgeblich bleibt die vollständige Prüfung mit
- * `plannerProposalSchema` und `materializeProposal`.
- */
-export const PLANNER_PROPOSAL_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["weekStart", "blocks", "goalSummary", "warnings", "conflicts", "summary"],
-  properties: {
-    weekStart: { type: "string", format: "date" },
-    blocks: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["kind", "slotId", "date", "start", "end", "title", "reason"],
-        properties: {
-          kind: { type: "string", enum: [...PLANNER_BLOCK_KINDS] },
-          slotId: { anyOf: [{ type: "string" }, { type: "null" }] },
-          date: { type: "string", format: "date" },
-          start: { type: "string" },
-          end: { type: "string" },
-          title: { type: "string" },
-          reason: { type: "string" },
-        },
-      },
-    },
-    goalSummary: {
-      type: "object",
-      additionalProperties: false,
-      required: ["business", "sport", "relationship"],
-      properties: {
-        business: goalMinutesJsonSchema,
-        sport: goalMinutesJsonSchema,
-        relationship: goalMinutesJsonSchema,
-      },
-    },
-    warnings: { type: "array", items: { type: "string" } },
-    conflicts: { type: "array", items: { type: "string" } },
-    summary: { type: "string" },
-  },
-} as const;
-
-/** Prüft eine (bereits als JSON gelesene) Modellantwort streng; unbekannte Felder → Fehler. */
-export function parsePlannerProposal(
-  value: unknown,
-): { ok: true; proposal: PlannerProposal } | { ok: false; errors: string[] } {
-  const parsed = plannerProposalSchema.safeParse(value);
-  if (parsed.success) return { ok: true, proposal: parsed.data };
-  return {
-    ok: false,
-    errors: parsed.error.issues
-      .slice(0, PLANNER_MAX_LIST_ITEMS)
-      .map((issue) => `Antwortformat: ${issue.path.join(".") || "(Wurzel)"} – ${issue.code}`),
+    oneOffAppointments: neutralBlocks(
+      context.fixed.filter((e) => e.source === "manual"),
+      timeZone,
+    ),
+    existingDraft: input.draft
+      ? {
+          draftRef: input.draft.ref,
+          version: input.draft.version,
+          blocks: neutralBlocks(input.draft.entries, timeZone),
+        }
+      : null,
+    publishedPlan: input.published
+      ? {
+          version: input.published.version,
+          publishedAt: input.published.publishedAt,
+          blocks: neutralBlocks(input.published.entries, timeZone),
+        }
+      : null,
+    missing,
+    conflicts:
+      missing.length === 0 ? findPlanningConflicts(context).map(neutralizePlannerText) : [],
   };
 }
 
@@ -874,7 +991,7 @@ export interface PlannedEntry {
   source: "recurring" | "agent";
 }
 
-/** Einzeilig, ohne Steuerzeichen, begrenzte Länge – Modelltext ist nie Markup. */
+/** Einzeilig, ohne Steuerzeichen, begrenzte Länge – Vorschlagstext ist nie Markup. */
 export function cleanPlannerText(value: string, maxLength: number): string {
   const printable = Array.from(value, (char) => {
     const code = char.charCodeAt(0);
@@ -902,13 +1019,17 @@ interface CheckedBlock {
 
 /**
  * Prüft einen Vorschlag deterministisch gegen Woche, Zeitlogik, Zeitfenster, Regeln, Pausen und
- * Überschneidungen. Nur ein fehlerfreier Vorschlag ergibt Einträge (feste Verpflichtungen +
- * vorgeschlagene Blöcke); bei jeder Abweichung `ok: false` – dann wird nichts gespeichert.
+ * Überschneidungen (auch mit Einzelterminen). Nur ein fehlerfreier Vorschlag ergibt Einträge:
+ * `entries` (Wiederholungen + vorgeschlagene Blöcke, so werden sie gespeichert) und
+ * `oneOffs` (manuelle Einzeltermine, die im Entwurf unverändert bleiben). Bei jeder Abweichung
+ * `ok: false` – dann wird nichts gespeichert.
  */
 export function materializeProposal(
   context: PlanningContext,
-  proposal: PlannerProposal,
-): { ok: true; entries: PlannedEntry[] } | { ok: false; errors: string[] } {
+  proposal: WeekPlanProposal,
+):
+  | { ok: true; entries: PlannedEntry[]; oneOffs: PlannerFixedEntry[] }
+  | { ok: false; errors: string[] } {
   const errors: string[] = [];
   const preferences = context.preferences;
   if (!preferences) return { ok: false, errors: ["Planungsregeln fehlen."] };
@@ -951,9 +1072,16 @@ export function materializeProposal(
 
     let title: string;
     let category: EntryCategory;
-    if (block.kind === "business") {
+    if (block.kind === "appointment") {
+      category = "appointment";
+      if (block.slotId !== null && block.slotId !== undefined)
+        errors.push(`${where}: Termine gehören zu keinem Zeitfenster.`);
+      title =
+        cleanPlannerText(block.title ?? "", PLANNER_TITLE_MAX_LENGTH) || DEFAULT_APPOINTMENT_TITLE;
+    } else if (block.kind === "business") {
       category = "business";
-      if (block.slotId !== null) errors.push(`${where}: Gewerbe gehört zu keinem Zeitfenster.`);
+      if (block.slotId !== null && block.slotId !== undefined)
+        errors.push(`${where}: Gewerbe gehört zu keinem Zeitfenster.`);
       if (
         block.start < preferences.businessEarliestStart ||
         block.end > preferences.businessLatestEnd
@@ -971,10 +1099,14 @@ export function materializeProposal(
         );
       }
       title =
-        cleanPlannerText(block.title, PLANNER_TITLE_MAX_LENGTH) || DEFAULT_BUSINESS_BLOCK_TITLE;
+        cleanPlannerText(block.title ?? "", PLANNER_TITLE_MAX_LENGTH) ||
+        DEFAULT_BUSINESS_BLOCK_TITLE;
     } else {
       category = block.kind;
-      const slot = block.slotId === null ? undefined : slotsById.get(block.slotId);
+      const slot =
+        block.slotId === null || block.slotId === undefined
+          ? undefined
+          : slotsById.get(block.slotId);
       if (!slot || slot.goal !== block.kind) {
         errors.push(`${where}: gehört zu keinem hinterlegten Zeitfenster für dieses Ziel.`);
         return;
@@ -993,7 +1125,7 @@ export function materializeProposal(
       if (minutes !== slot.durationMinutes) {
         errors.push(`${where}: Dauer muss genau ${slot.durationMinutes} Minuten betragen.`);
       }
-      // Sichtbarer Titel aus den eigenen Einstellungen, nie aus der Modellantwort.
+      // Sichtbarer Titel aus den eigenen Einstellungen, nie aus dem Vorschlag.
       title = slot.title;
     }
 
@@ -1009,7 +1141,7 @@ export function materializeProposal(
         start_at: new Date(start).toISOString(),
         end_at: new Date(end).toISOString(),
         location: null,
-        note: cleanPlannerText(block.reason, PLANNER_REASON_MAX_LENGTH) || null,
+        note: cleanPlannerText(block.reason ?? "", PLANNER_REASON_MAX_LENGTH) || null,
         source: "agent",
       },
     });
@@ -1022,7 +1154,7 @@ export function materializeProposal(
     }
   }
 
-  // Überschneidungen und Pausen: gegen feste Verpflichtungen und untereinander.
+  // Überschneidungen und Pausen: gegen feste Verpflichtungen (inkl. Einzeltermine) und untereinander.
   const fixed = fixedIntervals(context);
   checked.forEach((block, i) => {
     for (const other of fixed) {
@@ -1065,10 +1197,12 @@ export function materializeProposal(
 
   if (errors.length > 0) return { ok: false, errors };
   const entries: PlannedEntry[] = [
-    ...context.fixed.map((e): PlannedEntry => ({ ...e })),
+    ...context.fixed
+      .filter((e) => e.source === "recurring")
+      .map((e): PlannedEntry => ({ ...e, source: "recurring" })),
     ...checked.map((b) => b.entry),
   ].sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
-  return { ok: true, entries };
+  return { ok: true, entries, oneOffs: context.fixed.filter((e) => e.source === "manual") };
 }
 
 // ---------------------------------------------------------------------------

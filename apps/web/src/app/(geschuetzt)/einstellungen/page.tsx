@@ -6,9 +6,13 @@ import {
   type PlanningGoalSlot,
   type PlanningPreferences,
   SLOT_GOAL_LABELS,
+  formatLocalDateShort,
+  formatTime,
+  toLocalDate,
 } from "@tagestakt/schedule-schema";
 import Link from "next/link";
 
+import { ActionButton } from "@/components/action-button";
 import { Notice } from "@/components/notice";
 import {
   type GoalSlotDefaults,
@@ -18,9 +22,11 @@ import {
 } from "@/components/planning-rules-form";
 import { GoalSettingsForm, ReminderSettingsForm } from "@/components/settings-form";
 import { logoutAction } from "@/server/actions/auth";
+import { revokeConnectorGrantAction } from "@/server/actions/connector";
 import { saveGoalSlotsAction, savePlanningPreferencesAction } from "@/server/actions/planner";
 import { saveGoalsAction, saveRemindersAction } from "@/server/actions/settings";
 import { requireUser } from "@/server/auth";
+import { type ConnectorOverview, getConnectorOverview } from "@/server/data/connector";
 import { getPlanningRules } from "@/server/data/planner";
 import { getSettings } from "@/server/data/settings";
 import { settle } from "@/server/settle";
@@ -66,14 +72,23 @@ function slotDefaults(
   });
 }
 
+/** Zeitpunkt kurz und lesbar, z. B. „Mo. 12.10. 18:05“. */
+function shortDateTime(iso: string): string {
+  return `${formatLocalDateShort(toLocalDate(new Date(iso)))} ${formatTime(iso)}`;
+}
+
+const CONNECTOR_FALLBACK: ConnectorOverview = { configured: false, misconfigured: false };
+
 export default async function SettingsPage() {
-  const [user, settings, loadedRules] = await Promise.all([
+  const [user, settings, loadedRules, loadedConnector] = await Promise.all([
     requireUser(),
     getSettings(),
     // Ein Ladefehler der Planungsregeln blockiert die übrigen Einstellungen nicht.
     settle(getPlanningRules(), { preferences: null, slots: [] }),
+    settle(getConnectorOverview(), CONNECTOR_FALLBACK),
   ]);
   const rules = loadedRules.value;
+  const connector = loadedConnector.value;
 
   return (
     <>
@@ -104,13 +119,13 @@ export default async function SettingsPage() {
 
       <section className="section" id="planungsregeln" aria-labelledby="regeln-titel">
         <div className="section-head">
-          <h2 id="regeln-titel">Planungsregeln für den Wochenplaner</h2>
+          <h2 id="regeln-titel">Planungsregeln für die Wochenplanung</h2>
           <Link href="/planen" className="btn btn--ghost btn--sm">
-            Zum Wochenplaner
+            Zur Wochenplanung
           </Link>
         </div>
         <p className="muted">
-          Der Wochenplaner nutzt nur diese Angaben, deine Wochenziele und deine aktiven
+          Die Wochenplanung mit Claude nutzt nur diese Angaben, deine Wochenziele und deine aktiven
           Wiederholungen (z. B. Dienst). Leere Felder gelten als nicht festgelegt – dann wird nicht
           geplant, statt Werte zu raten.
         </p>
@@ -145,6 +160,66 @@ export default async function SettingsPage() {
           idPrefix="laila"
           slots={slotDefaults(rules.slots, "relationship")}
         />
+      </section>
+
+      <section className="section" id="claude" aria-labelledby="claude-titel">
+        <div className="section-head">
+          <h2 id="claude-titel">Claude-Connector</h2>
+        </div>
+        <p className="muted">
+          Claude bespricht sonntags in der Claude-App die kommende Woche und speichert über diesen
+          Connector einen Entwurf. Veröffentlicht wird nur nach deiner ausdrücklichen Bestätigung.
+          Claude sieht nur Zeiten und neutrale Arten – keine Titel, Notizen, Orte, Tagesnotizen oder
+          Kontodaten.
+        </p>
+        {loadedConnector.failed ? (
+          <Notice tone="error" role="alert">
+            Der Status des Connectors konnte nicht geladen werden. Bitte später erneut versuchen.
+          </Notice>
+        ) : !connector.configured ? (
+          <Notice tone={connector.misconfigured ? "error" : "info"}>
+            {connector.misconfigured
+              ? "Der Connector ist unvollständig konfiguriert und deshalb deaktiviert (siehe docs/claude-connector.md)."
+              : "Der Connector ist auf diesem Server nicht eingerichtet."}
+          </Notice>
+        ) : (
+          <>
+            <dl className="details-list">
+              <dt>Connector-URL</dt>
+              <dd>
+                <code>{connector.mcpUrl}</code>
+              </dd>
+            </dl>
+            {connector.grants.length === 0 ? (
+              <p className="small muted">Derzeit ist Claude nicht verbunden.</p>
+            ) : (
+              <ul className="list">
+                {connector.grants.map((grant) => (
+                  <li key={grant.id}>
+                    <span className="list-main">
+                      <span className="list-title">
+                        {grant.clientName} ({grant.clientHost})
+                      </span>
+                      <span className="list-meta">
+                        Verbunden seit {shortDateTime(grant.createdAt)} · zuletzt genutzt{" "}
+                        {grant.lastUsedAt ? shortDateTime(grant.lastUsedAt) : "noch nie"} · Rechte:{" "}
+                        {grant.scopes.join(", ")}
+                      </span>
+                    </span>
+                    <ActionButton
+                      action={revokeConnectorGrantAction.bind(null, grant.id)}
+                      label="Zugriff widerrufen"
+                      pendingLabel="Wird widerrufen …"
+                      confirmMessage={`Zugriff für „${grant.clientName}“ widerrufen? Claude muss sich danach neu verbinden.`}
+                      variant="danger"
+                      size="sm"
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
       </section>
 
       <section className="section" aria-labelledby="erinnerungen-titel">

@@ -8,12 +8,16 @@ import { Field, FormMessage, SubmitButton, fieldProps } from "./ui";
 
 export function LoginForm({
   action,
+  returnPath = null,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Geprüfter Rücksprung (nur Connector-Freigabe); der Server prüft ihn erneut. */
+  returnPath?: string | null;
 }) {
   const [state, formAction] = useActionState(action, initialActionState);
   return (
     <form action={formAction} className="stack" noValidate>
+      {returnPath ? <input type="hidden" name="weiter" value={returnPath} /> : null}
       <FormMessage state={state} />
       <Field label="E-Mail" id="login-email" name="email" state={state}>
         <input
