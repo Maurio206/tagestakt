@@ -140,7 +140,7 @@ export async function saveDraft(
              ${input.weekStart}::date,
              ${input.expected?.draftId ?? null}::uuid,
              ${input.expected?.fingerprint ?? null}::text,
-             ${JSON.stringify(input.entries)}::jsonb,
+             ${tx.json(input.entries.map((entry) => ({ ...entry })))}::jsonb,
              ${input.planningNote}::text) w`;
   return scheduleWeekRowSchema.parse(row?.data);
 }
