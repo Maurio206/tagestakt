@@ -123,10 +123,10 @@ export async function loadWeekState(tx: Tx, weekStart: LocalDate, now: Date): Pr
   return { context, locale: settings?.locale ?? DEFAULT_LOCALE, draft, published };
 }
 
-type WritableEntry = Pick<
+export type WritableEntry = Pick<
   PlannedEntry,
-  "title" | "category" | "start_at" | "end_at" | "location" | "note" | "source"
->;
+  "title" | "category" | "start_at" | "end_at" | "location" | "note"
+> & { source: ScheduleEntry["source"] };
 
 /** Vergleich ohne ID, Zeitstempel und Erledigt-Status. */
 function entryKey(entry: WritableEntry | ScheduleEntry, withEnd = true): string {
@@ -157,11 +157,11 @@ export class LockedEntryChangeError extends Error {
 }
 
 /**
- * Was sich im Entwurf ändern muss, damit seine geplanten Einträge (ohne Einzeltermine) genau
- * `desired` entsprechen. Unveränderte Einträge bleiben mit ID und Erledigt-Status erhalten. Vor
- * `cutoff` Begonnenes wird nie entfernt oder neu angelegt – nur das Ende eines laufenden
- * Eintrags (Wiederholung oder geplanter Block) darf sich ändern. `historyFromRules`: Woche ohne Version – Vergangenes aus den
- * Wiederholungen wird erstmals angelegt.
+ * Was sich im Entwurf ändern muss, damit seine Einträge (inklusive Einzelterminen) genau
+ * `desired` entsprechen – `desired` enthält deshalb immer die ganze Woche. Unveränderte Einträge
+ * bleiben mit ID und Erledigt-Status erhalten. Vor `cutoff` Begonnenes wird nie entfernt oder neu
+ * angelegt – nur das Ende eines laufenden Eintrags darf sich ändern. `historyFromRules`: Woche
+ * ohne Version – Vergangenes aus den Wiederholungen wird erstmals angelegt.
  */
 export function planDraftWrite(
   current: readonly ScheduleEntry[],
@@ -176,7 +176,6 @@ export function planDraftWrite(
   }
   const unmatched: ScheduleEntry[] = [];
   for (const row of current) {
-    if (row.source === "manual") continue;
     const same = pending.get(entryKey(row));
     if (same && same.length > 0) same.pop();
     else unmatched.push(row);

@@ -5,10 +5,11 @@ export type ConnectorScope = (typeof CONNECTOR_SCOPES)[number];
 
 export const SCOPE_DESCRIPTIONS: Readonly<Record<ConnectorScope, string>> = {
   "planning:read":
-    "Planungsregeln, feste Termine (nur Zeiten und neutrale Arten), Entwurf und veröffentlichten Plan der kommenden Wochen lesen",
-  "planning:draft": "Geprüfte Wochenentwürfe speichern oder eigene Entwürfe verwerfen",
+    "Planungsregeln, feste Termine (nur Zeiten und neutrale Arten), Entwurf und veröffentlichten Plan der laufenden und kommenden Wochen lesen",
+  "planning:draft":
+    "Geprüfte Wochenpläne speichern – auch Wiederholungen und Einzeltermine für eine Woche ändern, immer mit Grund – oder eigene Entwürfe verwerfen",
   "planning:publish":
-    "Einen geprüften Entwurf veröffentlichen – nur mit einmaliger, kurzlebiger Bestätigung nach deiner ausdrücklichen Zustimmung",
+    "Gültige Wochenpläne selbstständig veröffentlichen; die vorherige Version wird archiviert",
 };
 
 export function isConnectorScope(value: string): value is ConnectorScope {

@@ -485,6 +485,7 @@ describe("Planungskontext für den Connector", () => {
         endsNextDay: false,
         kind: "Termin",
         origin: "Einzeltermin",
+        ref: "manual-appointment-2026-10-14-1000",
       },
     ]);
     expect(input.rules.duty.map((d) => `${d.weekday} ${d.start}–${d.end}`)).toEqual([
@@ -1379,7 +1380,7 @@ describe("Laufende Woche: Vergangenes bleibt, ab jetzt wird geplant", () => {
     expect(ctx.fixed.map((e) => e.ref)).toEqual([
       "duty-2026-10-15-0800",
       "duty-2026-10-16-0800",
-      null,
+      "manual-appointment-2026-10-18-1000",
     ]);
     expect(Object.fromEntries(ctx.slots.map((s) => [s.slotId, s.status]))).toMatchObject({
       "sport-2026-10-12": "missed",
@@ -2033,5 +2034,60 @@ describe("Abnahme: Wochenende kurzfristig umplanen (erfundene Beispieldaten)", (
     expect(errorsOf([{ action: "regular", ref: SATURDAY_TOGETHER }])).toContain(
       "gehört zu keiner Wiederholung",
     );
+  });
+});
+
+describe("Einzeltermine dieser Woche ändern", () => {
+  const appointment = baseEntry("2026-10-14", "17:00", "18:00");
+  const REF = "manual-appointment-2026-10-14-1700";
+
+  it("streichen oder verschieben mit Grund; ohne Änderung bleiben sie unverändert", () => {
+    const ctx = context({ baseEntries: baseWith([appointment]) });
+    expect(ctx.fixed.find((e) => e.source === "manual")?.ref).toBe(REF);
+    const cancelled = materializeProposal(ctx, {
+      ...validProposal(),
+      changes: [{ action: "cancel", ref: REF, reason: "abgesagt (Beispiel)" }],
+    });
+    expect(cancelled.ok ? [] : cancelled.errors).toEqual([]);
+    if (cancelled.ok) {
+      expect(cancelled.oneOffs).toEqual([]);
+      expect(cancelled.oneOffChanges).toEqual([
+        "Termin am Mi 14.10. (17:00–18:00) entfällt – Grund: abgesagt (Beispiel)",
+      ]);
+    }
+    const moved = materializeProposal(ctx, {
+      ...validProposal(),
+      changes: [
+        { action: "adjust", ref: REF, start: "21:00", end: "21:30", reason: "später (Beispiel)" },
+      ],
+    });
+    expect(moved.ok ? [] : moved.errors).toEqual([]);
+    if (moved.ok) {
+      expect(moved.oneOffs).toEqual([
+        expect.objectContaining({
+          title: "Einzeltermin (Beispiel)",
+          source: "manual",
+          start_at: at("2026-10-14", "21:00"),
+          end_at: at("2026-10-14", "21:30"),
+        }),
+      ]);
+      expect(moved.oneOffChanges).toEqual([
+        "Termin am Mi 14.10.: 21:00–21:30 statt 17:00–18:00 – Grund: später (Beispiel)",
+      ]);
+    }
+    // Unverändert überschneidet der Einzeltermin weiterhin den Gewerbeblock am Mittwoch.
+    expect(materializeProposal(ctx, validProposal()).ok).toBe(false);
+    expect(
+      materializeProposal(ctx, { ...validProposal(), changes: [{ action: "regular", ref: REF }] })
+        .ok,
+    ).toBe(false);
+  });
+
+  it("begonnene Einzeltermine bleiben unverändert", () => {
+    const ctx = context({
+      now: new Date(at("2026-10-14", "17:30")),
+      baseEntries: baseWith([appointment]),
+    });
+    expect(ctx.fixed.find((e) => e.source === "manual")?.ref).toBeNull();
   });
 });

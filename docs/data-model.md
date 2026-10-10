@@ -165,7 +165,7 @@ Eigentümer prüft der Server. Alles hängt per Kaskade am Benutzer.
 | `oauth_grants`              | eine Freigabe je Eigentümer und Client: Client-ID/-Name, Scopes, Ressource, zuletzt genutzt, Widerruf |
 | `oauth_authorization_codes` | Code-Hash, Redirect-URI, PKCE-Challenge, Scopes, Ressource, Ablauf (5 min), Einlösung                 |
 | `oauth_tokens`              | Token-Hash, Art (`access`/`refresh`), Ablauf, Rotation                                                |
-| `publish_confirmations`     | Bestätigungs-Hash, Freigabe, Woche, Prüfstand, Ablauf (10 min), Einlösung                             |
+| `publish_confirmations`     | früherer Bestätigungsablauf (Hash, Freigabe, Woche, Prüfstand, Ablauf); seit 2026-10-10 ungenutzt     |
 
 Details: [claude-connector.md](claude-connector.md).
 

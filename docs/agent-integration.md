@@ -2,8 +2,8 @@
 
 > **Abgelöst durch den Claude-Connector** ([claude-connector.md](claude-connector.md)): Claude
 > arbeitet in der Claude-App über einen Remote-MCP-Server mit OAuth, speichert nur geprüfte
-> Entwürfe und veröffentlicht ausschließlich nach ausdrücklicher Bestätigung des Benutzers
-> (einmalige Bestätigung über `prepare_week_publish`). Der hier beschriebene eigene Endpunkt mit
+> Pläne und veröffentlicht gültige Pläne selbstständig (Entscheidung des Benutzers vom
+> 2026-10-10). Der hier beschriebene eigene Endpunkt mit
 > `agent_tokens` wird **nicht** umgesetzt; das Dokument bleibt nur als Entscheidungshistorie.
 > Die Grundsätze unten (Entwurf zuerst, kein Service-Role-Key, gleiche Validierung, Idempotenz)
 > gelten für den Connector sinngemäß weiter.

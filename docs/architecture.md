@@ -158,7 +158,7 @@ der Modus gesperrt.
   Erledigt-Status darf sich ändern. Nur Entwürfe dürfen gelöscht werden.
 - Neue Wochen können **nur als Entwurf** angelegt werden. Veröffentlicht wird nur über
   `publish_schedule_week` bzw. `publish_reviewed_schedule_week` – durch den Benutzer in Web/App
-  oder über den Claude-Connector nach ausdrücklicher Bestätigung.
+  oder selbstständig über den Claude-Connector (nur gültige Pläne).
 
 ## Claude-Connector (Remote MCP)
 
@@ -172,8 +172,8 @@ Claude-App ──HTTPS, OAuth──▶ /mcp (Next.js) ──Rolle tagestakt_conn
                        Website, Android-App, Widget lesen nur veröffentlichte Wochen ◀┘
 ```
 
-- Sieben feste Tools: Kontext lesen, prüfen, Entwurf speichern/lesen/verwerfen,
-  Veröffentlichung vorbereiten und nach Bestätigung veröffentlichen.
+- Sechs feste Tools: Kontext lesen, prüfen, Entwurf speichern (optional direkt veröffentlichen),
+  lesen, verwerfen und veröffentlichen.
 - Planbar sind die laufende Woche (ab jetzt; Begonnenes bleibt unverändert) und die nächsten
   vier Wochen. Abweichungen von Wiederholungen und Regeln gelten nur für eine Woche und werden
   ausdrücklich mit Grund genannt; die Wiederholungen selbst bleiben unverändert.

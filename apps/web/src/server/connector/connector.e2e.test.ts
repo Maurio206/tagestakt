@@ -6,10 +6,11 @@
  * räumt danach alles wieder ab. Alle Daten sind frei erfunden (Beispiel).
  *
  * Geprüft: OAuth (PKCE, Code-Einmaligkeit, Ablauf, Rotation, Wiederverwendung, Widerruf,
- * Ressourcenbindung, fremde Konten), alle sieben Tools mit echter Datenbank (Kontext ohne
+ * Ressourcenbindung, fremde Konten), alle sechs Tools mit echter Datenbank (Kontext ohne
  * persönliche Daten, Prüfen, idempotentes Speichern, veralteter und paralleler Stand,
  * Einzeltermine, Abweichungen nur für eine Woche, laufende Woche mit unverändertem
- * Vergangenem und Erledigt-Status, Bestätigung, Ablauf, doppeltes Veröffentlichen, Verwerfen)
+ * Vergangenem und Erledigt-Status, direktes Veröffentlichen, Speichern und Veröffentlichen in
+ * einem Schritt, doppeltes Veröffentlichen, Verwerfen)
  * und ein Durchstich über den echten /mcp-Endpunkt mit dem offiziellen Client.
  */
 import { createHash } from "node:crypto";
@@ -34,7 +35,6 @@ import {
   discardWeekDraft,
   getPlanningContext,
   getWeekDraft,
-  prepareWeekPublish,
   publishWeekDraft,
   saveWeekDraft,
   validateWeekPlan,
@@ -478,30 +478,10 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
   // -------------------------------------------------------------------------
   describe("Tools", () => {
     let auth: ConnectorAuth;
-    let otherGrant: ConnectorAuth;
     const outputs: unknown[] = [];
 
     beforeAll(async () => {
       auth = await authOf((await authorize(OWNER)).access_token);
-      // Zweite Freigabe (anderer Client) für die Prüfung fremder Bestätigungen.
-      const otherCode = await createAuthorizationCode(config, {
-        ownerId: OWNER,
-        clientId: "https://claude.com/oauth/anderer-client",
-        clientName: "Claude (Beispiel 2)",
-        redirectUri: "https://claude.com/api/mcp/auth_callback",
-        codeChallenge: CHALLENGE,
-        scopes: [...CONNECTOR_SCOPES],
-        resource: RESOURCE,
-      });
-      const other = await exchangeAuthorizationCode(config, {
-        code: otherCode,
-        clientId: "https://claude.com/oauth/anderer-client",
-        redirectUri: "https://claude.com/api/mcp/auth_callback",
-        codeVerifier: VERIFIER,
-        resource: RESOURCE,
-      });
-      if (!other.ok) throw new Error(other.failure.description);
-      otherGrant = await authOf(other.tokens.access_token);
     });
 
     it("get_planning_context: Regeln und Belegung, aber keine persönlichen Daten", async () => {
@@ -713,7 +693,7 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       );
       expect(rules.map((r) => r.start_time)).toEqual(["08:00:00"]);
 
-      // Ausdrücklich zurücksetzen (nur nach Rückfrage beim Benutzer).
+      // Ausdrücklich zurücksetzen.
       const reset = await saveWeekDraft(deps(), auth, {
         ...plan([], WEEK, [{ action: "regular", ref: TUESDAY }]),
         expectedDraftRef: kept.draftRef,
@@ -739,84 +719,65 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       expect(view.published?.version).toBe(1);
     });
 
-    it("publish_week_draft ohne Vorbereitung oder mit erfundener Bestätigung: nichts passiert", async () => {
-      const ref = (await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef;
-      for (const confirmationId of [generateToken("confirmation"), "Wochenplan veröffentlichen"]) {
-        expect(
-          await failureOf(
-            publishWeekDraft(deps(), auth, {
-              weekStart: WEEK,
-              expectedDraftRef: ref,
-              confirmationId,
-            }),
-          ),
-        ).toBe("confirmation_invalid");
-      }
-      expect(await weeksOf(OWNER)).toEqual([
-        { version: 1, status: "published" },
-        { version: 2, status: "draft" },
+    const publishedRows = () =>
+      asOwnerRole(
+        OWNER,
+        (tx) =>
+          tx<{ title: string; source: string; start_at: Date; location: string | null }[]>`
+          select e.title, e.source, e.start_at, e.location from public.schedule_entries e
+            join public.schedule_weeks w on w.id = e.schedule_week_id
+           where w.status = 'published' and w.week_start = ${WEEK}::date`,
+      );
+
+    it("Einzeltermin nur für diese Woche verschieben: Inhalt bleibt, Grund steht in der Übersicht", async () => {
+      const context = await getPlanningContext(deps(), auth, WEEK);
+      const ONE_OFF = "manual-appointment-2026-10-17-1000";
+      expect(context.oneOffAppointments).toEqual([
+        expect.objectContaining({ ref: ONE_OFF, start: "10:00", end: "11:00" }),
       ]);
+      const draft = (await getWeekDraft(deps(), auth, WEEK)).draft!;
+      const moved = await saveWeekDraft(deps(), auth, {
+        ...plan([], WEEK, [
+          ...dutyAsRule(WEEK),
+          { action: "adjust", ref: ONE_OFF, start: "12:00", end: "13:00", reason: "Testgrund" },
+        ]),
+        expectedDraftRef: draft.draftRef,
+      });
+      outputs.push(moved);
+      expect(moved.overview.deviations).toEqual([
+        "Termin am Sa 17.10.: 12:00–13:00 statt 10:00–11:00 – Grund: Testgrund",
+      ]);
+      expect(moved.published).toBeNull();
+      const manual = await asOwnerRole(
+        OWNER,
+        (tx) =>
+          tx<{ title: string; start_at: Date; location: string | null; note: string | null }[]>`
+          select e.title, e.start_at, e.location, e.note from public.schedule_entries e
+            join public.schedule_weeks w on w.id = e.schedule_week_id
+           where w.status = 'draft' and e.source = 'manual'`,
+      );
+      expect(manual).toEqual([
+        {
+          title: ONE_OFF_TITLE,
+          start_at: new Date("2026-10-17T10:00:00Z"),
+          location: "Beispielstraße 1",
+          note: "Versichertenkarte (Beispiel)",
+        },
+      ]);
+      // Ein Einzeltermin ist keine Wiederholung; sein Bezug folgt der aktuellen Zeit.
+      const regular = await validateWeekPlan(deps(), auth, {
+        ...plan([], WEEK, [
+          ...dutyAsRule(WEEK),
+          { action: "regular", ref: "manual-appointment-2026-10-17-1200" },
+        ]),
+      });
+      expect(regular.errors.join(" ")).toContain("gehört zu keiner Wiederholung");
     });
 
-    it("Bestätigung: abgelaufen, fremde Freigabe oder geänderter Entwurf → ungültig", async () => {
-      let ref = (await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef;
-      const expired = await prepareWeekPublish(deps(), auth, {
-        weekStart: WEEK,
-        expectedDraftRef: ref,
-      });
-      await asConnectorRole(
-        (tx) => tx`update connector.publish_confirmations
-                      set expires_at = now() - interval '1 second'
-                    where confirmation_hash = ${sha256Hex(expired.confirmationId)}`,
-      );
+    it("publish_week_draft: veralteter Bezug → nichts passiert", async () => {
       expect(
         await failureOf(
-          publishWeekDraft(deps(), auth, {
-            weekStart: WEEK,
-            expectedDraftRef: ref,
-            confirmationId: expired.confirmationId,
-          }),
-        ),
-      ).toBe("confirmation_invalid");
-
-      const foreignGrant = await prepareWeekPublish(deps(), otherGrant, {
-        weekStart: WEEK,
-        expectedDraftRef: ref,
-      });
-      expect(
-        await failureOf(
-          publishWeekDraft(deps(), auth, {
-            weekStart: WEEK,
-            expectedDraftRef: ref,
-            confirmationId: foreignGrant.confirmationId,
-          }),
-        ),
-      ).toBe("confirmation_invalid");
-
-      const prepared = await prepareWeekPublish(deps(), auth, {
-        weekStart: WEEK,
-        expectedDraftRef: ref,
-      });
-      const changed = await saveWeekDraft(deps(), auth, {
-        ...plan([
-          {
-            kind: "appointment",
-            date: "2026-10-13",
-            start: "18:00",
-            end: "19:00",
-            title: "Neu (Beispiel)",
-          },
-        ]),
-        expectedDraftRef: ref,
-      });
-      ref = changed.draftRef;
-      expect(
-        await failureOf(
-          publishWeekDraft(deps(), auth, {
-            weekStart: WEEK,
-            expectedDraftRef: ref,
-            confirmationId: prepared.confirmationId,
-          }),
+          publishWeekDraft(deps(), auth, { weekStart: WEEK, expectedDraftRef: "0".repeat(64) }),
         ),
       ).toBe("conflict");
       expect(await weeksOf(OWNER)).toEqual([
@@ -825,50 +786,103 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       ]);
     });
 
-    it("prepare + publish: genau einmal, atomar; zweiter Versuch harmlos abgewiesen", async () => {
-      const ref = (await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef;
-      const prepared = await prepareWeekPublish(deps(), auth, {
-        weekStart: WEEK,
-        expectedDraftRef: ref,
-      });
-      outputs.push({ ...prepared, confirmationId: "(ausgeblendet)" });
-      expect(prepared.question).toBe("Soll dieser Wochenplan veröffentlicht werden?");
-      expect(prepared.overview.publishable).toBe(true);
+    it("speichern und veröffentlichen: ungültig oder veraltet → nichts gespeichert, nichts veröffentlicht", async () => {
+      const before = (await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef;
+      const other = plan([
+        {
+          kind: "appointment",
+          date: "2026-10-13",
+          start: "18:00",
+          end: "19:00",
+          title: "Anders (Beispiel)",
+        },
+      ]);
+      for (const [input, expected] of [
+        [
+          { ...plan([business("2026-10-18", "10:00", "12:00")]), expectedDraftRef: before },
+          "validation_failed",
+        ],
+        [{ ...other, expectedDraftRef: "0".repeat(64) }, "TT008"],
+        [{ ...other, expectedDraftRef: null }, "TT008"],
+      ] as const) {
+        expect(await failureOf(saveWeekDraft(deps(), auth, { ...input, publish: true }))).toBe(
+          expected,
+        );
+      }
       expect(await weeksOf(OWNER)).toEqual([
         { version: 1, status: "published" },
         { version: 2, status: "draft" },
       ]);
+      expect((await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef).toBe(before);
+    });
 
+    it("publish_week_draft: gültiger Entwurf direkt, ohne Bestätigung; genau einmal", async () => {
+      const ref = (await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef;
       const published = await publishWeekDraft(deps(), auth, {
         weekStart: WEEK,
         expectedDraftRef: ref,
-        confirmationId: prepared.confirmationId,
       });
+      outputs.push(published);
       expect(published).toMatchObject({ published: true, version: 2 });
       expect(await weeksOf(OWNER)).toEqual([
         { version: 1, status: "archived" },
         { version: 2, status: "published" },
       ]);
       expect(
-        await failureOf(
-          publishWeekDraft(deps(), auth, {
-            weekStart: WEEK,
-            expectedDraftRef: ref,
-            confirmationId: prepared.confirmationId,
+        await failureOf(publishWeekDraft(deps(), auth, { weekStart: WEEK, expectedDraftRef: ref })),
+      ).toBe("no_draft");
+      // Website, App und Widget lesen die veröffentlichte Version: verschobener Einzeltermin ist
+      // mit seinem Inhalt dabei.
+      const visible = await publishedRows();
+      expect(visible).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            title: ONE_OFF_TITLE,
+            source: "manual",
+            start_at: new Date("2026-10-17T10:00:00Z"),
+            location: "Beispielstraße 1",
           }),
-        ),
-      ).not.toBe("kein Fehler");
-      // Website, App und Widget lesen die veröffentlichte Version: Einzeltermin ist dabei.
-      const visible = await asOwnerRole(
-        OWNER,
-        (tx) =>
-          tx<{ title: string; source: string }[]>`
-          select e.title, e.source from public.schedule_entries e
-            join public.schedule_weeks w on w.id = e.schedule_week_id
-           where w.status = 'published' and w.week_start = ${WEEK}::date`,
+        ]),
       );
-      expect(visible.some((e) => e.title === ONE_OFF_TITLE && e.source === "manual")).toBe(true);
       expect(visible.filter((e) => e.source === "agent").length).toBeGreaterThan(0);
+    });
+
+    it("speichern und veröffentlichen in einem Schritt; Wiederholung harmlos", async () => {
+      const extra = {
+        kind: "appointment" as const,
+        date: "2026-10-13",
+        start: "18:00",
+        end: "19:00",
+        title: "Neu (Beispiel)",
+      };
+      const input = { ...plan([extra]), publish: true };
+      const saved = await saveWeekDraft(deps(), auth, { ...input, expectedDraftRef: null });
+      outputs.push(saved);
+      expect(saved).toMatchObject({
+        saved: true,
+        draftVersion: 3,
+        published: { version: 3 },
+      });
+      expect(saved.overview.publishable).toBe(true);
+      expect(await weeksOf(OWNER)).toEqual([
+        { version: 1, status: "archived" },
+        { version: 2, status: "archived" },
+        { version: 3, status: "published" },
+      ]);
+      expect((await publishedRows()).some((e) => e.title === "Neu (Beispiel)")).toBe(true);
+      expect((await publishedRows()).some((e) => e.title === ONE_OFF_TITLE)).toBe(true);
+
+      // Gleicher Aufruf noch einmal (z. B. nach Zeitüberschreitung, mit null oder dem alten
+      // Bezug): keine neue Version.
+      for (const expectedDraftRef of [null, saved.draftRef]) {
+        const replay = await saveWeekDraft(deps(), auth, { ...input, expectedDraftRef });
+        expect(replay).toMatchObject({ replayed: true, published: { version: 3 } });
+      }
+      expect(await weeksOf(OWNER)).toEqual([
+        { version: 1, status: "archived" },
+        { version: 2, status: "archived" },
+        { version: 3, status: "published" },
+      ]);
     });
 
     it("discard_week_draft: nur eigener Entwurf im gelesenen Stand", async () => {
@@ -1041,19 +1055,14 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       });
 
       it("veröffentlichen mit sichtbaren Abweichungen; Erledigt-Status bleibt", async () => {
-        const ref = (await getWeekDraft(morning(), auth, CURRENT_WEEK)).draft!.draftRef;
-        const prepared = await prepareWeekPublish(morning(), auth, {
-          weekStart: CURRENT_WEEK,
-          expectedDraftRef: ref,
-        });
-        expect(prepared.overview.publishable).toBe(true);
-        expect(prepared.overview.summary.join("\n")).toContain(
+        const draft = (await getWeekDraft(morning(), auth, CURRENT_WEEK)).draft!;
+        expect(draft.overview.publishable).toBe(true);
+        expect(draft.overview.summary.join("\n")).toContain(
           "Abweichungen diese Woche: Dienst am Fr 09.10.: 08:00–11:00 statt 08:00–12:00",
         );
         await publishWeekDraft(morning(), auth, {
           weekStart: CURRENT_WEEK,
-          expectedDraftRef: ref,
-          confirmationId: prepared.confirmationId,
+          expectedDraftRef: draft.draftRef,
         });
         expect(await weeksOf(OWNER, CURRENT_WEEK)).toEqual([
           { version: 1, status: "archived" },
@@ -1214,7 +1223,7 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
           requestInit: { headers: { authorization: `Bearer ${access_token}` } },
         }),
       );
-      expect((await client.listTools()).tools).toHaveLength(7);
+      expect((await client.listTools()).tools).toHaveLength(6);
       const result = await client.callTool({
         name: "get_week_draft",
         // Der Endpunkt rechnet mit der echten Uhrzeit: erste kommende Woche ab heute.

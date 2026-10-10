@@ -7,9 +7,9 @@ Geplant wird über eine geschützte Verwaltungswebsite.
 > Status: MVP plus Designsystem, Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
 > Sport und Laila), Fokusfläche auf der Startseite und Tagesnotiz (reiner Text je Kalendertag;
 > Ausbau zu Notizbüchern nur als Konzept: [docs/notes-roadmap.md](docs/notes-roadmap.md)) sowie der
-> **Claude-Connector** (Remote-MCP-Server mit OAuth unter `/mcp`): Claude bespricht in der
-> Claude-App die kommende Woche – auf Zuruf auch die laufende, mit Ausnahmen nur für diese Woche –,
-> speichert geprüfte Entwürfe und veröffentlicht nur nach ausdrücklicher Bestätigung ([docs/claude-connector.md](docs/claude-connector.md)). TagesTakt
+> **Claude-Connector** (Remote-MCP-Server mit OAuth unter `/mcp`): Claude plant sonntags die
+> kommende Woche selbstständig – auf Zuruf auch die laufende, mit Ausnahmen nur für diese Woche –,
+> veröffentlicht gültige Pläne selbst und berichtet die Änderungen ([docs/claude-connector.md](docs/claude-connector.md)). TagesTakt
 > selbst ruft kein Sprachmodell auf und braucht keinen Anthropic-API-Schlüssel.
 
 ## Architektur auf einen Blick
@@ -93,7 +93,7 @@ private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.m
 | `pnpm db:test`                               | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                                 |
 | `pnpm db:upgrade-test`                       | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal)        |
 | `pnpm db:concurrency-test`                   | Gleichzeitige Wechsel/Starts von Aktivitäten mit zwei echten DB-Sitzungen (lokal) |
-| `pnpm connector:e2e`                         | Claude-Connector: alle sieben Tools und OAuth gegen die lokale DB                 |
+| `pnpm connector:e2e`                         | Claude-Connector: alle sechs Tools und OAuth gegen die lokale DB                  |
 | `pnpm --filter @tagestakt/mobile run doctor` | Expo Doctor (Abhängigkeiten und Konfiguration der App)                            |
 | `pnpm db:lint`                               | Supabase-Datenbank-Lint                                                           |
 | `pnpm db:types`                              | TypeScript-Typen aus der lokalen DB generieren                                    |

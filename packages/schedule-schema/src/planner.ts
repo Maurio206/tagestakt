@@ -80,7 +80,7 @@ export const SLOT_REQUIREMENT_LABELS: Readonly<Record<SlotRequirement, string>> 
 
 /**
  * Was ein Vorschlag enthalten darf: jede Art außer Dienst. Wiederholungen und Einzeltermine setzt
- * ausschließlich der Server. Gewerbe, Training und Beziehungszeit sind Planungsblöcke (Regeln,
+ * der Server (für eine Woche änderbar nur über `changes`). Gewerbe, Training und Beziehungszeit sind Planungsblöcke (Regeln,
  * Zeitfenster, Pausen); alle übrigen Arten sind freie Blöcke mit eigenem Titel (Termine und
  * Übergänge wie Fahrt, Körperpflege, Essen oder Schlaf).
  */
@@ -402,11 +402,12 @@ export interface PlannerFixedEntry {
   end_at: string;
   location: string | null;
   note: string | null;
-  /** `recurring`: aus aktiven Wiederholungen; `manual`: Einzeltermin der Woche (bleibt erhalten). */
+  /** `recurring`: aus aktiven Wiederholungen; `manual`: Einzeltermin der Woche. */
   source: "recurring" | "manual";
   /**
-   * Nur Wiederholungen: Bezug für Abweichungen dieser Woche, z. B. „duty-2026-10-16-0700“
-   * (Kategorie, Datum und Uhrzeit laut Regel – keine ID, kein Titel). Sonst null.
+   * Bezug für Abweichungen dieser Woche, z. B. „duty-2026-10-16-0700“ (Kategorie, Datum und
+   * Uhrzeit laut Regel – keine ID, kein Titel) bzw. „manual-…“ für nicht begonnene Einzeltermine.
+   * Sonst null.
    */
   ref: string | null;
 }
@@ -654,7 +655,7 @@ export function buildPlanningContext(input: {
   commitments: readonly RecurringTemplate[];
   /**
    * Einträge der Basisversion (Entwurf, sonst veröffentlichte Version); null, wenn es für die
-   * Woche noch keine Version gibt. Einzeltermine bleiben erhalten, Begonnenes bleibt unverändert.
+   * Woche noch keine Version gibt. Begonnenes bleibt unverändert.
    */
   baseEntries?: readonly PlannerBaseEntry[] | null;
   timeZone?: string;
@@ -762,18 +763,28 @@ export function buildPlanningContext(input: {
     baseDeviations = recurringDeviations(match, notBefore, timeZone);
   }
 
-  const manual = (base ?? [])
-    .filter((e) => e.source === "manual")
-    .map((entry): PlannerFixedEntry => ({
-      title: entry.title,
-      category: entry.category,
-      start_at: entry.start_at,
-      end_at: entry.end_at,
-      location: entry.location,
-      note: entry.note,
-      source: "manual",
-      ref: null,
-    }));
+  // Einzeltermine ab `notBefore` bekommen einen Bezug („manual-…“) und lassen sich für diese
+  // Woche verschieben oder streichen; begonnene bleiben unverändert.
+  const manualRows = (base ?? []).filter((e) => e.source === "manual").sort(byTime);
+  const manualRefs = new Map(
+    assignRefs(
+      manualRows
+        .filter((row) => !began(row))
+        .map((row) => ({ row, category: row.category, start_at: row.start_at })),
+      "manual-",
+      timeZone,
+    ).map(({ row, ref }) => [row, ref] as const),
+  );
+  const manual = manualRows.map((entry): PlannerFixedEntry => ({
+    title: entry.title,
+    category: entry.category,
+    start_at: entry.start_at,
+    end_at: entry.end_at,
+    location: entry.location,
+    note: entry.note,
+    source: "manual",
+    ref: manualRefs.get(entry) ?? null,
+  }));
 
   const slots = [...input.slots]
     .sort((a, b) => a.goal.localeCompare(b.goal) || a.weekday - b.weekday)
@@ -1084,7 +1095,7 @@ const reasonSchema = z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH);
 
 /**
  * Änderung nur für diese Woche – an einer Wiederholung (die Wiederholung selbst bleibt
- * unverändert) oder an einem bereits laufenden Block: `adjust` – andere Zeiten am selben Tag
+ * unverändert), einem Einzeltermin oder einem bereits laufenden Block: `adjust` – andere Zeiten am selben Tag
  * (Ende ≤ Beginn: Ende am Folgetag); bei einem laufenden Eintrag nur das Ende. `cancel` – entfällt
  * diese Woche. `regular` – ausdrücklich wie in der Wiederholung (setzt eine Abweichung zurück).
  */
@@ -1114,20 +1125,20 @@ export const weekPlanProposalSchema = z
       .max(PLANNER_MAX_CHANGES)
       .optional()
       .describe(
-        "Änderungen nur für diese Woche an Wiederholungen bzw. laufenden Blöcken (ref aus dem Kontext), immer mit kurzem Grund",
+        "Änderungen nur für diese Woche an Wiederholungen, Einzelterminen bzw. laufenden Blöcken (ref aus dem Kontext), immer mit kurzem Grund",
       ),
     skippedSlots: z
       .array(z.object({ slotId: z.string().max(40), reason: reasonSchema }).strict())
       .max(PLANNER_MAX_CHANGES)
       .optional()
       .describe(
-        "Verbindliche Zeitfenster, die diese Woche ausfallen, nur auf Angabe des Benutzers, mit Grund",
+        "Verbindliche Zeitfenster, die diese Woche ausfallen bzw. anders liegen, immer mit Grund",
       ),
     businessMinimum: z
       .object({ minutes: z.number().int().min(0).max(10_080), reason: reasonSchema })
       .strict()
       .nullish()
-      .describe("Niedrigeres Gewerbe-Minimum nur für diese Woche, nur auf Angabe des Benutzers"),
+      .describe("Niedrigeres Gewerbe-Minimum nur für diese Woche, immer mit Grund"),
   })
   .strict();
 export type WeekPlanProposal = z.infer<typeof weekPlanProposalSchema>;
@@ -1242,7 +1253,7 @@ export interface ConnectorDeviation {
   current: { start: TimeOfDay; end: TimeOfDay } | null;
   /**
    * true: ein neuer Vorschlag muss diese Abweichung übernehmen (adjust/cancel mit Grund) oder
-   * – nur nach Rückfrage – mit `regular` zurücksetzen; sonst wird er abgelehnt.
+   * mit `regular` zurücksetzen; sonst wird er abgelehnt.
    */
   mustAddress: boolean;
 }
@@ -1292,7 +1303,8 @@ export interface ConnectorPlanningContext {
     businessMaxMinutes: number;
     plannable: boolean;
   }[];
-  oneOffAppointments: NeutralBlock[];
+  /** Einzeltermine; mit `ref` lassen sie sich für diese Woche verschieben oder streichen. */
+  oneOffAppointments: (NeutralBlock & { ref: string | null })[];
   /** Abweichungen des aktuellen Stands (Entwurf, sonst veröffentlichter Plan) von den Wiederholungen. */
   currentDeviations: ConnectorDeviation[];
   existingDraft: { draftRef: string; version: number; blocks: NeutralBlock[] } | null;
@@ -1423,10 +1435,9 @@ export function buildConnectorPlanningContext(
       businessMaxMinutes: day.businessMaxMinutes,
       plannable: !day.past,
     })),
-    oneOffAppointments: neutralBlocks(
-      context.fixed.filter((e) => e.source === "manual"),
-      timeZone,
-    ),
+    oneOffAppointments: context.fixed
+      .filter((e) => e.source === "manual")
+      .flatMap((e) => neutralBlocks([e], timeZone).map((block) => ({ ...block, ref: e.ref }))),
     currentDeviations: context.baseDeviations.map((d) => ({
       ref: d.ref,
       kind: PLANNER_NEUTRAL_KIND_LABELS[d.category],
@@ -1510,8 +1521,10 @@ export interface MaterializedProposal {
   ok: true;
   /** Ab `notBefore`: Wiederholungen (mit Abweichungen dieser Woche) und vorgeschlagene Blöcke. */
   entries: PlannedEntry[];
-  /** Einzeltermine – bleiben im Entwurf unverändert. */
+  /** Einzeltermine – unverändert bzw. mit den Änderungen dieser Woche. */
   oneOffs: PlannerFixedEntry[];
+  /** Geänderte bzw. gestrichene Einzeltermine als lesbare Zeilen (mit Grund). */
+  oneOffChanges: string[];
   /** Bereits Begonnenes – unverändert; laufende Wiederholungen ggf. mit neuem Ende. */
   locked: PlannerLockedEntry[];
   exceptions: DeclaredExceptions;
@@ -1678,17 +1691,43 @@ export function materializeProposal(
   for (const deviation of context.baseDeviations) {
     if (!deviation.changeable || changed.has(deviation.ref)) continue;
     errors.push(
-      `Abweichung im aktuellen Stand nicht berücksichtigt: ${describeDeviation(deviation, timeZone)} (${deviation.ref}). Übernehmen mit adjust bzw. cancel und Grund oder – nur nach Rückfrage beim Benutzer – mit regular auf die Wiederholung zurücksetzen.`,
+      `Abweichung im aktuellen Stand nicht berücksichtigt: ${describeDeviation(deviation, timeZone)} (${deviation.ref}). Übernehmen mit adjust bzw. cancel und Grund oder mit regular auf die Wiederholung zurücksetzen.`,
     );
   }
 
   const recurringEntries: PlannedEntry[] = [];
+  // Begonnene Einzeltermine bleiben, die übrigen ggf. mit Änderung dieser Woche.
+  const oneOffs = context.fixed.filter((e) => e.source === "manual" && e.ref === null);
+  const oneOffChanges: string[] = [];
   for (const [ref, entry] of planned) {
     const times = effective.has(ref)
       ? effective.get(ref)
       : extraRefs.has(ref)
         ? null
         : { start: startOf(entry), end: endOf(entry) };
+    if (entry.source === "manual") {
+      const what = `${CATEGORY_LABELS[entry.category]} am ${dayLabel(toLocalDate(new Date(entry.start_at), timeZone))}`;
+      const before = formatLocalRange(startOf(entry), endOf(entry), timeZone);
+      const reason = exceptions.changes[ref];
+      if (!times) {
+        oneOffChanges.push(withReason(`${what} (${before}) entfällt`, reason));
+        continue;
+      }
+      if (effective.has(ref)) {
+        oneOffChanges.push(
+          withReason(
+            `${what}: ${formatLocalRange(times.start, times.end, timeZone)} statt ${before}`,
+            reason,
+          ),
+        );
+      }
+      oneOffs.push({
+        ...entry,
+        start_at: new Date(times.start).toISOString(),
+        end_at: new Date(times.end).toISOString(),
+      });
+      continue;
+    }
     // Ohne Angabe gilt die Wiederholung; liegt sie vor `notBefore`, meldet das die Prüfung oben.
     if (!times || times.start < notBefore) continue;
     recurringEntries.push({
@@ -1861,11 +1900,10 @@ export function materializeProposal(
   // Überschneidungen und Pausen: gegen Wiederholungen, Einzeltermine, Begonnenes und untereinander.
   // Pausen gelten nur für Gewerbe, Training und Beziehungszeit; freie Blöcke (Fahrt, Körperpflege,
   // Essen …) sind selbst Übergänge und dürfen direkt anschließen – überschneiden darf sich nichts.
-  const busy = [
-    ...recurringEntries,
-    ...context.fixed.filter((e) => e.source === "manual"),
-    ...locked,
-  ].map((e) => ({ start: startOf(e), end: endOf(e) }));
+  const busy = [...recurringEntries, ...oneOffs, ...locked].map((e) => ({
+    start: startOf(e),
+    end: endOf(e),
+  }));
   const pauseOf = (block: CheckedBlock) => (isFreeBlockKind(block.kind) ? 0 : buffer);
   checked.forEach((block, i) => {
     for (const other of busy) {
@@ -1936,7 +1974,8 @@ export function materializeProposal(
   return {
     ok: true,
     entries,
-    oneOffs: context.fixed.filter((e) => e.source === "manual"),
+    oneOffs: oneOffs.sort(byTime),
+    oneOffChanges,
     locked,
     exceptions,
   };

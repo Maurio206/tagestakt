@@ -22,16 +22,17 @@ import {
 } from "@tagestakt/schedule-schema";
 
 import { type ConnectorConfig } from "./config";
-import { type Tx, asConnector, asOwner, connectorTransaction, lockWeek } from "./db";
+import { type Tx, asOwner, connectorTransaction, lockWeek } from "./db";
 import {
   type WeekState,
+  type WritableEntry,
   discardDraft,
   loadWeekState,
+  planDraftWrite,
   publishDraft,
   saveDraft,
   weekFingerprint,
 } from "./planning-data";
-import { generateToken, isTokenOfKind, sha256Hex } from "./tokens";
 
 /**
  * Fachliche Abläufe hinter den MCP-Tools. Die Identität (Eigentümer, Freigabe) kommt
@@ -39,8 +40,6 @@ import { generateToken, isTokenOfKind, sha256Hex } from "./tokens";
  * Jede Änderung läuft in einer Transaktion mit Wochensperre; Prüfregeln sind dieselben wie in
  * der Website (packages/schedule-schema) und lassen sich nicht umgehen.
  */
-
-export const CONFIRMATION_SECONDS = 10 * 60;
 
 export interface ConnectorAuth {
   ownerId: string;
@@ -59,7 +58,6 @@ export type ToolFailureCode =
   | "conflict"
   | "no_draft"
   | "not_publishable"
-  | "confirmation_invalid"
   | "failed";
 
 export class ToolFailure extends Error {
@@ -134,12 +132,13 @@ export function draftOverview(
   version: number | null,
   draftRef: string | null,
   exceptions: DeclaredExceptions | null = null,
+  extraDeviations: readonly string[] = [],
 ): DraftOverview {
   const evaluation = evaluatePlanDraft(context, entries, exceptions);
   const byKey = new Map(evaluation.checks.map((check) => [check.key, check]));
   const ok = (key: string) => byKey.get(key)?.ok ?? false;
   const openDecisions = evaluation.openDecisions.map(neutralizePlannerText);
-  const deviations = evaluation.deviations.map(neutralizePlannerText);
+  const deviations = [...evaluation.deviations, ...extraDeviations].map(neutralizePlannerText);
   const hints = evaluation.checks
     .filter((check) => !check.hard && !check.ok && !check.deviation)
     .map((check) =>
@@ -234,9 +233,10 @@ export interface ValidationResult {
 }
 
 interface ValidPlan {
-  /** Alle geplanten Einträge der Woche ohne Einzeltermine: Begonnenes und ab jetzt Geplantes. */
-  desired: PlannedEntry[];
+  /** Alle Einträge der Woche: Begonnenes, ab jetzt Geplantes und Einzeltermine. */
+  desired: WritableEntry[];
   exceptions: DeclaredExceptions;
+  oneOffChanges: string[];
 }
 
 function validateAgainst(
@@ -268,7 +268,14 @@ function validateAgainst(
       completion_status: "planned" as const,
     })),
   ];
-  const overview = draftOverview(state.context, planned, null, null, materialized.exceptions);
+  const overview = draftOverview(
+    state.context,
+    planned,
+    null,
+    null,
+    materialized.exceptions,
+    materialized.oneOffChanges,
+  );
   const begun = materialized.locked.map((entry): PlannedEntry => ({
     title: entry.title,
     category: entry.category,
@@ -286,7 +293,23 @@ function validateAgainst(
       blocks: blocksOf(state.context, planned),
     },
     plan: overview.publishable
-      ? { desired: [...begun, ...materialized.entries], exceptions: materialized.exceptions }
+      ? {
+          desired: [
+            ...begun,
+            ...materialized.entries,
+            ...materialized.oneOffs.map((entry): WritableEntry => ({
+              title: entry.title,
+              category: entry.category,
+              start_at: entry.start_at,
+              end_at: entry.end_at,
+              location: entry.location,
+              note: entry.note,
+              source: "manual",
+            })),
+          ],
+          exceptions: materialized.exceptions,
+          oneOffChanges: materialized.oneOffChanges,
+        }
       : null,
   };
 }
@@ -312,13 +335,19 @@ export interface SaveResult {
   draftVersion: number;
   draftRef: string;
   overview: DraftOverview;
+  /** Mit `publish: true`: die veröffentlichte Version; sonst null. */
+  published: { version: number; publishedAt: string | null } | null;
 }
 
-/** Speichert nur einen vollständig gültigen Vorschlag als Entwurf (nie veröffentlichen). */
+/**
+ * Speichert nur einen vollständig gültigen Vorschlag als Entwurf; mit `publish: true` wird er in
+ * derselben Transaktion veröffentlicht. Scheitert die Prüfung, wird nichts gespeichert und nichts
+ * veröffentlicht.
+ */
 export async function saveWeekDraft(
   deps: ServiceDeps,
   auth: ConnectorAuth,
-  input: WeekPlanProposal & { expectedDraftRef: string | null },
+  input: WeekPlanProposal & { expectedDraftRef: string | null; publish?: boolean },
 ): Promise<SaveResult> {
   const now = deps.now();
   assertPlannableWeek(input.weekStart, now);
@@ -331,7 +360,7 @@ export async function saveWeekDraft(
     const state = await loadWeekState(tx, input.weekStart, now);
     // Abweichungen im aktuellen Stand prüft materializeProposal: Sie müssen im Vorschlag
     // übernommen oder ausdrücklich zurückgesetzt werden – nichts geht still verloren.
-    const { expectedDraftRef, ...proposal } = input;
+    const { expectedDraftRef, publish, ...proposal } = input;
     const validation = validateAgainst(state, proposal);
     if (!validation.result.valid || !validation.plan) {
       throw new ToolFailure(
@@ -339,6 +368,38 @@ export async function saveWeekDraft(
         "Der Plan ist nicht gültig und wurde nicht gespeichert.",
         validation.result.errors,
       );
+    }
+    const planningNote = proposal.summary
+      ? cleanPlannerText(proposal.summary, PLANNER_SUMMARY_MAX_LENGTH) || null
+      : null;
+    const cutoff = state.context.notBefore;
+    // Genau dieser Plan ist schon veröffentlicht (z. B. wiederholter Aufruf nach einer
+    // Zeitüberschreitung, auch mit dem alten Bezug): nichts tun.
+    if (publish && !state.draft && state.published) {
+      const write = planDraftWrite(state.published.entries, validation.plan.desired, cutoff, false);
+      const unchanged =
+        write.remove.length + write.endChanges.length + write.insert.length === 0 &&
+        state.published.week.planning_note === planningNote;
+      if (unchanged) {
+        return {
+          saved: true,
+          replayed: true,
+          draftVersion: state.published.week.version,
+          draftRef: await weekFingerprint(tx, state.published.week.id),
+          overview: draftOverview(
+            state.context,
+            state.published.entries,
+            state.published.week.version,
+            null,
+            validation.plan.exceptions,
+            validation.plan.oneOffChanges,
+          ),
+          published: {
+            version: state.published.week.version,
+            publishedAt: state.published.week.published_at,
+          },
+        };
+      }
     }
     if (input.expectedDraftRef !== null && !state.draft) {
       throw new ToolFailure(
@@ -351,26 +412,33 @@ export async function saveWeekDraft(
       weekStart: input.weekStart,
       expectedDraftRef,
       desired: validation.plan.desired,
-      cutoff: state.context.notBefore,
+      cutoff,
       historyFromRules: !state.draft && !state.published,
-      planningNote: proposal.summary
-        ? cleanPlannerText(proposal.summary, PLANNER_SUMMARY_MAX_LENGTH) || null
-        : null,
+      planningNote,
     });
     const after = await loadWeekState(tx, input.weekStart, now);
     if (!after.draft || after.draft.week.id !== saved.id) throw new Error("draft_missing");
+    const overview = draftOverview(
+      after.context,
+      after.draft.entries,
+      saved.version,
+      after.draft.fingerprint,
+      validation.plan.exceptions,
+      validation.plan.oneOffChanges,
+    );
+    // Veröffentlichen in derselben Transaktion: scheitert es, bleibt auch der Entwurf ungespeichert.
+    const published = publish
+      ? await publishChecked(tx, after.context, after.draft, validation.plan.oneOffChanges)
+      : null;
     return {
       saved: true,
       replayed: previous !== null && previous === after.draft.fingerprint,
       draftVersion: saved.version,
       draftRef: after.draft.fingerprint,
-      overview: draftOverview(
-        after.context,
-        after.draft.entries,
-        saved.version,
-        after.draft.fingerprint,
-        validation.plan.exceptions,
-      ),
+      overview,
+      published: published
+        ? { version: published.version, publishedAt: published.publishedAt }
+        : null,
     };
   });
 }
@@ -421,153 +489,58 @@ export async function getWeekDraft(
   });
 }
 
-export interface PreparedPublish {
-  confirmationId: string;
-  expiresAt: string;
-  draftVersion: number;
-  draftRef: string;
-  overview: DraftOverview;
-  blocks: NeutralBlock[];
-  question: string;
-}
-
-export const PUBLISH_QUESTION = "Soll dieser Wochenplan veröffentlicht werden?";
-
-/** Bereitet die Veröffentlichung vor: einmalige, kurzlebige Bestätigungs-ID. Veröffentlicht nichts. */
-export async function prepareWeekPublish(
-  deps: ServiceDeps,
-  auth: ConnectorAuth,
-  input: { weekStart: LocalDate; expectedDraftRef: string },
-): Promise<PreparedPublish> {
-  const now = deps.now();
-  assertPlannableWeek(input.weekStart, now);
-  return connectorTransaction(deps.config, async (tx) => {
-    await asOwner(tx, auth.ownerId);
-    await lockWeek(tx, auth.ownerId, input.weekStart);
-    const state = await loadWeekState(tx, input.weekStart, now);
-    const draft = requireDraft(state, input.expectedDraftRef);
-    const overview = draftOverview(
-      state.context,
-      draft.entries,
-      draft.week.version,
-      draft.fingerprint,
-    );
-    if (!overview.publishable) {
-      throw new ToolFailure(
-        "not_publishable",
-        "Der Entwurf erfüllt noch nicht alle Pflichtregeln.",
-        overview.openDecisions,
-      );
-    }
-    const confirmationId = generateToken("confirmation");
-    await asConnector(tx);
-    // Je Freigabe und Entwurf höchstens eine offene Bestätigung; Abgelaufenes aufräumen.
-    await tx`delete from connector.publish_confirmations
-              where grant_id = ${auth.grantId}
-                and (schedule_week_id = ${draft.week.id}::uuid or expires_at < now())
-                and used_at is null`;
-    const [row] = await tx<{ expires_at: Date }[]>`
-      insert into connector.publish_confirmations (
-        confirmation_hash, grant_id, owner_id, schedule_week_id, fingerprint, expires_at)
-      values (${sha256Hex(confirmationId)}, ${auth.grantId}::uuid, ${auth.ownerId}::uuid,
-              ${draft.week.id}::uuid, ${draft.fingerprint},
-              now() + make_interval(secs => ${CONFIRMATION_SECONDS}))
-      returning expires_at`;
-    if (!row) throw new Error("confirmation_insert_failed");
-    return {
-      confirmationId,
-      expiresAt: row.expires_at.toISOString(),
-      draftVersion: draft.week.version,
-      draftRef: draft.fingerprint,
-      overview,
-      blocks: blocksOf(state.context, draft.entries),
-      question: PUBLISH_QUESTION,
-    };
-  });
-}
-
 export interface PublishResult {
   published: true;
   version: number;
   publishedAt: string | null;
 }
 
-/** Veröffentlicht genau den bestätigten, unveränderten und vollständig gültigen Entwurf. */
+/**
+ * Veröffentlicht einen vollständig gültigen, seit dem Lesen unveränderten Entwurf (der Benutzer hat
+ * am 2026-10-10 entschieden, dass Claude gültige Pläne selbst veröffentlicht). Die bisher
+ * veröffentlichte Version wird archiviert.
+ */
 export async function publishWeekDraft(
   deps: ServiceDeps,
   auth: ConnectorAuth,
-  input: { weekStart: LocalDate; expectedDraftRef: string; confirmationId: string },
+  input: { weekStart: LocalDate; expectedDraftRef: string },
 ): Promise<PublishResult> {
   const now = deps.now();
   assertPlannableWeek(input.weekStart, now);
-  const invalid = () =>
-    new ToolFailure(
-      "confirmation_invalid",
-      "Die Bestätigung ist ungültig, abgelaufen oder bereits verwendet. Bitte prepare_week_publish erneut aufrufen und die Freigabe erneut einholen.",
-    );
-  if (!isTokenOfKind(input.confirmationId, "confirmation")) throw invalid();
   return connectorTransaction(deps.config, async (tx) => {
-    const hash = sha256Hex(input.confirmationId);
-    const [confirmation] = await tx<
-      {
-        grant_id: string;
-        owner_id: string;
-        schedule_week_id: string;
-        fingerprint: string;
-        usable: boolean;
-      }[]
-    >`select grant_id, owner_id, schedule_week_id, fingerprint,
-             used_at is null and expires_at > now() as usable
-        from connector.publish_confirmations
-       where confirmation_hash = ${hash}
-         for update`;
-    if (
-      !confirmation ||
-      !confirmation.usable ||
-      confirmation.grant_id !== auth.grantId ||
-      confirmation.owner_id !== auth.ownerId
-    ) {
-      throw invalid();
-    }
-
     await asOwner(tx, auth.ownerId);
     await lockWeek(tx, auth.ownerId, input.weekStart);
     const state = await loadWeekState(tx, input.weekStart, now);
     const draft = requireDraft(state, input.expectedDraftRef);
-    if (
-      draft.week.id !== confirmation.schedule_week_id ||
-      draft.fingerprint !== confirmation.fingerprint
-    ) {
-      throw new ToolFailure(
-        "conflict",
-        "Der Entwurf wurde seit der Vorbereitung geändert. Bitte erneut prüfen und bestätigen lassen.",
-      );
-    }
-    const overview = draftOverview(
-      state.context,
-      draft.entries,
-      draft.week.version,
-      draft.fingerprint,
-    );
-    if (!overview.publishable) {
-      throw new ToolFailure(
-        "not_publishable",
-        "Der Entwurf erfüllt nicht alle Pflichtregeln und wird nicht veröffentlicht.",
-        overview.openDecisions,
-      );
-    }
-    const published = await publishDraft(tx, draft.week.id, draft.fingerprint);
-    if (published.status !== "published") throw new Error("not_published");
-
-    await asConnector(tx);
-    await tx`update connector.publish_confirmations set used_at = now()
-              where confirmation_hash = ${hash}`;
-    return {
-      published: true,
-      version: published.version,
-      publishedAt: published.published_at,
-    };
+    return publishChecked(tx, state.context, draft);
   });
+}
+
+/** Prüft den gespeicherten Entwurf erneut und veröffentlicht ihn (innerhalb der Wochensperre). */
+async function publishChecked(
+  tx: Tx,
+  context: PlanningContext,
+  draft: NonNullable<WeekState["draft"]>,
+  extraDeviations: readonly string[] = [],
+): Promise<PublishResult> {
+  const overview = draftOverview(
+    context,
+    draft.entries,
+    draft.week.version,
+    draft.fingerprint,
+    null,
+    extraDeviations,
+  );
+  if (!overview.publishable) {
+    throw new ToolFailure(
+      "not_publishable",
+      "Der Entwurf erfüllt nicht alle Pflichtregeln und wird nicht veröffentlicht.",
+      overview.openDecisions,
+    );
+  }
+  const published = await publishDraft(tx, draft.week.id, draft.fingerprint);
+  if (published.status !== "published") throw new Error("not_published");
+  return { published: true, version: published.version, publishedAt: published.published_at };
 }
 
 /** Verwirft ausschließlich den eigenen, unveröffentlichten Entwurf genau dieses Stands. */

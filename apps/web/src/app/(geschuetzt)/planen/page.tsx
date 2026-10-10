@@ -399,8 +399,8 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
           <CalendarCheck size={28} aria-hidden="true" className="icon" />
           <h2>Noch kein Entwurf für diese Woche</h2>
           <p className="muted">
-            Claude erstellt den Entwurf sonntags im Gespräch mit dir. Veröffentlicht wird erst nach
-            deiner ausdrücklichen Bestätigung.
+            Claude plant die Woche sonntags (oder wenn du es sagst) und veröffentlicht gültige Pläne
+            selbst.
           </p>
         </section>
       )}

@@ -167,10 +167,10 @@ export default async function SettingsPage() {
           <h2 id="claude-titel">Claude-Connector</h2>
         </div>
         <p className="muted">
-          Claude bespricht sonntags in der Claude-App die kommende Woche und speichert über diesen
-          Connector einen Entwurf. Veröffentlicht wird nur nach deiner ausdrücklichen Bestätigung.
-          Claude sieht nur Zeiten und neutrale Arten – keine Titel, Notizen, Orte, Tagesnotizen oder
-          Kontodaten.
+          Claude plant über diesen Connector die laufende und die kommenden Wochen, veröffentlicht
+          gültige Pläne selbst und berichtet danach, was sich geändert hat; die vorherige Version
+          bleibt archiviert. Claude sieht nur Zeiten und neutrale Arten – keine Titel, Notizen,
+          Orte, Tagesnotizen oder Kontodaten.
         </p>
         {loadedConnector.failed ? (
           <Notice tone="error" role="alert">

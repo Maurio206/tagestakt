@@ -16,6 +16,7 @@ const GRANT = "33333333-3333-4333-8333-333333333333";
 const FOREIGN = "22222222-2222-4222-8222-222222222222";
 const ACCESS = `tt_at_${"A".repeat(43)}`;
 const READ_ONLY = `tt_at_${"B".repeat(43)}`;
+const DRAFT_ONLY = `tt_at_${"D".repeat(43)}`;
 const MCP_URL = "https://plan.tagestakt.test/mcp";
 
 const store = vi.hoisted(() => ({
@@ -29,7 +30,6 @@ const service = vi.hoisted(() => ({
   validateWeekPlan: vi.fn(),
   saveWeekDraft: vi.fn(),
   getWeekDraft: vi.fn(),
-  prepareWeekPublish: vi.fn(),
   publishWeekDraft: vi.fn(),
   discardWeekDraft: vi.fn(),
 }));
@@ -102,6 +102,7 @@ beforeEach(() => {
   store.verifyAccessToken.mockImplementation(async (_config: unknown, token: string) => {
     if (token === ACCESS) return access(["planning:read", "planning:draft", "planning:publish"]);
     if (token === READ_ONLY) return access(["planning:read"]);
+    if (token === DRAFT_ONLY) return access(["planning:read", "planning:draft"]);
     return null;
   });
   service.getWeekDraft.mockResolvedValue({ weekStart: "2026-10-12", draft: null, published: null });
@@ -172,21 +173,21 @@ describe("Endpunkt /mcp", () => {
     for (const mode of ["auto", "legacy"] as const) {
       const client = await connect(ACCESS, mode);
       expect(client.getServerVersion()?.name).toBe("tagestakt");
-      expect(client.getInstructions()).toContain("Wochenplan veröffentlichen");
+      expect(client.getInstructions()).toContain("publish: true");
+      expect(client.getInstructions()).not.toContain("Soll dieser Wochenplan");
       await client.close();
     }
   });
 });
 
 describe("Tools", () => {
-  it("genau sieben eng begrenzte Tools mit strengen Schemas und passenden Hinweisen", async () => {
+  it("genau sechs eng begrenzte Tools mit strengen Schemas und passenden Hinweisen", async () => {
     const client = await connect(ACCESS);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "discard_week_draft",
       "get_planning_context",
       "get_week_draft",
-      "prepare_week_publish",
       "publish_week_draft",
       "save_week_draft",
       "validate_week_plan",
@@ -202,7 +203,11 @@ describe("Tools", () => {
       readOnlyHint: false,
       destructiveHint: true,
     });
-    expect(byName.publish_week_draft?.title).toContain("Bestätigung erforderlich");
+    expect(Object.keys(byName.publish_week_draft?.inputSchema.properties ?? {}).sort()).toEqual([
+      "expectedDraftRef",
+      "weekStart",
+    ]);
+    expect(byName.save_week_draft?.inputSchema.properties).toHaveProperty("publish");
     await client.close();
   });
 
@@ -250,11 +255,7 @@ describe("Tools", () => {
       },
       {
         name: "publish_week_draft",
-        arguments: {
-          weekStart: "2026-10-12",
-          expectedDraftRef: "a".repeat(64),
-          confirmationId: `tt_pc_${"C".repeat(43)}`,
-        },
+        arguments: { weekStart: "2026-10-12", expectedDraftRef: "a".repeat(64) },
       },
     ]) {
       await expect(
@@ -266,6 +267,58 @@ describe("Tools", () => {
     }
     expect(service.saveWeekDraft).not.toHaveBeenCalled();
     expect(service.publishWeekDraft).not.toHaveBeenCalled();
+    await client.close();
+  });
+
+  it("Scope-Trennung: Speichern mit publish: true braucht auch planning:publish", async () => {
+    const client = await connect(DRAFT_ONLY);
+    const input = { weekStart: "2026-10-12", blocks: [], expectedDraftRef: null };
+    const denied = await client.callTool({
+      name: "save_week_draft",
+      arguments: { ...input, publish: true },
+    });
+    expect(denied.isError).toBe(true);
+    expect(service.saveWeekDraft).not.toHaveBeenCalled();
+    const saved = await client.callTool({ name: "save_week_draft", arguments: input });
+    expect(saved.isError).toBeFalsy();
+    await client.close();
+
+    const full = await connect(ACCESS);
+    const published = await full.callTool({
+      name: "save_week_draft",
+      arguments: { ...input, publish: true },
+    });
+    expect(published.isError).toBeFalsy();
+    expect(service.saveWeekDraft).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { ownerId: OWNER, grantId: GRANT },
+      expect.objectContaining({ publish: true }),
+    );
+    await full.close();
+  });
+
+  it("publish_week_draft braucht keine Bestätigung, nur Woche und draftRef", async () => {
+    service.publishWeekDraft.mockResolvedValue({ published: true, version: 2, publishedAt: null });
+    const client = await connect(ACCESS);
+    const result = await client.callTool({
+      name: "publish_week_draft",
+      arguments: { weekStart: "2026-10-12", expectedDraftRef: "a".repeat(64) },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(service.publishWeekDraft).toHaveBeenCalledWith(
+      expect.anything(),
+      { ownerId: OWNER, grantId: GRANT },
+      { weekStart: "2026-10-12", expectedDraftRef: "a".repeat(64) },
+    );
+    const extra = await client.callTool({
+      name: "publish_week_draft",
+      arguments: {
+        weekStart: "2026-10-12",
+        expectedDraftRef: "a".repeat(64),
+        confirmationId: "Wochenplan veröffentlichen",
+      },
+    });
+    expect(extra.isError).toBe(true);
     await client.close();
   });
 

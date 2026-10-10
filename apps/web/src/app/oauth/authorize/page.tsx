@@ -82,8 +82,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Se
             <Notice tone="info" title="Was Claude nicht erhält">
               <p>
                 Kein Passwort, keine E-Mail-Adresse, keine Tagesnotizen, keine Titel, Orte oder
-                Notizen deiner Termine. Veröffentlicht wird nur nach deiner ausdrücklichen
-                Bestätigung im Gespräch. Den Zugriff kannst du jederzeit in den Einstellungen
+                Notizen deiner Termine. Gültige Pläne veröffentlicht Claude selbst; die vorherige
+                Version bleibt archiviert. Den Zugriff kannst du jederzeit in den Einstellungen
                 widerrufen.
               </p>
             </Notice>

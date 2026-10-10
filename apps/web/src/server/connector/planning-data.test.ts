@@ -38,7 +38,7 @@ const planned = (entry: ScheduleEntry, overrides: { end_at?: string; title?: str
   end_at: entry.end_at,
   location: entry.location,
   note: entry.note,
-  source: entry.source === "manual" ? ("agent" as const) : entry.source,
+  source: entry.source,
   ...overrides,
 });
 
@@ -60,15 +60,40 @@ describe("planDraftWrite", () => {
   });
   const current = [past, running, future, block, manual];
 
-  it("gleicher Stand: nichts zu tun (Einzeltermine bleiben außen vor)", () => {
+  it("gleicher Stand: nichts zu tun", () => {
     expect(
       planDraftWrite(
         current,
-        [past, running, future, block].map((e) => planned(e)),
+        current.map((e) => planned(e)),
         CUTOFF,
         false,
       ),
     ).toEqual({ remove: [], endChanges: [], insert: [] });
+  });
+
+  it("Einzeltermin dieser Woche verschieben oder streichen (Inhalt bleibt erhalten)", () => {
+    const withNote = row("2026-10-16T10:00:00.000Z", "2026-10-16T11:00:00.000Z", {
+      title: "Einzeltermin (Beispiel)",
+      category: "appointment",
+      source: "manual",
+      location: "Ort (Beispiel)",
+      note: "Notiz (Beispiel)",
+    });
+    const rest = [past, running, future, block].map((e) => planned(e));
+    const moved = planned(withNote, {});
+    Object.assign(moved, {
+      start_at: "2026-10-16T12:00:00.000Z",
+      end_at: "2026-10-16T13:00:00.000Z",
+    });
+    expect(
+      planDraftWrite([...current, withNote], [...rest, planned(manual), moved], CUTOFF, false),
+    ).toEqual({ remove: [withNote.id], endChanges: [], insert: [moved] });
+    expect(moved).toMatchObject({ source: "manual", location: "Ort (Beispiel)" });
+    expect(planDraftWrite(current, rest, CUTOFF, false)).toEqual({
+      remove: [manual.id],
+      endChanges: [],
+      insert: [],
+    });
   });
 
   it("ersetzt nur Geplantes ab dem frühesten Beginn", () => {
@@ -80,7 +105,7 @@ describe("planDraftWrite", () => {
     expect(
       planDraftWrite(
         current,
-        [planned(past), planned(running), planned(future), moved],
+        [planned(past), planned(running), planned(future), moved, planned(manual)],
         CUTOFF,
         false,
       ),
@@ -96,7 +121,7 @@ describe("planDraftWrite", () => {
     expect(
       planDraftWrite(
         current,
-        [planned(past), shorter, planned(future), planned(block)],
+        [planned(past), shorter, planned(future), planned(block), planned(manual)],
         CUTOFF,
         false,
       ),
