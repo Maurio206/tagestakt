@@ -156,30 +156,31 @@ der Modus gesperrt.
   veröffentlichte Version bleibt bis zur nächsten Veröffentlichung unverändert in der App sichtbar.
 - Inhalte veröffentlichter/archivierter Versionen sind schreibgeschützt (Trigger); nur der
   Erledigt-Status darf sich ändern. Nur Entwürfe dürfen gelöscht werden.
-- Neue Wochen können **nur als Entwurf** angelegt werden – auch ein späterer Agent kann also nie
-  direkt veröffentlichen.
+- Neue Wochen können **nur als Entwurf** angelegt werden. Veröffentlicht wird nur über
+  `publish_schedule_week` bzw. `publish_reviewed_schedule_week` – durch den Benutzer in Web/App
+  oder über den Claude-Connector nach ausdrücklicher Bestätigung.
 
-## Claude-Wochenplaner
+## Claude-Connector (Remote MCP)
 
-Der Planer läuft ausschließlich im Next.js-Server: Browser und App sprechen nie mit Anthropic,
-der Schlüssel liegt nur als Server-Secret vor. Er liest die eigenen Einstellungen, Regeln und
-Wiederholungen mit der Sitzung des Benutzers (RLS, kein Service-Role-Key), schickt nur bereinigte
-Zeiten an Claude, prüft die strukturierte Antwort deterministisch und speichert sie atomar als
-Entwurf. Veröffentlicht wird nur durch den Benutzer, mit Prüfstand gegen veraltete Ansichten.
-App und Widget lesen unverändert nur veröffentlichte Wochen. Details:
-[claude-planner.md](claude-planner.md).
+Claude plant in der Claude-App bzw. in Claude Cowork; TagesTakt ruft selbst kein Sprachmodell
+auf. Die Website stellt unter `/mcp` einen Remote-MCP-Server (Streamable HTTP, zustandslos) mit
+eigenem OAuth-2.1-Autorisierungsserver bereit (`apps/web/src/server/connector`):
 
-## Grenze zum späteren Agenten
+```
+Claude-App ──HTTPS, OAuth──▶ /mcp (Next.js) ──Rolle tagestakt_connector──▶ Postgres (RLS als Owner)
+                                                                          │
+                       Website, Android-App, Widget lesen nur veröffentlichte Wochen ◀┘
+```
 
-Ein **externer** Claude-Agent (eigener Endpunkt, eigene Tokens) ist **nicht** Teil dieser Phase.
-Vorbereitet sind:
+- Sieben feste Tools: Kontext lesen, prüfen, Entwurf speichern/lesen/verwerfen,
+  Veröffentlichung vorbereiten und nach Bestätigung veröffentlichen.
+- Regeln und Prüfung kommen aus `packages/schedule-schema/src/planner.ts` – dieselben wie in der
+  Website. Claude erhält nur Zeiten und neutrale Arten.
+- OAuth-Daten liegen als Hashes im nicht exponierten Schema `connector`; Planungsdaten nur über
+  RLS mit den Claims des Owners.
 
-- der Entwurfs-Workflow (Agent → Entwurf, Mensch → Veröffentlichen),
-- die Quelle `source = 'agent'` in `schedule_entries`,
-- das Vertragsschema `agentDraftRequestSchema` in `packages/schedule-schema` (nicht exponiert),
-- das Konzept in [agent-integration.md](agent-integration.md).
-
-Es gibt keinen Agent-Endpunkt, keinen Agent-Schlüssel und keine Agent-Tabellen.
+Details und Bedrohungsanalyse: [claude-connector.md](claude-connector.md). Das ältere Konzept
+eines eigenen Agent-Endpunkts ([agent-integration.md](agent-integration.md)) ist dadurch abgelöst.
 
 ## Technologieentscheidungen und Abweichungen
 
@@ -200,5 +201,5 @@ Es gibt keinen Agent-Endpunkt, keinen Agent-Schlüssel und keine Agent-Tabellen.
 | Symbole                          | Lucide (`lucide-react`, `lucide-react-native`) | Einheitlich in Web und App, als Komponenten gebündelt (keine externen Ressourcen, CSP bleibt streng).              |
 | Erinnerungen                     | `expo-notifications`, nur lokal                | Kein Push-Dienst nötig; keine Exact-Alarm-Berechtigung (dafür nicht minutengenau).                                 |
 | Tagesnotiz                       | eigene Tabelle `daily_notes`, eigene Migration | Unabhängig von Planversionen; additive Migration mit eigenem Rollback statt Änderung der Aktivitäts-Migration.     |
-| Wochenplaner                     | Server Action + Hintergrundauftrag (`after`)   | Planen dauert Minuten; die Seite fragt den Zustand ab, statt eine lange Anfrage offen zu halten (Proxy-Timeouts).  |
+| Wochenplanung mit Claude         | Remote-MCP-Connector statt API-Aufruf          | Claude plant im Gespräch in der Claude-App; kein API-Schlüssel und keine Modellkosten im Server, gleiche Prüfung.  |
 | Unschärfe der Nachbarblöcke      | CSS `filter: blur` bzw. RN `filter` (Android)  | iOS unterstützt `blur` in React Native nicht – dort nur blass und angeschnitten.                                   |

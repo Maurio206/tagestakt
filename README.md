@@ -7,18 +7,18 @@ Geplant wird über eine geschützte Verwaltungswebsite.
 > Status: MVP plus Designsystem, Fokus-Erfassung (Plan und tatsächliche Zeit für Gewerbe,
 > Sport und Laila), Fokusfläche auf der Startseite und Tagesnotiz (reiner Text je Kalendertag;
 > Ausbau zu Notizbüchern nur als Konzept: [docs/notes-roadmap.md](docs/notes-roadmap.md)) sowie der
-> serverseitige **Claude-Wochenplaner** (Entwurf aus eigenen Regeln, Veröffentlichen nur nach
-> Prüfung: [docs/claude-planner.md](docs/claude-planner.md)). Ein externer Claude-Agent mit
-> eigenem Endpunkt ist konzipiert ([docs/agent-integration.md](docs/agent-integration.md)), aber
-> **nicht** implementiert.
+> **Claude-Connector** (Remote-MCP-Server mit OAuth unter `/mcp`): Claude bespricht in der
+> Claude-App die kommende Woche, speichert geprüfte Entwürfe und veröffentlicht nur nach
+> ausdrücklicher Bestätigung ([docs/claude-connector.md](docs/claude-connector.md)). TagesTakt
+> selbst ruft kein Sprachmodell auf und braucht keinen Anthropic-API-Schlüssel.
 
 ## Architektur auf einen Blick
 
 ```
 apps/web     Next.js (App Router) – Verwaltungswebsite: Login, Übersicht mit Fokusfläche
              und Tagesnotiz, Wocheneditor (mit Tagesnotizen), Wiederholungen, Auswertung,
-             Einstellungen.
-             Server-seitige Auth + zentrale Data-Access-Schicht.
+             Einstellungen, Entwurfsprüfung der Wochenplanung.
+             Server-seitige Auth + zentrale Data-Access-Schicht; Claude-Connector (MCP + OAuth).
 apps/mobile  Expo / React Native (Expo Router) – Jetzt (Fokusfläche), Tag (mit Tagesnotiz),
              Woche, Mehr; Fokus starten/beenden, Zeit korrigieren, Plan bearbeiten (Entwurf),
              Ziele, Wochenbilanz, optionale App-Sperre, lokale Erinnerungen. Session in SecureStore,
@@ -31,7 +31,7 @@ packages/design-tokens
 packages/config
              Gemeinsame ESLint- und TypeScript-Basiskonfiguration.
 supabase     Versionierte SQL-Migrationen, RLS, Grants, neutrale Seed-Daten, pgTAP-Tests.
-docs         Architektur, Sicherheit, Datenmodell, Einrichtung, Agent-Konzept.
+docs         Architektur, Sicherheit, Datenmodell, Einrichtung, Claude-Connector.
 ```
 
 Web und App verwenden denselben Supabase-Auth-Benutzer und denselben gemeinsamen
@@ -93,6 +93,7 @@ private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.m
 | `pnpm db:test`                               | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                                 |
 | `pnpm db:upgrade-test`                       | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal)        |
 | `pnpm db:concurrency-test`                   | Gleichzeitige Wechsel/Starts von Aktivitäten mit zwei echten DB-Sitzungen (lokal) |
+| `pnpm connector:e2e`                         | Claude-Connector: alle sieben Tools und OAuth gegen die lokale DB                 |
 | `pnpm --filter @tagestakt/mobile run doctor` | Expo Doctor (Abhängigkeiten und Konfiguration der App)                            |
 | `pnpm db:lint`                               | Supabase-Datenbank-Lint                                                           |
 | `pnpm db:types`                              | TypeScript-Typen aus der lokalen DB generieren                                    |

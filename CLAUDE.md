@@ -44,7 +44,10 @@ Private Wochenplanungs-App für genau einen Benutzer (pnpm-Monorepo: `apps/web` 
   in `packages/schedule-schema/src/*.test.ts`.
 - Eingaben werden in Web, App und später beim Agenten mit **denselben Zod-Schemas** validiert.
 - Überschneidungen werden nicht verhindert, sondern gewarnt (`detectOverlaps`).
-- Ein Agent darf niemals veröffentlichen – nur Entwürfe (siehe `docs/agent-integration.md`).
+- Ein Agent veröffentlicht niemals selbstständig – nur geprüfte Entwürfe. Der Claude-Connector
+  veröffentlicht ausschließlich nach ausdrücklicher Bestätigung des Benutzers über
+  `prepare_week_publish` → `publish_week_draft` (siehe `docs/claude-connector.md`). Kein
+  Anthropic-API-Schlüssel in TagesTakt.
 
 ## Web (Next.js)
 

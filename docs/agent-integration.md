@@ -1,9 +1,12 @@
-# Späterer Claude-Agent-Anschluss (Konzept – nicht implementiert)
+# Früheres Konzept: eigener Claude-Agent-Endpunkt (abgelöst)
 
-> **Umgesetzt ist inzwischen der serverseitige Claude-Wochenplaner** in der Website
-> ([claude-planner.md](claude-planner.md)): Er erzeugt nur Entwürfe, veröffentlicht nie selbst und
-> nutzt die Sitzung des angemeldeten Benutzers. Dieses Dokument beschreibt weiterhin den
-> **externen** Agent-Endpunkt, der noch nicht existiert.
+> **Abgelöst durch den Claude-Connector** ([claude-connector.md](claude-connector.md)): Claude
+> arbeitet in der Claude-App über einen Remote-MCP-Server mit OAuth, speichert nur geprüfte
+> Entwürfe und veröffentlicht ausschließlich nach ausdrücklicher Bestätigung des Benutzers
+> (einmalige Bestätigung über `prepare_week_publish`). Der hier beschriebene eigene Endpunkt mit
+> `agent_tokens` wird **nicht** umgesetzt; das Dokument bleibt nur als Entscheidungshistorie.
+> Die Grundsätze unten (Entwurf zuerst, kein Service-Role-Key, gleiche Validierung, Idempotenz)
+> gelten für den Connector sinngemäß weiter.
 
 In einer späteren Phase soll ein separater Claude-Agent aus einer Unterhaltung einen Wochenplan
 erstellen und hochladen. **In dieser Phase existieren dafür weder Endpunkt noch Schlüssel noch

@@ -1,17 +1,20 @@
 # Deployment der Website mit Coolify
 
 Diese Anleitung beschreibt die Einstellungen für das erste Deployment der Verwaltungswebsite
-(`apps/web`) auf Coolify. Die mobile App und der spätere Claude-Agent sind nicht Teil davon.
+(`apps/web`) auf Coolify. Die mobile App ist nicht Teil davon. Der Claude-Connector (Remote-MCP,
+[claude-connector.md](claude-connector.md)) ist Teil der Website.
 
 ```
 Browser ──HTTPS──▶ plan.north-frame.de ──▶ Coolify-Proxy ──▶ Container „tagestakt-web“ (Port 3000)
-                                                                   │ HTTPS, Publishable/Anon-Key
+Claude  ──HTTPS, OAuth──▶ plan.north-frame.de/mcp ─┘               │ HTTPS, Publishable/Anon-Key
                                                                    ▼
                                           api.plan.north-frame.de (Supabase, eigene Coolify-Ressource)
+                         Connector: internes Docker-Netz ──▶ supabase-db (Rolle tagestakt_connector)
 ```
 
 Supabase läuft als **getrennte Coolify-Ressource** und wird nicht in den Web-Container eingebaut.
-Der Browser spricht nie direkt mit Supabase, nur mit dem Web-Server.
+Der Browser spricht nie direkt mit Supabase, nur mit dem Web-Server. Nur der Connector nutzt eine
+direkte Datenbankverbindung – mit einer eigenen, minimalen Rolle im internen Netz.
 
 ## 1. Anwendung in Coolify anlegen
 
@@ -41,17 +44,17 @@ In Coolify unter **Environment Variables** der Anwendung anlegen (Werte nie in D
 NEXT_PUBLIC_SUPABASE_URL=https://api.plan.north-frame.de
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<öffentlicher Publishable-/Anon-Key>
 TAGESTAKT_OWNER_USER_ID=<UUID des einzigen angelegten Supabase-Benutzers>
-ANTHROPIC_API_KEY=<nur als Secret, gibt der Benutzer selbst ein>
-ANTHROPIC_MODEL=<optional, Standard claude-opus-5-5>
+TAGESTAKT_PUBLIC_URL=https://plan.north-frame.de
+CONNECTOR_DATABASE_URL=<nur als Secret, gibt der Benutzer selbst ein>
 ```
 
-| Variable                               | Build    | Laufzeit | Hinweis                                                          |
-| -------------------------------------- | -------- | -------- | ---------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`             | **ja**   | **ja**   | öffentlich; muss mit `https://` beginnen                         |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | **ja**   | **ja**   | öffentlich; nur Publishable Key oder Legacy-JWT mit Rolle `anon` |
-| `TAGESTAKT_OWNER_USER_ID`              | **nein** | **ja**   | serverseitig, Pflicht in Produktion                              |
-| `ANTHROPIC_API_KEY`                    | **nein** | **ja**   | Secret, nur serverseitig; ohne ihn ist nur der Wochenplaner aus  |
-| `ANTHROPIC_MODEL`                      | **nein** | **ja**   | optional; Standard `claude-opus-5-5`                             |
+| Variable                               | Build    | Laufzeit | Hinweis                                                                |
+| -------------------------------------- | -------- | -------- | ---------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | **ja**   | **ja**   | öffentlich; muss mit `https://` beginnen                               |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | **ja**   | **ja**   | öffentlich; nur Publishable Key oder Legacy-JWT mit Rolle `anon`       |
+| `TAGESTAKT_OWNER_USER_ID`              | **nein** | **ja**   | serverseitig, Pflicht in Produktion                                    |
+| `TAGESTAKT_PUBLIC_URL`                 | **nein** | **ja**   | Connector: öffentliche Adresse (https); ohne sie ist der Connector aus |
+| `CONNECTOR_DATABASE_URL`               | **nein** | **ja**   | Connector: **Secret**, nur Rolle `tagestakt_connector`                 |
 
 - In Coolify heißen die Schalter je nach Version „Build Variable?“ bzw. „Available at Buildtime“
   und „Available at Runtime“. Die beiden `NEXT_PUBLIC_*`-Variablen brauchen **beides**: Next.js
@@ -62,25 +65,26 @@ ANTHROPIC_MODEL=<optional, Standard claude-opus-5-5>
   Meldung im Coolify-Log ab (`[tagestakt] Konfigurationsfehler …`) – die Website läuft dann nie
   ungeschützt an. Fehlen die `NEXT_PUBLIC_*`-Werte schon beim Build, bricht der Build ab.
 
-### Claude-Wochenplaner: `ANTHROPIC_API_KEY` eintragen
+### Claude-Connector: `TAGESTAKT_PUBLIC_URL` und `CONNECTOR_DATABASE_URL`
 
-Den Schlüssel trägt **nur der Benutzer selbst** in Coolify ein – er wird nie in einen Chat,
-ein Ticket, eine Datei oder das Repository kopiert.
+Die Website ruft **kein** Sprachmodell auf und braucht **keinen** `ANTHROPIC_API_KEY` (falls aus
+einer Vorversion vorhanden: `ANTHROPIC_API_KEY` und `ANTHROPIC_MODEL` löschen). Claude arbeitet
+in der Claude-App und greift über den Connector zu. Voraussetzung ist die Migration
+`20261009120000` mit gesetztem Passwort der Rolle `tagestakt_connector` – Ablauf in
+[production-migration-20261009.md](production-migration-20261009.md).
 
-1. Anthropic Console → API Keys → neuen Schlüssel für TagesTakt anlegen (eigener Workspace mit
-   Ausgabenlimit empfohlen) und direkt aus der Zwischenablage weiterverwenden.
-2. Coolify → Anwendung der Website → **Environment Variables** → **+ Add**:
-   Name `ANTHROPIC_API_KEY`, Wert einfügen, **„Is Secret?“/„Lock“ aktivieren**,
-   **„Available at Buildtime“/„Build Variable?“ aus**, „Available at Runtime“ an. Speichern.
-3. Optional `ANTHROPIC_MODEL` genauso anlegen (ohne Secret-Schalter), nur wenn ein anderes Modell
-   als `claude-opus-5-5` gewünscht ist.
-4. **Neu deployen** (Laufzeitvariablen wirken erst nach einem Neustart des Containers).
-5. Prüfen, ohne den Wert zu sehen: `/planen` zeigt **nicht** mehr „Wochenplaner nicht
-   eingerichtet“. Niemals `NEXT_PUBLIC_ANTHROPIC_…` anlegen – die Website verweigert dann den
-   Start, weil der Wert im Browser-Bundle landen würde.
+1. Coolify → Anwendung der Website → **Environment Variables** → **+ Add**:
+   `TAGESTAKT_PUBLIC_URL` = `https://plan.north-frame.de`, Build aus, Laufzeit an.
+2. `CONNECTOR_DATABASE_URL` trägt **nur der Benutzer selbst** ein:
+   `postgres://tagestakt_connector:…@<Datenbank-Container>:5432/postgres` (Passwort an der Stelle „…“),
+   **„Is Secret?“/„Lock“ an**, **Build aus**, Laufzeit an. Das Passwort besteht nur aus
+   Buchstaben und Ziffern und wurde im Coolify-Terminal mit `\password` gesetzt.
+3. **Neu deployen.** Im Start-Log darf keine Zeile `Claude-Connector deaktiviert: …` stehen; sonst
+   nennt sie den Grund (ohne Werte). Die Website läuft auch mit abgeschaltetem Connector.
+4. Prüfen, ohne Werte zu sehen: Einstellungen → „Claude-Connector“ zeigt die Connector-URL.
 
-Bei Verdacht auf Offenlegung: Schlüssel in der Anthropic Console widerrufen, neuen anlegen,
-in Coolify ersetzen, neu deployen.
+Bei Verdacht auf Offenlegung: Freigaben in den Einstellungen widerrufen, Passwort der Rolle neu
+setzen, `CONNECTOR_DATABASE_URL` ersetzen, neu deployen.
 
 ### Woher kommen die Werte?
 
@@ -94,10 +98,13 @@ in Coolify ersetzen, neu deployen.
 
 - **Keine** Secret- oder Service-Role-Keys (`sb_secret_…`, `service_role`-JWT, bei der
   Coolify-Vorlage z. B. `SERVICE_SUPABASESERVICE_KEY`), **kein** `SUPABASE_SECRET_KEY`,
-  **kein** `JWT_SECRET`, **keine** Datenbankpasswörter. Die Website braucht sie nicht; wird ein
-  solcher Schlüssel als öffentlicher Schlüssel eingetragen, verweigert sie den Start.
-- **Kein** `NEXT_PUBLIC_ANTHROPIC_*`/`NEXT_PUBLIC_CLAUDE_*` – der Anthropic-Schlüssel ist ein
-  reines Server-Secret (die Startprüfung bricht sonst ab).
+  **kein** `JWT_SECRET`, **keine** Admin-Datenbankzugänge (`postgres`, `supabase_admin`). Die
+  Website braucht sie nicht; wird ein solcher Schlüssel als öffentlicher Schlüssel eingetragen,
+  verweigert sie den Start. Einzige Datenbankverbindung ist `CONNECTOR_DATABASE_URL` mit der
+  minimalen Rolle `tagestakt_connector` (jede andere Rolle schaltet den Connector ab).
+- **Kein** `NEXT_PUBLIC_*` mit `DATABASE`, `CONNECTOR`, `POSTGRES`, `PASSWORD`, `SECRET` oder
+  `SERVICE_ROLE` im Namen – die Startprüfung bricht sonst ab.
+- **Kein** `ANTHROPIC_API_KEY` und kein anderer Claude-API-Schlüssel.
 - **Keine** Login-E-Mail und **kein** Passwort als Umgebungsvariable – die Anmeldung erfolgt
   ausschließlich über das Login-Formular.
 - **Keine** echten Werte in `.env`-Dateien im Repository. `.env.example` enthält nur Platzhalter.
@@ -156,8 +163,9 @@ docker run --rm -p 3000:3000 -e NEXT_PUBLIC_SUPABASE_URL=https://supabase.exampl
 | Anmeldung mit einem anderen, gültigen Supabase-Konto (falls zum Test vorhanden) | „Dieses Konto ist für TagesTakt nicht freigeschaltet.“                                                             |
 | Browser-Quelltext (`Strg+U`) und Entwicklerwerkzeuge                            | keine Owner-UUID, keine Secret-Keys, keine Passwörter; Cookies nicht per `document.cookie` lesbar                  |
 | Coolify-Logs                                                                    | keine Tokens, Passwörter oder Termininhalte                                                                        |
-| `/planen` (angemeldet)                                                          | ohne Schlüssel: „Wochenplaner nicht eingerichtet“; mit Schlüssel: Voraussetzungen bzw. „Woche mit Claude planen“   |
-| Browser-Bundle (`/_next/static`) durchsuchen                                    | kein `sk-ant-`, kein `ANTHROPIC_API_KEY`                                                                           |
+| `/planen` (angemeldet)                                                          | fehlende Planungsangaben bzw. Entwurfsprüfung; kein Aufruf eines Sprachmodells                                     |
+| `POST /mcp` ohne Token                                                          | `401` mit `WWW-Authenticate: Bearer resource_metadata=…` (Connector eingerichtet) bzw. `404` (nicht eingerichtet)  |
+| Browser-Bundle (`/_next/static`) durchsuchen                                    | kein `sk-ant-`, kein `ANTHROPIC`, kein `postgres://`, kein `tagestakt_connector`                                   |
 | Response-Header (Entwicklerwerkzeuge → Netzwerk)                                | `Content-Security-Policy`, `X-Robots-Tag: noindex, nofollow`, `X-Frame-Options: DENY`, `Strict-Transport-Security` |
 
 Der öffentliche Schlüssel und die Supabase-URL dürfen im Client-Code auftauchen – sie sind
@@ -174,3 +182,5 @@ Der öffentliche Schlüssel und die Supabase-URL dürfen im Client-Code auftauch
 | Seiten liefern 503 „Konfiguration unvollständig“                                 | Laufzeitvariablen prüfen und neu deployen.                                                                                                   |
 | Login meldet „Anmeldedienst nicht erreichbar“                                    | Container erreicht `api.plan.north-frame.de` nicht (DNS/Proxy/Zertifikat prüfen).                                                            |
 | Login meldet „E-Mail-Anmeldung deaktiviert“                                      | E-Mail-Provider in Supabase wieder aktivieren.                                                                                               |
+| Log: „Claude-Connector deaktiviert: …“                                           | Grund steht in der Zeile (Variable fehlt, falsche Rolle, kein https). Variablen korrigieren und neu deployen.                                |
+| Claude meldet beim Verbinden einen Fehler, Log „Token-Endpunkt fehlgeschlagen“   | Datenbank vom Web-Container nicht erreichbar, falsches Passwort oder Rolle ohne LOGIN – Schritte 3 und 4 des Runbooks prüfen.                |

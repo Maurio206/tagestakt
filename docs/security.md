@@ -25,7 +25,7 @@ behandelt: nie protokolliert, nie im Offline-Cache, nie in Benachrichtigungen, n
 | Leck des Repositories              | Repo wird öffentlich/kopiert                                                       | Keine Secrets/echten Daten im Repo, `.env*` ignoriert, `pnpm check:secrets` lokal und in CI                                                                                                                                                |
 | Fehlkonfiguration                  | Service-Role-Key im Client                                                         | Kein Service-Role-Key im Projekt; Web und App brechen ab, wenn ein Secret-Key als Publishable Key eingetragen wird; ESLint verbietet Secret-Variablen im Client                                                                            |
 | Supply Chain                       | kompromittiertes npm-Paket                                                         | Lockfile, pnpm-Release-Alter-Sperre (24 h), Build-Skripte nur für freigegebene Pakete, Dependabot zurückhaltend, keine Analyse-/Werbe-SDKs                                                                                                 |
-| Späterer Agent                     | Agent veröffentlicht falsche Pläne                                                 | Datenbank lässt neue Wochen nur als Entwurf zu; Veröffentlichen nur durch den Benutzer (siehe agent-integration.md)                                                                                                                        |
+| Claude über den Connector          | Agent veröffentlicht ungeprüfte Pläne, Token-Diebstahl, Prompt-Injection           | OAuth 2.1 mit PKCE, nur Token-Hashes, kurze Laufzeiten; nur geprüfte Entwürfe; Veröffentlichen nur mit einmaliger Bestätigung; keine Titel/Notizen an Claude (siehe [claude-connector.md](claude-connector.md))                            |
 
 ## Row Level Security und Grants
 
@@ -42,7 +42,7 @@ behandelt: nie protokolliert, nie im Offline-Cache, nie in Benachrichtigungen, n
   einem fremden Wochenplan zugeordnet wird – unabhängig von Policies.
 - Zusammengesetzter Fremdschlüssel `(schedule_entry_id, owner_id)` bindet erfasste Zeit
   (`activity_sessions`) ausschließlich an eigene Planblöcke.
-- Prüfungen: `supabase/tests/*.test.sql` (239 pgTAP-Tests) – anonym abgewiesen, fremder
+- Prüfungen: `supabase/tests/*.test.sql` (354 pgTAP-Tests) – anonym abgewiesen, fremder
   Benutzer kann weder lesen noch ändern noch unterschieben, Eigentümer kann bearbeiten,
   Status- und Constraint-Regeln, Fokus-Erfassung (eine laufende Aktivität, keine
   Überschneidung, Serverzeit, Korrekturkennzeichen, atomarer Wechsel), Tagesnotizen (eine pro
@@ -69,20 +69,32 @@ zusammen mit korrekt getesteter RLS verwendet werden.
   (das Entfernen aus Git allein genügt nicht).
 - Protokolliert werden nur Fehlercodes – keine Passwörter, Tokens oder vollständigen Termine.
 
-## Claude-Wochenplaner
+## Claude-Connector (Remote MCP)
 
-- `ANTHROPIC_API_KEY` nur als Server-Secret (Coolify, Laufzeit). ESLint verbietet
-  `process.env.*ANTHROPIC*` in Komponenten, `src/lib` und der App sowie Importe von
-  `@anthropic-ai/*` in Komponenten, `src/lib` und der App; die Startprüfung bricht bei
-  `NEXT_PUBLIC_`/`EXPO_PUBLIC_`-Varianten ab; `pnpm check:secrets` erkennt `sk-ant-…`.
-- Jede Planung läuft mit der geprüften Sitzung des Owners (RLS), `owner_id` setzt die Datenbank.
-- An Anthropic gehen nur Zeiten, neutrale Arten und Regeln – keine Titel, Notizen, Orte, Namen,
-  IDs, E-Mail, Tokens oder Tagesnotizen (Test: `apps/web/src/server/planner/planner.test.ts`).
-  Texte aus der Datenbank können deshalb keine Anweisungen an das Modell sein.
-- Modellantworten sind Daten: strenges Schema, deterministische Prüfung, nur Klartext in der UI.
-- Begrenzung: ein laufender Auftrag, höchstens 8 Planungen je Stunde (Kostenschutz).
-- Logs enthalten nur Fehlerart/Status, nie Prompt, Antwort oder Inhalte.
-- Siehe [claude-planner.md](claude-planner.md).
+Vollständige Beschreibung und Bedrohungsanalyse: [claude-connector.md](claude-connector.md).
+
+- **Kein Anthropic-API-Schlüssel** in TagesTakt; die Website ruft kein Sprachmodell auf. Claude
+  arbeitet in der Claude-App und nutzt den Connector unter `/mcp`.
+- **OAuth 2.1:** nur Clients mit Metadaten-Dokument auf `claude.ai`/`claude.com`, PKCE S256
+  Pflicht, Freigabe nur durch das Owner-Konto, Codes 5 min einmalig, Access-Tokens 60 min,
+  Refresh-Tokens 60 Tage mit Rotation und Diebstahlerkennung, Ressourcenbindung (RFC 8707),
+  Widerruf in den Einstellungen. Gespeichert werden **nur SHA-256-Hashes**.
+- **Identität nur aus dem Token**, nie aus Tool-Argumenten; unbekannte Felder werden abgelehnt.
+- **Drei Scopes** (`planning:read`, `planning:draft`, `planning:publish`), sieben feste Tools,
+  kein freies SQL, kein allgemeines Datenbank-, Shell- oder HTTP-Tool.
+- **Veröffentlichen** nur über `prepare_week_publish` → `publish_week_draft` mit einmaliger,
+  10 Minuten gültiger Bestätigung, gebunden an Freigabe, Woche und unveränderten Entwurf.
+- **Datenminimierung:** Claude erhält nur Zeiten, neutrale Arten, Regeln und Versionen – keine
+  Titel, Notizen, Orte, Tagesnotizen, E-Mail, IDs oder Tokens. Texte aus der Datenbank können
+  deshalb keine Anweisungen an Claude sein.
+- **Datenbank:** eigene Rolle `tagestakt_connector` (nur Mitglied von `authenticated`, NOINHERIT,
+  Passwort nur in Coolify), Planungsdaten nur über RLS mit den Claims des Owners; Schema
+  `connector` für `anon`/`authenticated`/`service_role` gesperrt. ESLint verbietet
+  `@modelcontextprotocol/*` und `postgres` in Komponenten, `src/lib` und der App; die
+  Startprüfung bricht bei `NEXT_PUBLIC_`/`EXPO_PUBLIC_`-Variablen mit Datenbank- oder
+  Connector-Bezug ab; `pnpm check:secrets` erkennt Connector-Tokens und Verbindungsadressen mit
+  Passwort.
+- **Logs** enthalten nur Tool-Name und Fehlercode, nie Tokens, Pläne oder Inhalte.
 
 ## Ein-Benutzer-Modell
 
@@ -303,10 +315,13 @@ Zusätzlich denkbar: Supabase-MFA (TOTP) für das Konto.
 - **Erinnerungen sind nicht minutengenau:** ohne Exact-Alarm-Berechtigung kann Android sie im
   Energiesparmodus verzögern.
 - **Kein Audit-Log** für Änderungen; Versionen werden aber nie überschrieben.
-- **Planer-Aufträge nur im Speicher:** Rate-Limit und Auftragsstatus gehen bei einem Neustart des
-  Web-Containers verloren (für einen Benutzer und einen Prozess ausreichend).
-- **Drittanbieter:** Für die Planung verarbeitet Anthropic die bereinigten Zeiten und Regeln
-  gemäß dessen API-Bedingungen.
+- **Connector-Ratenlimits nur im Speicher:** Sie gehen bei einem Neustart des Web-Containers
+  verloren (für einen Benutzer und einen Prozess ausreichend).
+- **Drittanbieter:** Über den Connector verarbeitet Claude (Anthropic) die bereinigten Zeiten,
+  Regeln und die Angaben aus dem Gespräch gemäß den Bedingungen des Claude-Kontos des Benutzers.
+- **Connector-Datenbankzugang:** Wer `CONNECTOR_DATABASE_URL` kennt und die Datenbank erreicht,
+  kann als `authenticated` mit beliebigen Claims arbeiten. Deshalb nur als Coolify-Secret, kein
+  veröffentlichter Datenbank-Port, Rotation per `\password`.
 - **Backups (Stand 08.10.2026):** Coolify sichert die Datenbank `postgres` täglich um 02:30 UTC
   lokal (7 Sicherungen) und auf S3 (privater Bucket in einem anderen Rechenzentrum, 30
   Sicherungen). Vor jeder Produktionsmigration zusätzlich „Backup Now“ mit Prüfung von Erfolg,
