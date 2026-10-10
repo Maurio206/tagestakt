@@ -11,7 +11,6 @@ import {
   type ScheduleEntry,
   type ScheduleWeek,
   buildPlanningContext,
-  manualOneOffs,
   planningGoalSlotRowSchema,
   planningPreferencesRowSchema,
   preferencesFromRow,
@@ -53,13 +52,13 @@ export async function getPlanningRules(): Promise<PlanningRules> {
 
 /**
  * Planungskontext einer Woche aus eigenen Einstellungen, Regeln und aktiven Wiederholungen.
- * `baseEntries`: Einträge der Basisversion (Entwurf, sonst veröffentlichte Version) – deren
- * manuelle Einzeltermine gehören fest zur Woche (wie beim Connector).
+ * `baseEntries`: Einträge der Basisversion (Entwurf, sonst veröffentlichte Version), null ohne
+ * Version – Einzeltermine gehören fest zur Woche, Begonnenes bleibt (wie beim Connector).
  */
 export async function loadPlanningContext(
   weekStart: LocalDate,
   now: Date,
-  baseEntries: readonly ScheduleEntry[] = [],
+  baseEntries: readonly ScheduleEntry[] | null,
 ): Promise<PlanningContext> {
   const [settings, rules, commitments] = await Promise.all([
     getSettings(),
@@ -79,7 +78,7 @@ export async function loadPlanningContext(
     preferences: rules.preferences,
     slots: rules.slots,
     commitments,
-    oneOffEntries: manualOneOffs(baseEntries),
+    baseEntries,
   });
 }
 

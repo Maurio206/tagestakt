@@ -10,7 +10,6 @@ import {
   type ScheduleEntry,
   type ScheduleWeek,
   buildPlanningContext,
-  manualOneOffs,
   planningGoalSlotRowSchema,
   planningPreferencesRowSchema,
   preferencesFromRow,
@@ -103,7 +102,7 @@ export async function loadWeekState(tx: Tx, weekStart: LocalDate, now: Date): Pr
     ? { week: publishedWeek, entries: await loadEntries(tx, publishedWeek.id) }
     : null;
 
-  // Einzeltermine der Basisversion: Sie bleiben beim Speichern eines Vorschlags erhalten.
+  // Basisversion: Einzeltermine bleiben erhalten, Begonnenes bleibt unverändert.
   const base = draft ?? published;
   const context = buildPlanningContext({
     weekStart,
@@ -119,29 +118,175 @@ export async function loadWeekState(tx: Tx, weekStart: LocalDate, now: Date): Pr
     preferences,
     slots,
     commitments: recurring,
-    oneOffEntries: base ? manualOneOffs(base.entries) : [],
+    baseEntries: base ? base.entries : null,
   });
   return { context, locale: settings?.locale ?? DEFAULT_LOCALE, draft, published };
 }
 
-/** Speichert einen geprüften Vorschlag (RPC: atomar, idempotent, Prüfstand). */
+type WritableEntry = Pick<
+  PlannedEntry,
+  "title" | "category" | "start_at" | "end_at" | "location" | "note" | "source"
+>;
+
+/** Vergleich ohne ID, Zeitstempel und Erledigt-Status. */
+function entryKey(entry: WritableEntry | ScheduleEntry, withEnd = true): string {
+  return JSON.stringify([
+    entry.title,
+    entry.category,
+    Date.parse(entry.start_at),
+    withEnd ? Date.parse(entry.end_at) : null,
+    entry.location,
+    entry.note,
+    entry.source,
+  ]);
+}
+
+export interface DraftWrite {
+  remove: string[];
+  /** Laufende Wiederholungen: nur das Ende ändert sich (ID und Erledigt-Status bleiben). */
+  endChanges: { id: string; end_at: string }[];
+  insert: WritableEntry[];
+}
+
+export class LockedEntryChangeError extends Error {
+  readonly code = "locked_entry_changed";
+  constructor() {
+    super("locked_entry_changed");
+    this.name = "LockedEntryChangeError";
+  }
+}
+
+/**
+ * Was sich im Entwurf ändern muss, damit seine geplanten Einträge (ohne Einzeltermine) genau
+ * `desired` entsprechen. Unveränderte Einträge bleiben mit ID und Erledigt-Status erhalten. Vor
+ * `cutoff` Begonnenes wird nie entfernt oder neu angelegt – nur das Ende einer laufenden
+ * Wiederholung darf sich ändern. `historyFromRules`: Woche ohne Version – Vergangenes aus den
+ * Wiederholungen wird erstmals angelegt.
+ */
+export function planDraftWrite(
+  current: readonly ScheduleEntry[],
+  desired: readonly WritableEntry[],
+  cutoff: number,
+  historyFromRules: boolean,
+): DraftWrite {
+  const pending = new Map<string, WritableEntry[]>();
+  for (const entry of desired) {
+    const key = entryKey(entry);
+    pending.set(key, [...(pending.get(key) ?? []), entry]);
+  }
+  const unmatched: ScheduleEntry[] = [];
+  for (const row of current) {
+    if (row.source === "manual") continue;
+    const same = pending.get(entryKey(row));
+    if (same && same.length > 0) same.pop();
+    else unmatched.push(row);
+  }
+  const insert = [...pending.values()].flat();
+  const write: DraftWrite = { remove: [], endChanges: [], insert };
+  for (const row of unmatched) {
+    if (Date.parse(row.start_at) >= cutoff) {
+      write.remove.push(row.id);
+      continue;
+    }
+    const index = insert.findIndex(
+      (entry) => row.source === "recurring" && entryKey(entry, false) === entryKey(row, false),
+    );
+    const [entry] = index >= 0 ? insert.splice(index, 1) : [];
+    if (!entry) throw new LockedEntryChangeError();
+    write.endChanges.push({ id: row.id, end_at: entry.end_at });
+  }
+  if (!historyFromRules && insert.some((entry) => Date.parse(entry.start_at) < cutoff)) {
+    throw new LockedEntryChangeError();
+  }
+  return write;
+}
+
+/** Wie SQLSTATE TT008 der Datenbankfunktionen: Der Entwurf wurde inzwischen geändert. */
+function draftChanged(): Error {
+  return Object.assign(new Error("draft_changed"), { code: "TT008" });
+}
+
+async function draftForUpdate(tx: Tx, weekStart: LocalDate): Promise<ScheduleWeek | null> {
+  const [row] = await tx<{ data: unknown }[]>`
+    select row_to_json(w) as data
+      from public.schedule_weeks w
+     where w.owner_id = (select auth.uid())
+       and w.week_start = ${weekStart}::date
+       and w.status = 'draft'
+       for update`;
+  return row ? scheduleWeekRowSchema.parse(row.data) : null;
+}
+
+/**
+ * Speichert einen geprüften Vorschlag im Entwurf der Woche (legt ihn bei Bedarf an – als Kopie
+ * der veröffentlichten Version). Ersetzt nur geplante Einträge ab `cutoff`; Einzeltermine und
+ * Begonnenes bleiben. Optimistische Nebenläufigkeit wie bisher: Bestand ein Entwurf, muss
+ * `expectedDraftRef` sein aktueller Fingerabdruck sein; bestand keiner, darf keiner entstanden
+ * sein (sonst Konflikt). Dieselbe Anfrage erneut (z. B. nach einer Zeitüberschreitung) ändert
+ * nichts. Läuft innerhalb der Wochensperre des Aufrufers (`lockWeek`).
+ */
 export async function saveDraft(
   tx: Tx,
   input: {
     weekStart: LocalDate;
-    expected: { draftId: string; fingerprint: string } | null;
-    entries: readonly PlannedEntry[];
+    expectedDraftRef: string | null;
+    desired: readonly WritableEntry[];
+    cutoff: number;
+    historyFromRules: boolean;
     planningNote: string | null;
   },
 ): Promise<ScheduleWeek> {
+  let draft = await draftForUpdate(tx, input.weekStart);
+  if (draft) {
+    const write = planDraftWrite(
+      await loadEntries(tx, draft.id),
+      input.desired,
+      input.cutoff,
+      input.historyFromRules,
+    );
+    const unchanged =
+      write.remove.length === 0 && write.endChanges.length === 0 && write.insert.length === 0;
+    if (unchanged && draft.planning_note === input.planningNote) return draft;
+    if (input.expectedDraftRef !== (await weekFingerprint(tx, draft.id))) throw draftChanged();
+    return applyDraftWrite(tx, draft.id, write, input.planningNote);
+  }
+  if (input.expectedDraftRef !== null) throw draftChanged();
+  const [created] = await tx<{ data: unknown }[]>`
+    select row_to_json(w) as data from public.create_schedule_draft(${input.weekStart}::date) w`;
+  draft = scheduleWeekRowSchema.parse(created?.data);
+  const write = planDraftWrite(
+    await loadEntries(tx, draft.id),
+    input.desired,
+    input.cutoff,
+    input.historyFromRules,
+  );
+  return applyDraftWrite(tx, draft.id, write, input.planningNote);
+}
+
+async function applyDraftWrite(
+  tx: Tx,
+  weekId: string,
+  write: DraftWrite,
+  planningNote: string | null,
+): Promise<ScheduleWeek> {
+  if (write.remove.length > 0) {
+    await tx`delete from public.schedule_entries
+              where schedule_week_id = ${weekId}::uuid and id in ${tx(write.remove)}`;
+  }
+  for (const change of write.endChanges) {
+    await tx`update public.schedule_entries set end_at = ${change.end_at}::timestamptz
+              where schedule_week_id = ${weekId}::uuid and id = ${change.id}::uuid`;
+  }
+  if (write.insert.length > 0) {
+    await tx`select public.add_schedule_entries(
+               ${weekId}::uuid,
+               ${tx.json(write.insert.map((entry) => ({ ...entry })))}::jsonb,
+               false)`;
+  }
   const [row] = await tx<{ data: unknown }[]>`
-    select row_to_json(w) as data
-      from public.save_generated_schedule_draft(
-             ${input.weekStart}::date,
-             ${input.expected?.draftId ?? null}::uuid,
-             ${input.expected?.fingerprint ?? null}::text,
-             ${tx.json(input.entries.map((entry) => ({ ...entry })))}::jsonb,
-             ${input.planningNote}::text) w`;
+    update public.schedule_weeks w set planning_note = ${planningNote}::text
+     where w.id = ${weekId}::uuid
+    returning row_to_json(w) as data`;
   return scheduleWeekRowSchema.parse(row?.data);
 }
 

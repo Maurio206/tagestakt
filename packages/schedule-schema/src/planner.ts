@@ -1,14 +1,20 @@
 /**
  * Wochenplanung – deterministischer Teil (ohne Netzwerk, ohne Sprachmodell).
  *
- * Ablauf: Aus den eigenen Einstellungen, Planungsregeln, aktiven Wiederholungen und den manuellen
- * Einzelterminen der Woche entsteht ein Planungskontext. Fehlen Angaben oder ist die Woche mit den
- * Regeln nicht planbar, wird nicht geplant. Ein Planungsassistent (der Claude-Connector) erhält nur
+ * Ablauf: Aus den eigenen Einstellungen, Planungsregeln, aktiven Wiederholungen und der
+ * Basisversion der Woche (Entwurf, sonst veröffentlichte Version) entsteht ein Planungskontext.
+ * Fehlen Angaben, wird nicht geplant. Ein Planungsassistent (der Claude-Connector) erhält nur
  * bereinigte Zeiten (keine Titel, Notizen, Orte, Namen oder IDs) und schlägt flexible Blöcke vor
- * (Gewerbe, Training, Beziehungszeit, zusätzliche Termine). Jeder Vorschlag wird hier vollständig
- * und unabhängig geprüft; feste Verpflichtungen übernimmt der Server selbst unverändert.
- * `evaluatePlanDraft` bewertet einen gespeicherten Entwurf (auch nach manuellen Änderungen) und
- * entscheidet, ob er veröffentlicht werden darf.
+ * (Gewerbe, Training, Beziehungszeit, zusätzliche Termine). Wiederholungen übernimmt der Server
+ * selbst; Abweichungen nur für diese Woche (anderes Ende, entfällt, Training ausgelassen,
+ * niedrigeres Gewerbe-Minimum) muss der Vorschlag ausdrücklich mit Grund nennen – die
+ * Wiederholungen und Regeln selbst bleiben unverändert. Jeder Vorschlag wird hier vollständig und
+ * unabhängig geprüft.
+ *
+ * Laufende Woche: Alles, was vor `notBefore` begonnen hat, bleibt unverändert (inklusive
+ * Erledigt-Status); laufende Wiederholungen lassen sich nur im Ende anpassen.
+ * `evaluatePlanDraft` bewertet einen gespeicherten Entwurf (auch nach manuellen Änderungen),
+ * listet Abweichungen von den Regeln auf und entscheidet, ob er veröffentlicht werden darf.
  *
  * Zeiten: Planungszeitzone Europe/Berlin inklusive Sommer-/Winterzeit; Prüfungen auf echten
  * Zeitpunkten (Millisekunden), Beschriftungen in Ortszeit.
@@ -17,7 +23,9 @@ import { z } from "zod";
 
 import {
   CATEGORY_LABELS,
+  type CompletionStatus,
   type EntryCategory,
+  type EntrySource,
   GOAL_LABELS,
   type GoalKey,
   type IsoWeekday,
@@ -86,8 +94,10 @@ export const PLANNER_SUMMARY_MAX_LENGTH = 800;
 export const PLANNER_MAX_LIST_ITEMS = 10;
 /** Kürzester geplanter Block (Minuten). */
 export const PLANNER_MIN_BLOCK_MINUTES = 15;
-/** Lesbar: die aktuelle Woche und so viele folgende; speicherbar nur die folgenden. */
+/** Planbar: die laufende Woche und so viele folgende. */
 export const PLANNER_HORIZON_WEEKS = 4;
+/** Höchstzahl der Abweichungen bzw. ausgelassenen Zeitfenster in einem Vorschlag. */
+export const PLANNER_MAX_CHANGES = 40;
 /** Neue Blöcke in der laufenden Woche beginnen frühestens zum nächsten Viertelstundenschritt. */
 const NOT_BEFORE_STEP_MINUTES = 15;
 
@@ -348,6 +358,18 @@ export interface PlannerSettings {
   relationshipTargetMinutes: number | null;
 }
 
+/** Eintrag der Basisversion einer Woche (Entwurf, sonst veröffentlichte Version). */
+export interface PlannerBaseEntry {
+  title: string;
+  category: EntryCategory;
+  start_at: string;
+  end_at: string;
+  location: string | null;
+  note: string | null;
+  source: EntrySource;
+  completion_status: CompletionStatus;
+}
+
 export interface PlannerFixedEntry {
   title: string;
   category: EntryCategory;
@@ -357,33 +379,52 @@ export interface PlannerFixedEntry {
   note: string | null;
   /** `recurring`: aus aktiven Wiederholungen; `manual`: Einzeltermin der Woche (bleibt erhalten). */
   source: "recurring" | "manual";
+  /**
+   * Nur Wiederholungen: Bezug für Abweichungen dieser Woche, z. B. „duty-2026-10-16-0700“
+   * (Kategorie, Datum und Uhrzeit laut Regel – keine ID, kein Titel). Sonst null.
+   */
+  ref: string | null;
 }
 
-/** Manueller Einzeltermin der Basisversion (Entwurf, sonst veröffentlichte Version). */
-export interface PlannerOneOffEntry {
+/** Ein Vorkommen einer aktiven Wiederholung in der Woche (die Regel). */
+export interface PlannerOccurrence extends PlannerFixedEntry {
+  source: "recurring";
+  ref: string;
+}
+
+/**
+ * Geplanter Eintrag, der vor `notBefore` begonnen hat (laufende Woche). Er bleibt unverändert;
+ * nur bei einer laufenden Wiederholung (`ref`) lässt sich das Ende anpassen.
+ */
+export interface PlannerLockedEntry {
   title: string;
   category: EntryCategory;
   start_at: string;
   end_at: string;
   location: string | null;
   note: string | null;
+  source: "recurring" | "agent";
+  completion_status: CompletionStatus;
+  ref: string | null;
 }
 
-/** Manuelle Einträge einer Version als Einzeltermine (bleiben beim Speichern eines Vorschlags). */
-export function manualOneOffs(
-  entries: readonly (PlannerOneOffEntry & { source: string })[],
-): PlannerOneOffEntry[] {
-  return entries
-    .filter((entry) => entry.source === "manual")
-    .map((entry) => ({
-      title: entry.title,
-      category: entry.category,
-      start_at: entry.start_at,
-      end_at: entry.end_at,
-      location: entry.location,
-      note: entry.note,
-    }));
+export type RecurringDeviationKind = "adjusted" | "cancelled" | "extra";
+
+/** Unterschied zwischen einer Version und den Wiederholungen (nur Zeiten, keine Titel). */
+export interface RecurringDeviation {
+  ref: string;
+  kind: RecurringDeviationKind;
+  category: EntryCategory;
+  date: LocalDate;
+  /** Laut Wiederholung; null bei `extra` (ohne passende Wiederholung). */
+  rule: { start_at: string; end_at: string } | null;
+  /** Stand in der Version; null bei `cancelled`. */
+  actual: { start_at: string; end_at: string } | null;
+  /** Liegt ab `notBefore`: ein neuer Vorschlag muss die Abweichung übernehmen oder zurücksetzen. */
+  changeable: boolean;
 }
+
+export type SlotStatus = "open" | "done" | "missed";
 
 export interface PlannerSlotInstance extends PlanningGoalSlot {
   /** Neutrale, nicht technische Kennung, z. B. „sport-2026-10-12“. */
@@ -391,6 +432,11 @@ export interface PlannerSlotInstance extends PlanningGoalSlot {
   date: LocalDate;
   windowStartAt: number;
   windowEndAt: number;
+  /**
+   * `done`: an diesem Tag gibt es bereits einen begonnenen Block dieses Ziels; `missed`: das
+   * Zeitfenster reicht ab `notBefore` nicht mehr für die Dauer; sonst `open`.
+   */
+  status: SlotStatus;
 }
 
 export interface PlannerDay {
@@ -408,12 +454,21 @@ export interface PlanningContext {
   weekStart: LocalDate;
   timeZone: string;
   now: Date;
-  /** Frühester Beginn neuer Blöcke (ms). */
+  /** Frühester Beginn neuer Blöcke (ms); davor bleibt alles unverändert. */
   notBefore: number;
   settings: PlannerSettings;
   preferences: PlanningPreferences | null;
   slots: PlannerSlotInstance[];
+  /** Alle Vorkommen der aktiven Wiederholungen in dieser Woche – die Regel. */
+  occurrences: PlannerOccurrence[];
+  /** Ab `notBefore` geplante Wiederholungen (laut Regel) und alle Einzeltermine der Basisversion. */
   fixed: PlannerFixedEntry[];
+  /** Vor `notBefore` begonnene geplante Einträge (aus der Basisversion bzw. den Wiederholungen). */
+  locked: PlannerLockedEntry[];
+  /** Wiederholungseinträge der Basisversion ab `notBefore` ohne passende Wiederholung. */
+  extraRecurring: PlannerOccurrence[];
+  /** Abweichungen der Basisversion von den Wiederholungen (leer ohne Basisversion). */
+  baseDeviations: RecurringDeviation[];
   days: PlannerDay[];
 }
 
@@ -429,6 +484,142 @@ function businessMaxFor(weekday: IsoWeekday, preferences: PlanningPreferences | 
   return preferences.businessMaxDailyMinutes;
 }
 
+const startOf = (entry: { start_at: string }) => Date.parse(entry.start_at);
+const endOf = (entry: { end_at: string }) => Date.parse(entry.end_at);
+
+function byTime<T extends { start_at: string; end_at: string; title: string }>(a: T, b: T): number {
+  return startOf(a) - startOf(b) || endOf(a) - endOf(b) || a.title.localeCompare(b.title);
+}
+
+/** Lesbarer, stabiler Bezug: Kategorie, Datum und Uhrzeit (bei Gleichstand mit Zähler). */
+function assignRefs<T extends { category: EntryCategory; start_at: string }>(
+  items: readonly T[],
+  prefix: string,
+  timeZone: string,
+): (T & { ref: string })[] {
+  const used = new Set<string>();
+  return items.map((item) => {
+    const start = new Date(item.start_at);
+    const base = `${prefix}${item.category}-${toLocalDate(start, timeZone)}-${toLocalTime(start, timeZone).replace(":", "")}`;
+    let ref = base;
+    for (let n = 2; used.has(ref); n += 1) ref = `${base}-${n}`;
+    used.add(ref);
+    return { ...item, ref };
+  });
+}
+
+interface MatchableEntry {
+  title: string;
+  category: EntryCategory;
+  start_at: string;
+  end_at: string;
+}
+
+export interface RecurringMatch<R> {
+  pairs: { occurrence: PlannerOccurrence; row: R }[];
+  cancelled: PlannerOccurrence[];
+  /** Wiederholungseinträge ohne passende Wiederholung, mit eigenem Bezug („extra-…“). */
+  extra: { row: R; ref: string }[];
+}
+
+/**
+ * Ordnet Wiederholungseinträge einer Version den Vorkommen der Wiederholungen zu: je Kategorie
+ * und Kalendertag zuerst exakt (Titel und Zeiten), dann gleicher Titel, dann beliebig – jeweils
+ * mit dem nächstgelegenen Beginn. Deterministisch, damit Bezüge über Aufrufe hinweg gleich bleiben.
+ */
+export function matchRecurring<R extends MatchableEntry>(
+  occurrences: readonly PlannerOccurrence[],
+  rows: readonly R[],
+  timeZone: string = SCHEDULE_TIMEZONE,
+): RecurringMatch<R> {
+  const groupKey = (entry: MatchableEntry) =>
+    `${entry.category}|${toLocalDate(new Date(entry.start_at), timeZone)}`;
+  const openRows = [...rows].sort(byTime);
+  const pairs: RecurringMatch<R>["pairs"] = [];
+  const cancelled: PlannerOccurrence[] = [];
+  const passes: ((o: PlannerOccurrence, r: R) => boolean)[] = [
+    (o, r) => o.title === r.title && startOf(o) === startOf(r) && endOf(o) === endOf(r),
+    (o, r) => o.title === r.title,
+    () => true,
+  ];
+  let remaining = [...occurrences].sort(byTime);
+  for (const pass of passes) {
+    const next: PlannerOccurrence[] = [];
+    for (const occurrence of remaining) {
+      let best = -1;
+      openRows.forEach((row, index) => {
+        if (groupKey(row) !== groupKey(occurrence) || !pass(occurrence, row)) return;
+        const current = openRows[best];
+        const distance = Math.abs(startOf(row) - startOf(occurrence));
+        if (!current || distance < Math.abs(startOf(current) - startOf(occurrence))) best = index;
+      });
+      const [row] = best >= 0 ? openRows.splice(best, 1) : [];
+      if (row) pairs.push({ occurrence, row });
+      else next.push(occurrence);
+    }
+    remaining = next;
+  }
+  cancelled.push(...remaining);
+  return {
+    pairs: pairs.sort((a, b) => byTime(a.occurrence, b.occurrence)),
+    cancelled,
+    extra: assignRefs(
+      openRows.map((row) => ({ row, category: row.category, start_at: row.start_at })),
+      "extra-",
+      timeZone,
+    ).map(({ row, ref }) => ({ row, ref })),
+  };
+}
+
+/** Abweichungen aus einer Zuordnung; „changeable“ betrifft alles, was ab `notBefore` liegt. */
+export function recurringDeviations(
+  match: RecurringMatch<MatchableEntry>,
+  notBefore: number,
+  timeZone: string = SCHEDULE_TIMEZONE,
+): RecurringDeviation[] {
+  const span = (entry: MatchableEntry) => ({ start_at: entry.start_at, end_at: entry.end_at });
+  const date = (entry: MatchableEntry) => toLocalDate(new Date(entry.start_at), timeZone);
+  const deviations: RecurringDeviation[] = [
+    ...match.pairs
+      .filter(
+        ({ occurrence, row }) =>
+          startOf(occurrence) !== startOf(row) || endOf(occurrence) !== endOf(row),
+      )
+      .map(({ occurrence, row }): RecurringDeviation => ({
+        ref: occurrence.ref,
+        kind: "adjusted",
+        category: occurrence.category,
+        date: date(occurrence),
+        rule: span(occurrence),
+        actual: span(row),
+        changeable: startOf(row) >= notBefore,
+      })),
+    ...match.cancelled.map((occurrence): RecurringDeviation => ({
+      ref: occurrence.ref,
+      kind: "cancelled",
+      category: occurrence.category,
+      date: date(occurrence),
+      rule: span(occurrence),
+      actual: null,
+      changeable: startOf(occurrence) >= notBefore,
+    })),
+    ...match.extra.map(({ row, ref }): RecurringDeviation => ({
+      ref,
+      kind: "extra",
+      category: row.category,
+      date: date(row),
+      rule: null,
+      actual: span(row),
+      changeable: startOf(row) >= notBefore,
+    })),
+  ];
+  return deviations.sort(
+    (a, b) =>
+      Date.parse((a.rule ?? a.actual)?.start_at ?? "") -
+        Date.parse((b.rule ?? b.actual)?.start_at ?? "") || a.ref.localeCompare(b.ref),
+  );
+}
+
 export function buildPlanningContext(input: {
   weekStart: LocalDate;
   now: Date;
@@ -436,8 +627,11 @@ export function buildPlanningContext(input: {
   preferences: PlanningPreferences | null;
   slots: readonly PlanningGoalSlot[];
   commitments: readonly RecurringTemplate[];
-  /** Manuelle Einzeltermine der Woche; sie bleiben beim Planen unverändert erhalten. */
-  oneOffEntries?: readonly PlannerOneOffEntry[];
+  /**
+   * Einträge der Basisversion (Entwurf, sonst veröffentlichte Version); null, wenn es für die
+   * Woche noch keine Version gibt. Einzeltermine bleiben erhalten, Begonnenes bleibt unverändert.
+   */
+  baseEntries?: readonly PlannerBaseEntry[] | null;
   timeZone?: string;
 }): PlanningContext {
   const timeZone = input.timeZone ?? SCHEDULE_TIMEZONE;
@@ -458,18 +652,117 @@ export function buildPlanningContext(input: {
       past: bounds.end.getTime() <= notBefore,
     };
   });
+
+  const occurrences: PlannerOccurrence[] = assignRefs(
+    expandRecurringCommitments(input.commitments, input.weekStart, timeZone)
+      .map((entry) => ({ ...entry, ref: null }))
+      .sort(byTime),
+    "",
+    timeZone,
+  );
+  const began = (entry: { start_at: string }) => startOf(entry) < notBefore;
+  const running = (entry: { start_at: string; end_at: string }) =>
+    began(entry) && endOf(entry) > notBefore;
+  const base = input.baseEntries ?? null;
+
+  let fixedRecurring: PlannerOccurrence[];
+  let locked: PlannerLockedEntry[];
+  let extraRecurring: PlannerOccurrence[] = [];
+  let baseDeviations: RecurringDeviation[] = [];
+  if (!base) {
+    // Noch keine Version: Vergangenes stammt aus den Wiederholungen und wird so übernommen.
+    fixedRecurring = occurrences.filter((o) => !began(o));
+    locked = occurrences.filter(began).map((o) => ({
+      title: o.title,
+      category: o.category,
+      start_at: o.start_at,
+      end_at: o.end_at,
+      location: o.location,
+      note: o.note,
+      source: "recurring",
+      completion_status: "planned",
+      ref: running(o) ? o.ref : null,
+    }));
+  } else {
+    const match = matchRecurring(
+      occurrences,
+      base.filter((e) => e.source === "recurring"),
+      timeZone,
+    );
+    const refOfRow = new Map<PlannerBaseEntry, string>([
+      ...match.pairs.map(({ occurrence, row }) => [row, occurrence.ref] as const),
+      ...match.extra.map(({ row, ref }) => [row, ref] as const),
+    ]);
+    const pairedRow = new Map(match.pairs.map(({ occurrence, row }) => [occurrence, row]));
+    locked = base
+      .filter((e) => e.source !== "manual" && began(e))
+      .sort(byTime)
+      .map((e) => ({
+        title: e.title,
+        category: e.category,
+        start_at: e.start_at,
+        end_at: e.end_at,
+        location: e.location,
+        note: e.note,
+        source: e.source === "recurring" ? "recurring" : "agent",
+        completion_status: e.completion_status,
+        ref: e.source === "recurring" && running(e) ? (refOfRow.get(e) ?? null) : null,
+      }));
+    // Ein Vorkommen ist ab `notBefore` planbar, wenn sein Eintrag noch nicht begonnen hat bzw.
+    // es (ohne Eintrag) erst ab `notBefore` beginnt.
+    fixedRecurring = occurrences.filter((o) => {
+      const row = pairedRow.get(o);
+      return row ? !began(row) : !began(o);
+    });
+    extraRecurring = match.extra
+      .filter(({ row }) => !began(row))
+      .map(({ row, ref }) => ({
+        title: row.title,
+        category: row.category,
+        start_at: row.start_at,
+        end_at: row.end_at,
+        location: row.location,
+        note: row.note,
+        source: "recurring",
+        ref,
+      }));
+    baseDeviations = recurringDeviations(match, notBefore, timeZone);
+  }
+
+  const manual = (base ?? [])
+    .filter((e) => e.source === "manual")
+    .map((entry): PlannerFixedEntry => ({
+      title: entry.title,
+      category: entry.category,
+      start_at: entry.start_at,
+      end_at: entry.end_at,
+      location: entry.location,
+      note: entry.note,
+      source: "manual",
+      ref: null,
+    }));
+
   const slots = [...input.slots]
     .sort((a, b) => a.goal.localeCompare(b.goal) || a.weekday - b.weekday)
     .map((slot): PlannerSlotInstance => {
       const date = addDays(input.weekStart, slot.weekday - 1);
+      const windowStartAt = zonedDateTimeToInstant(date, slot.windowStart, timeZone).getTime();
+      const windowEndAt = zonedDateTimeToInstant(date, slot.windowEnd, timeZone).getTime();
+      const done = locked.some(
+        (e) => e.category === slot.goal && toLocalDate(new Date(e.start_at), timeZone) === date,
+      );
+      const missed =
+        windowEndAt - Math.max(windowStartAt, notBefore) < slot.durationMinutes * MINUTE_MS;
       return {
         ...slot,
         slotId: `${slot.goal}-${date}`,
         date,
-        windowStartAt: zonedDateTimeToInstant(date, slot.windowStart, timeZone).getTime(),
-        windowEndAt: zonedDateTimeToInstant(date, slot.windowEnd, timeZone).getTime(),
+        windowStartAt,
+        windowEndAt,
+        status: done ? "done" : missed ? "missed" : "open",
       };
     });
+
   return {
     weekStart: input.weekStart,
     timeZone,
@@ -478,18 +771,11 @@ export function buildPlanningContext(input: {
     settings: input.settings,
     preferences: input.preferences,
     slots,
-    fixed: [
-      ...expandRecurringCommitments(input.commitments, input.weekStart, timeZone),
-      ...(input.oneOffEntries ?? []).map((entry): PlannerFixedEntry => ({
-        title: entry.title,
-        category: entry.category,
-        start_at: entry.start_at,
-        end_at: entry.end_at,
-        location: entry.location,
-        note: entry.note,
-        source: "manual",
-      })),
-    ].sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at)),
+    occurrences,
+    fixed: [...fixedRecurring, ...manual].sort(byTime),
+    locked,
+    extraRecurring,
+    baseDeviations,
     days,
   };
 }
@@ -533,7 +819,7 @@ export function plannableWeekStarts(now: Date, timeZone: string = SCHEDULE_TIMEZ
   return Array.from({ length: PLANNER_HORIZON_WEEKS + 1 }, (_, i) => addDays(current, i * 7));
 }
 
-/** Über den Connector speicherbar: nur kommende Wochen (nicht die laufende). */
+/** Die kommenden Wochen (ohne die laufende). */
 export function upcomingWeekStarts(now: Date, timeZone: string = SCHEDULE_TIMEZONE): LocalDate[] {
   return plannableWeekStarts(now, timeZone).slice(1);
 }
@@ -579,7 +865,7 @@ export function getMissingPlanningRequirements(context: PlanningContext): Planni
     });
   }
   // Dienst, Training und Beziehungszeit sind feste Bestandteile jedes Wochenplans.
-  if (!context.fixed.some((f) => f.category === "duty")) {
+  if (!context.occurrences.some((o) => o.category === "duty")) {
     missing.push({
       key: "commitments",
       message:
@@ -638,18 +924,33 @@ function freeIntervals(
   return free.filter((f) => f.end > f.start);
 }
 
-function fixedIntervals(context: PlanningContext): Interval[] {
-  return context.fixed.map((e) => ({ start: Date.parse(e.start_at), end: Date.parse(e.end_at) }));
+/** Belegt: feste Termine ab `notBefore` und alles bereits Begonnene. */
+function busyIntervals(context: PlanningContext): Interval[] {
+  return [...context.fixed, ...context.locked].map((e) => ({ start: startOf(e), end: endOf(e) }));
+}
+
+/** Gewerbeminuten begonnener Einträge (ohne „ausgelassen“) je Tag. */
+function lockedBusinessByDay(context: PlanningContext): Map<LocalDate, number> {
+  return businessByDay(
+    context.locked.filter((e) => e.completion_status !== "skipped"),
+    context.timeZone,
+  );
+}
+
+function sumValues(map: ReadonlyMap<unknown, number>): number {
+  return [...map.values()].reduce((sum, value) => sum + value, 0);
 }
 
 /**
  * Konflikte, die eine Entscheidung des Benutzers brauchen: überschneidende feste
  * Verpflichtungen, nicht planbare verbindliche Blöcke, nicht erreichbares Gewerbe-Minimum.
+ * Bereits Begonnenes zählt mit; vergangene oder schon erledigte Zeitfenster sind kein Konflikt.
  */
 export function findPlanningConflicts(context: PlanningContext): string[] {
   const conflicts: string[] = [];
   const { timeZone } = context;
   for (const overlap of detectOverlaps(context.fixed)) {
+    if (Math.min(endOf(overlap.first), endOf(overlap.second)) <= context.notBefore) continue;
     const start = Math.max(Date.parse(overlap.first.start_at), Date.parse(overlap.second.start_at));
     conflicts.push(
       `Feste Verpflichtungen überschneiden sich am ${dayLabel(toLocalDate(new Date(start), timeZone))} (${CATEGORY_LABELS[overlap.first.category]} und ${CATEGORY_LABELS[overlap.second.category]}).`,
@@ -658,10 +959,10 @@ export function findPlanningConflicts(context: PlanningContext): string[] {
   const preferences = context.preferences;
   if (!preferences) return conflicts;
   const buffer = preferences.bufferMinutes * MINUTE_MS;
-  const busy = fixedIntervals(context);
+  const busy = busyIntervals(context);
 
   for (const slot of context.slots) {
-    if (slot.requirement !== "required") continue;
+    if (slot.requirement !== "required" || slot.status !== "open") continue;
     const from = Math.max(slot.windowStartAt, context.notBefore);
     const fits = freeIntervals(from, slot.windowEndAt, busy, buffer).some(
       (f) => f.end - f.start >= slot.durationMinutes * MINUTE_MS,
@@ -669,18 +970,19 @@ export function findPlanningConflicts(context: PlanningContext): string[] {
     if (!fits) {
       const label = slot.goal === "sport" ? "Training" : GOAL_LABELS.relationship;
       conflicts.push(
-        slot.windowEndAt <= context.notBefore
-          ? `${label} am ${dayLabel(slot.date)} liegt bereits in der Vergangenheit und kann nicht mehr geplant werden.`
-          : `${label} am ${dayLabel(slot.date)}: Im Zeitfenster ${slot.windowStart}–${slot.windowEnd} ist kein freier Platz für ${formatDuration(slot.durationMinutes)} (inklusive ${preferences.bufferMinutes} Min. Pause).`,
+        `${label} am ${dayLabel(slot.date)}: Im Zeitfenster ${slot.windowStart}–${slot.windowEnd} ist kein freier Platz für ${formatDuration(slot.durationMinutes)} (inklusive ${preferences.bufferMinutes} Min. Pause).`,
       );
     }
   }
 
   const target = context.settings.businessTargetMinutes;
   if (target > 0) {
+    const lockedByDay = lockedBusinessByDay(context);
+    const alreadyPlanned = sumValues(lockedByDay);
     let capacity = 0;
     for (const day of context.days) {
-      if (day.businessMaxMinutes <= 0 || day.past) continue;
+      const dayMax = day.businessMaxMinutes - (lockedByDay.get(day.date) ?? 0);
+      if (dayMax <= 0 || day.past) continue;
       const windowStart = zonedDateTimeToInstant(
         day.date,
         preferences.businessEarliestStart,
@@ -700,11 +1002,13 @@ export function findPlanningConflicts(context: PlanningContext): string[] {
         .map((f) => (f.end - f.start) / MINUTE_MS)
         .filter((minutes) => minutes >= preferences.businessMinBlockMinutes)
         .reduce((sum, minutes) => sum + minutes, 0);
-      capacity += Math.min(day.businessMaxMinutes, Math.floor(usable));
+      capacity += Math.min(dayMax, Math.floor(usable));
     }
-    if (capacity < target) {
+    if (alreadyPlanned + capacity < target) {
       conflicts.push(
-        `Gewerbe-Minimum nicht erreichbar: Mit den gespeicherten Regeln sind höchstens ${formatDuration(capacity)} frei (Wochenziel ${formatDuration(target)}).`,
+        alreadyPlanned > 0
+          ? `Gewerbe-Minimum nicht erreichbar: Bereits begonnen bzw. vergangen sind ${formatDuration(alreadyPlanned)}, frei sind mit den gespeicherten Regeln höchstens noch ${formatDuration(capacity)} (Wochenziel ${formatDuration(target)}).`
+          : `Gewerbe-Minimum nicht erreichbar: Mit den gespeicherten Regeln sind höchstens ${formatDuration(capacity)} frei (Wochenziel ${formatDuration(target)}).`,
       );
     }
   }
@@ -736,12 +1040,57 @@ export const weekPlanBlockSchema = z
   .strict();
 export type WeekPlanBlock = z.infer<typeof weekPlanBlockSchema>;
 
+const refSchema = z
+  .string()
+  .regex(/^[a-z0-9-]{1,60}$/, { error: "Bezug (ref) aus dem Planungskontext erwartet" });
+const reasonSchema = z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH);
+
+/**
+ * Abweichung einer Wiederholung nur für diese Woche (die Wiederholung selbst bleibt unverändert):
+ * `adjust` – andere Zeiten am selben Tag (Ende ≤ Beginn: Ende am Folgetag); bei einem bereits
+ * laufenden Termin nur das Ende. `cancel` – entfällt diese Woche. `regular` – ausdrücklich wie in
+ * der Wiederholung (setzt eine bestehende Abweichung zurück).
+ */
+export const recurringChangeSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("adjust"),
+      ref: refSchema,
+      start: clockTimeSchema,
+      end: clockTimeSchema,
+      reason: reasonSchema,
+    })
+    .strict(),
+  z.object({ action: z.literal("cancel"), ref: refSchema, reason: reasonSchema }).strict(),
+  z.object({ action: z.literal("regular"), ref: refSchema }).strict(),
+]);
+export type RecurringChange = z.infer<typeof recurringChangeSchema>;
+
 export const weekPlanProposalSchema = z
   .object({
     weekStart: weekStartSchema,
     blocks: z.array(weekPlanBlockSchema).max(PLANNER_MAX_BLOCKS),
     /** Kurze Zusammenfassung der Wochenbesonderheiten (wird als Planungshinweis gespeichert). */
     summary: z.string().trim().min(1).max(PLANNER_SUMMARY_MAX_LENGTH).optional(),
+    recurringChanges: z
+      .array(recurringChangeSchema)
+      .max(PLANNER_MAX_CHANGES)
+      .optional()
+      .describe(
+        "Abweichungen von Wiederholungen nur für diese Woche (ref aus dem Kontext), nur auf Angabe des Benutzers, mit Grund",
+      ),
+    skippedSlots: z
+      .array(z.object({ slotId: z.string().max(40), reason: reasonSchema }).strict())
+      .max(PLANNER_MAX_CHANGES)
+      .optional()
+      .describe(
+        "Verbindliche Zeitfenster, die diese Woche ausfallen, nur auf Angabe des Benutzers, mit Grund",
+      ),
+    businessMinimum: z
+      .object({ minutes: z.number().int().min(0).max(10_080), reason: reasonSchema })
+      .strict()
+      .nullish()
+      .describe("Niedrigeres Gewerbe-Minimum nur für diese Woche, nur auf Angabe des Benutzers"),
   })
   .strict();
 export type WeekPlanProposal = z.infer<typeof weekPlanProposalSchema>;
@@ -807,6 +1156,12 @@ export function neutralBlocks(
     });
 }
 
+export const CONNECTOR_SLOT_STATUS = {
+  open: "offen",
+  done: "bereits begonnen",
+  missed: "vorbei",
+} as const satisfies Record<SlotStatus, string>;
+
 export interface ConnectorSlot {
   slotId: string;
   date: LocalDate;
@@ -815,16 +1170,56 @@ export interface ConnectorSlot {
   durationMinutes: number;
   windowStart: TimeOfDay;
   windowEnd: TimeOfDay;
+  /** „bereits begonnen“ und „vorbei“: kein Block mehr möglich bzw. nötig. */
+  status: (typeof CONNECTOR_SLOT_STATUS)[SlotStatus];
+}
+
+/** Lässt sich eine Wiederholung diese Woche ändern? „nur Ende“: läuft bereits. */
+export type ConnectorChangeable = "ja" | "nur Ende" | "nein";
+
+export interface ConnectorRecurring {
+  /** Bezug für `recurringChanges`. */
+  ref: string;
+  kind: string;
+  date: LocalDate;
+  weekday: string;
+  start: TimeOfDay;
+  end: TimeOfDay;
+  endsNextDay: boolean;
+  changeable: ConnectorChangeable;
+}
+
+const DEVIATION_LABELS = {
+  adjusted: "andere Zeit",
+  cancelled: "entfällt",
+  extra: "ohne passende Wiederholung",
+} as const satisfies Record<RecurringDeviationKind, string>;
+
+export interface ConnectorDeviation {
+  ref: string;
+  kind: string;
+  deviation: (typeof DEVIATION_LABELS)[RecurringDeviationKind];
+  date: LocalDate;
+  weekday: string;
+  rule: { start: TimeOfDay; end: TimeOfDay } | null;
+  current: { start: TimeOfDay; end: TimeOfDay } | null;
+  /**
+   * true: ein neuer Vorschlag muss diese Abweichung übernehmen (adjust/cancel mit Grund) oder
+   * – nur nach Rückfrage – mit `regular` zurücksetzen; sonst wird er abgelehnt.
+   */
+  mustAddress: boolean;
 }
 
 export interface ConnectorPlanningContext {
   week: { start: LocalDate; end: LocalDate; timezone: string; locale: string };
-  /** Nur kommende Wochen dürfen gespeichert werden. */
+  /** Alle Angaben vorhanden – die Woche kann geplant und gespeichert werden. */
   saveAllowed: boolean;
-  /** Neue Blöcke frühestens ab hier (laufende Woche); sonst null. */
+  /** Neue Blöcke frühestens ab hier (laufende Woche); davor bleibt alles unverändert. Sonst null. */
   earliestStart: { date: LocalDate; time: TimeOfDay } | null;
   rules: {
-    duty: { date: LocalDate; weekday: string; start: TimeOfDay; end: TimeOfDay }[];
+    duty: ConnectorRecurring[];
+    /** Weitere Wiederholungen (z. B. Fahrt) – ebenfalls mit Bezug für Abweichungen. */
+    otherRecurring: ConnectorRecurring[];
     training: ConnectorSlot[];
     relationship: ConnectorSlot[];
     business: {
@@ -840,15 +1235,29 @@ export interface ConnectorPlanningContext {
     bufferMinutes: number | null;
     weeklyTargets: { sportMinutes: number | null; relationshipMinutes: number | null };
   };
-  /** Feste Belegung je Tag (Ortszeit; 24:00 = Tagesende) und Gewerbe-Höchstwert. */
+  /** Bereits begonnene bzw. vergangene Gewerbeminuten dieser Woche (zählen zum Minimum). */
+  alreadyBegun: { businessMinutes: number };
+  /**
+   * Belegung je Tag (Ortszeit; 24:00 = Tagesende) und Gewerbe-Höchstwert. `begun`: hat bereits
+   * begonnen und bleibt unverändert; `ref`: Wiederholung, die sich diese Woche ändern lässt.
+   */
   days: {
     date: LocalDate;
     weekday: string;
-    busy: { start: string; end: string; kind: string; origin: NeutralBlock["origin"] }[];
+    busy: {
+      start: string;
+      end: string;
+      kind: string;
+      origin: NeutralBlock["origin"];
+      ref: string | null;
+      begun: boolean;
+    }[];
     businessMaxMinutes: number;
     plannable: boolean;
   }[];
   oneOffAppointments: NeutralBlock[];
+  /** Abweichungen des aktuellen Stands (Entwurf, sonst veröffentlichter Plan) von den Wiederholungen. */
+  currentDeviations: ConnectorDeviation[];
   existingDraft: { draftRef: string; version: number; blocks: NeutralBlock[] } | null;
   publishedPlan: { version: number; publishedAt: string | null; blocks: NeutralBlock[] } | null;
   missing: string[];
@@ -864,13 +1273,21 @@ function connectorSlot(slot: PlannerSlotInstance): ConnectorSlot {
     durationMinutes: slot.durationMinutes,
     windowStart: slot.windowStart,
     windowEnd: slot.windowEnd,
+    status: CONNECTOR_SLOT_STATUS[slot.status],
+  };
+}
+
+function localSpan(span: { start_at: string; end_at: string }, timeZone: string) {
+  return {
+    start: toLocalTime(new Date(span.start_at), timeZone),
+    end: toLocalTime(new Date(span.end_at), timeZone),
   };
 }
 
 /**
- * Nur, was für die Planung nötig ist: Zeiten, neutrale Arten, Regeln und ein opaker
- * Versionsbezug des Entwurfs. Keine Titel, Notizen, Orte, IDs, E-Mail-Adressen oder Namen –
- * Datenbanktexte erreichen Claude nie (auch nicht als mögliche Anweisungen).
+ * Nur, was für die Planung nötig ist: Zeiten, neutrale Arten, Regeln, neutrale Bezüge und ein
+ * opaker Versionsbezug des Entwurfs. Keine Titel, Notizen, Orte, IDs, E-Mail-Adressen oder
+ * Namen – Datenbanktexte erreichen Claude nie (auch nicht als mögliche Anweisungen).
  */
 export function buildConnectorPlanningContext(
   context: PlanningContext,
@@ -891,6 +1308,28 @@ export function buildConnectorPlanningContext(
   const missing = getMissingPlanningRequirements(context).map((m) =>
     neutralizePlannerText(m.message),
   );
+  const plannedRefs = new Set(context.fixed.map((e) => e.ref));
+  const runningRefs = new Set(context.locked.map((e) => e.ref));
+  const recurring = (occurrence: PlannerOccurrence): ConnectorRecurring => {
+    const date = toLocalDate(new Date(occurrence.start_at), timeZone);
+    return {
+      ref: occurrence.ref,
+      kind: PLANNER_NEUTRAL_KIND_LABELS[occurrence.category],
+      date,
+      weekday: WEEKDAY_LABELS[isoWeekdayOfLocalDate(date)],
+      ...localSpan(occurrence, timeZone),
+      endsNextDay: toLocalDate(new Date(occurrence.end_at), timeZone) !== date,
+      changeable: plannedRefs.has(occurrence.ref)
+        ? "ja"
+        : runningRefs.has(occurrence.ref)
+          ? "nur Ende"
+          : "nein",
+    };
+  };
+  const busyEntries = [
+    ...context.fixed.map((e) => ({ ...e, begun: false })),
+    ...context.locked.map((e) => ({ ...e, begun: true })),
+  ].sort(byTime);
   return {
     week: {
       start: context.weekStart,
@@ -904,17 +1343,8 @@ export function buildConnectorPlanningContext(
         ? { date: toLocalDate(notBefore, timeZone), time: toLocalTime(notBefore, timeZone) }
         : null,
     rules: {
-      duty: context.fixed
-        .filter((e) => e.category === "duty" && e.source === "recurring")
-        .map((e) => {
-          const date = toLocalDate(new Date(e.start_at), timeZone);
-          return {
-            date,
-            weekday: WEEKDAY_LABELS[isoWeekdayOfLocalDate(date)],
-            start: toLocalTime(new Date(e.start_at), timeZone),
-            end: toLocalTime(new Date(e.end_at), timeZone),
-          };
-        }),
+      duty: context.occurrences.filter((o) => o.category === "duty").map(recurring),
+      otherRecurring: context.occurrences.filter((o) => o.category !== "duty").map(recurring),
       training: context.slots.filter((s) => s.goal === "sport").map(connectorSlot),
       relationship: context.slots.filter((s) => s.goal === "relationship").map(connectorSlot),
       business: preferences
@@ -935,19 +1365,22 @@ export function buildConnectorPlanningContext(
         relationshipMinutes: context.settings.relationshipTargetMinutes,
       },
     },
+    alreadyBegun: { businessMinutes: sumValues(lockedBusinessByDay(context)) },
     days: context.days.map((day) => ({
       date: day.date,
       weekday: WEEKDAY_LABELS[day.weekday],
-      busy: context.fixed
-        .filter((e) => Date.parse(e.start_at) < day.end && Date.parse(e.end_at) > day.start)
+      busy: busyEntries
+        .filter((e) => startOf(e) < day.end && endOf(e) > day.start)
         .map((e) => {
-          const start = Date.parse(e.start_at);
-          const end = Date.parse(e.end_at);
+          const start = startOf(e);
+          const end = endOf(e);
           return {
             start: start <= day.start ? "00:00" : toLocalTime(new Date(start), timeZone),
             end: end >= day.end ? "24:00" : toLocalTime(new Date(end), timeZone),
             kind: PLANNER_NEUTRAL_KIND_LABELS[e.category],
             origin: ORIGIN_LABELS[e.source],
+            ref: e.ref,
+            begun: e.begun,
           };
         }),
       businessMaxMinutes: day.businessMaxMinutes,
@@ -957,6 +1390,16 @@ export function buildConnectorPlanningContext(
       context.fixed.filter((e) => e.source === "manual"),
       timeZone,
     ),
+    currentDeviations: context.baseDeviations.map((d) => ({
+      ref: d.ref,
+      kind: PLANNER_NEUTRAL_KIND_LABELS[d.category],
+      deviation: DEVIATION_LABELS[d.kind],
+      date: d.date,
+      weekday: WEEKDAY_LABELS[isoWeekdayOfLocalDate(d.date)],
+      rule: d.rule ? localSpan(d.rule, timeZone) : null,
+      current: d.actual ? localSpan(d.actual, timeZone) : null,
+      mustAddress: d.changeable,
+    })),
     existingDraft: input.draft
       ? {
           draftRef: input.draft.ref,
@@ -1017,32 +1460,228 @@ interface CheckedBlock {
   entry: PlannedEntry;
 }
 
+/** Ausdrücklich genannte Abweichungen eines Vorschlags – Gründe für die Prüfübersicht. */
+export interface DeclaredExceptions {
+  /** Bezug (ref) → Grund (adjust und cancel). */
+  recurring: Record<string, string>;
+  /** slotId → Grund. */
+  slots: Record<string, string>;
+  businessMinimum: { minutes: number; reason: string } | null;
+}
+
+export interface MaterializedProposal {
+  ok: true;
+  /** Ab `notBefore`: Wiederholungen (mit Abweichungen dieser Woche) und vorgeschlagene Blöcke. */
+  entries: PlannedEntry[];
+  /** Einzeltermine – bleiben im Entwurf unverändert. */
+  oneOffs: PlannerFixedEntry[];
+  /** Bereits Begonnenes – unverändert; laufende Wiederholungen ggf. mit neuem Ende. */
+  locked: PlannerLockedEntry[];
+  exceptions: DeclaredExceptions;
+}
+
+function describeDeviation(deviation: RecurringDeviation, timeZone: string): string {
+  const what = `${CATEGORY_LABELS[deviation.category]} am ${dayLabel(deviation.date)}`;
+  const range = (span: { start_at: string; end_at: string }) =>
+    formatLocalRange(startOf(span), endOf(span), timeZone);
+  if (deviation.rule && deviation.actual) {
+    return `${what}: ${range(deviation.actual)} statt ${range(deviation.rule)}`;
+  }
+  if (deviation.rule) return `${what} (${range(deviation.rule)}) entfällt`;
+  return `${what} (${deviation.actual ? range(deviation.actual) : "?"}) ohne passende Wiederholung`;
+}
+
+function withReason(message: string, reason: string | null | undefined): string {
+  return reason ? `${message} – Grund: ${reason}` : message;
+}
+
+function businessByDay(
+  entries: readonly { category: EntryCategory; start_at: string; end_at: string }[],
+  timeZone: string,
+): Map<LocalDate, number> {
+  const byDay = new Map<LocalDate, number>();
+  for (const e of entries) {
+    if (e.category !== "business") continue;
+    const date = toLocalDate(new Date(e.start_at), timeZone);
+    byDay.set(date, (byDay.get(date) ?? 0) + (endOf(e) - startOf(e)) / MINUTE_MS);
+  }
+  return byDay;
+}
+
 /**
  * Prüft einen Vorschlag deterministisch gegen Woche, Zeitlogik, Zeitfenster, Regeln, Pausen und
- * Überschneidungen (auch mit Einzelterminen). Nur ein fehlerfreier Vorschlag ergibt Einträge:
- * `entries` (Wiederholungen + vorgeschlagene Blöcke, so werden sie gespeichert) und
- * `oneOffs` (manuelle Einzeltermine, die im Entwurf unverändert bleiben). Bei jeder Abweichung
- * `ok: false` – dann wird nichts gespeichert.
+ * Überschneidungen (auch mit Einzelterminen und bereits Begonnenem). Abweichungen von den Regeln
+ * sind nur ausdrücklich erlaubt: `recurringChanges`, `skippedSlots` und `businessMinimum`, jeweils
+ * mit Grund. Weicht der aktuelle Stand bereits ab, muss der Vorschlag das übernehmen oder
+ * ausdrücklich zurücksetzen – nichts geht still verloren. Nur ein fehlerfreier Vorschlag ergibt
+ * Einträge; bei jedem Fehler `ok: false` – dann wird nichts gespeichert.
  */
 export function materializeProposal(
   context: PlanningContext,
   proposal: WeekPlanProposal,
-):
-  | { ok: true; entries: PlannedEntry[]; oneOffs: PlannerFixedEntry[] }
-  | { ok: false; errors: string[] } {
+): MaterializedProposal | { ok: false; errors: string[] } {
   const errors: string[] = [];
   const preferences = context.preferences;
   if (!preferences) return { ok: false, errors: ["Planungsregeln fehlen."] };
-  const { timeZone } = context;
+  const { timeZone, notBefore } = context;
   const weekDays = new Set(getWeekDays(context.weekStart));
-  const slotsById = new Map(context.slots.map((slot) => [slot.slotId, slot]));
-  const usedSlots = new Set<string>();
   const buffer = preferences.bufferMinutes * MINUTE_MS;
+  const exceptions: DeclaredExceptions = { recurring: {}, slots: {}, businessMinimum: null };
 
   if (proposal.weekStart !== context.weekStart) {
     errors.push(`Der Vorschlag betrifft die falsche Woche (erwartet ${context.weekStart}).`);
   }
 
+  // 1. Abweichungen von Wiederholungen – nur für diese Woche.
+  const planned = new Map<string, PlannerFixedEntry>();
+  for (const entry of [...context.fixed, ...context.extraRecurring]) {
+    if (entry.ref !== null) planned.set(entry.ref, entry);
+  }
+  const extraRefs = new Set(context.extraRecurring.map((e) => e.ref));
+  const running = new Map<string, PlannerLockedEntry>();
+  for (const entry of context.locked) if (entry.ref !== null) running.set(entry.ref, entry);
+  const occurrenceByRef = new Map(context.occurrences.map((o) => [o.ref, o]));
+  const changed = new Set<string>();
+  /** Neue Zeiten ab `notBefore` (null = entfällt). */
+  const effective = new Map<string, { start: number; end: number } | null>();
+  /** Neues Ende laufender Wiederholungen. */
+  const runningEnd = new Map<string, number>();
+
+  (proposal.recurringChanges ?? []).forEach((change, index) => {
+    const where = `Abweichung ${index + 1} (${change.ref})`;
+    if (changed.has(change.ref)) {
+      errors.push(`${where}: Bezug mehrfach genannt.`);
+      return;
+    }
+    changed.add(change.ref);
+    const target = planned.get(change.ref);
+    const run = running.get(change.ref);
+    const anchor = target ?? run;
+    if (!anchor) {
+      errors.push(
+        occurrenceByRef.has(change.ref)
+          ? `${where}: hat bereits begonnen bzw. liegt in der Vergangenheit und bleibt unverändert.`
+          : `${where}: unbekannter Bezug – bitte den Planungskontext neu laden.`,
+      );
+      return;
+    }
+    if (change.action !== "regular") {
+      exceptions.recurring[change.ref] = cleanPlannerText(change.reason, PLANNER_REASON_MAX_LENGTH);
+    }
+    const date = toLocalDate(new Date(anchor.start_at), timeZone);
+    if (change.action === "adjust") {
+      const start = localInstant(date, change.start, timeZone);
+      // Wie bei Wiederholungen: Ende vor oder auf dem Beginn endet am Folgetag.
+      const endDate = change.end <= change.start ? addDays(date, 1) : date;
+      const end = localInstant(endDate, change.end, timeZone);
+      if (start === null || end === null) {
+        errors.push(`${where}: Uhrzeit existiert an diesem Tag nicht (Zeitumstellung).`);
+        return;
+      }
+      if ((end - start) / MINUTE_MS < PLANNER_MIN_BLOCK_MINUTES) {
+        errors.push(`${where}: kürzer als ${PLANNER_MIN_BLOCK_MINUTES} Minuten.`);
+        return;
+      }
+      if (end - start > 24 * 60 * MINUTE_MS) {
+        errors.push(`${where}: länger als 24 Stunden.`);
+        return;
+      }
+      if (run) {
+        if (start !== startOf(run)) {
+          errors.push(
+            `${where}: läuft bereits seit ${toLocalTime(new Date(run.start_at), timeZone)} – nur das Ende lässt sich ändern.`,
+          );
+          return;
+        }
+        runningEnd.set(change.ref, end);
+      } else {
+        if (start < notBefore) {
+          errors.push(`${where}: beginnt in der Vergangenheit.`);
+          return;
+        }
+        effective.set(change.ref, { start, end });
+      }
+    } else if (change.action === "cancel") {
+      if (run) {
+        errors.push(
+          `${where}: läuft bereits und kann nicht mehr entfallen – nur das Ende lässt sich ändern (adjust).`,
+        );
+        return;
+      }
+      effective.set(change.ref, null);
+    } else {
+      const occurrence = occurrenceByRef.get(change.ref);
+      if (!occurrence || extraRefs.has(change.ref)) {
+        errors.push(
+          `${where}: gehört zu keiner Wiederholung – behalten mit adjust oder entfernen mit cancel.`,
+        );
+        return;
+      }
+      if (run) {
+        if (startOf(run) !== startOf(occurrence)) {
+          errors.push(
+            `${where}: läuft bereits mit anderem Beginn – nur das Ende lässt sich ändern (adjust).`,
+          );
+          return;
+        }
+        runningEnd.set(change.ref, endOf(occurrence));
+      } else {
+        if (startOf(occurrence) < notBefore) {
+          errors.push(
+            `${where}: die Zeit laut Wiederholung liegt in der Vergangenheit – adjust oder cancel.`,
+          );
+          return;
+        }
+        effective.set(change.ref, { start: startOf(occurrence), end: endOf(occurrence) });
+      }
+    }
+  });
+
+  // Bestehende Abweichungen ab `notBefore` gehen nie still verloren.
+  for (const deviation of context.baseDeviations) {
+    if (!deviation.changeable || changed.has(deviation.ref)) continue;
+    errors.push(
+      `Abweichung im aktuellen Stand nicht berücksichtigt: ${describeDeviation(deviation, timeZone)} (${deviation.ref}). Übernehmen mit adjust bzw. cancel und Grund oder – nur nach Rückfrage beim Benutzer – mit regular auf die Wiederholung zurücksetzen.`,
+    );
+  }
+
+  const recurringEntries: PlannedEntry[] = [];
+  for (const [ref, entry] of planned) {
+    const times = effective.has(ref)
+      ? effective.get(ref)
+      : extraRefs.has(ref)
+        ? null
+        : { start: startOf(entry), end: endOf(entry) };
+    // Ohne Angabe gilt die Wiederholung; liegt sie vor `notBefore`, meldet das die Prüfung oben.
+    if (!times || times.start < notBefore) continue;
+    recurringEntries.push({
+      title: entry.title,
+      category: entry.category,
+      start_at: new Date(times.start).toISOString(),
+      end_at: new Date(times.end).toISOString(),
+      location: entry.location,
+      note: entry.note,
+      source: "recurring",
+    });
+  }
+  const locked = context.locked.map((entry) => {
+    const end = entry.ref === null ? undefined : runningEnd.get(entry.ref);
+    return end === undefined ? entry : { ...entry, end_at: new Date(end).toISOString() };
+  });
+
+  // 2. Ausgelassene Zeitfenster – nur ausdrücklich und mit Grund.
+  const slotsById = new Map(context.slots.map((slot) => [slot.slotId, slot]));
+  (proposal.skippedSlots ?? []).forEach((item, index) => {
+    const where = `Ausgelassenes Zeitfenster ${index + 1} (${item.slotId})`;
+    const slot = slotsById.get(item.slotId);
+    if (!slot) errors.push(`${where}: unbekanntes Zeitfenster.`);
+    else if (item.slotId in exceptions.slots) errors.push(`${where}: mehrfach genannt.`);
+    else if (slot.status === "done") errors.push(`${where}: hat bereits begonnen.`);
+    else exceptions.slots[item.slotId] = cleanPlannerText(item.reason, PLANNER_REASON_MAX_LENGTH);
+  });
+
+  // 3. Vorgeschlagene Blöcke.
+  const usedSlots = new Set<string>();
   const checked: CheckedBlock[] = [];
   proposal.blocks.forEach((block, index) => {
     const where = `Block ${index + 1} (${weekDays.has(block.date) ? dayLabel(block.date) : block.date} ${block.start}–${block.end})`;
@@ -1065,7 +1704,7 @@ export function materializeProposal(
       errors.push(`${where}: kürzer als ${PLANNER_MIN_BLOCK_MINUTES} Minuten.`);
       return;
     }
-    if (start < context.notBefore) {
+    if (start < notBefore) {
       errors.push(`${where}: beginnt in der Vergangenheit.`);
       return;
     }
@@ -1118,6 +1757,12 @@ export function materializeProposal(
         return;
       }
       usedSlots.add(slot.slotId);
+      if (slot.status === "done") {
+        errors.push(`${where}: an diesem Tag hat bereits ein Block für ${slot.slotId} begonnen.`);
+      }
+      if (slot.slotId in exceptions.slots) {
+        errors.push(`${where}: ${slot.slotId} ist zugleich als ausgelassen angegeben.`);
+      }
       if (slot.date !== block.date) errors.push(`${where}: falscher Tag für ${slot.slotId}.`);
       if (start < slot.windowStartAt || end > slot.windowEndAt) {
         errors.push(`${where}: außerhalb des Zeitfensters ${slot.windowStart}–${slot.windowEnd}.`);
@@ -1147,17 +1792,27 @@ export function materializeProposal(
     });
   });
 
-  // Verbindliche Zeitfenster müssen belegt sein.
+  // Verbindliche Zeitfenster müssen belegt sein – außer bereits begonnen, vorbei oder
+  // ausdrücklich ausgelassen.
   for (const slot of context.slots) {
-    if (slot.requirement === "required" && !usedSlots.has(slot.slotId)) {
+    if (
+      slot.requirement === "required" &&
+      slot.status === "open" &&
+      !usedSlots.has(slot.slotId) &&
+      !(slot.slotId in exceptions.slots)
+    ) {
       errors.push(`Verbindlicher Block fehlt: ${slot.slotId} (${dayLabel(slot.date)}).`);
     }
   }
 
-  // Überschneidungen und Pausen: gegen feste Verpflichtungen (inkl. Einzeltermine) und untereinander.
-  const fixed = fixedIntervals(context);
+  // Überschneidungen und Pausen: gegen Wiederholungen, Einzeltermine, Begonnenes und untereinander.
+  const busy = [
+    ...recurringEntries,
+    ...context.fixed.filter((e) => e.source === "manual"),
+    ...locked,
+  ].map((e) => ({ start: startOf(e), end: endOf(e) }));
   checked.forEach((block, i) => {
-    for (const other of fixed) {
+    for (const other of busy) {
       if (block.start < other.end + buffer && other.start < block.end + buffer) {
         errors.push(
           `Block ${block.index + 1}: überschneidet eine feste Verpflichtung (${formatLocalRange(other.start, other.end, timeZone)}) oder hält die Pause von ${preferences.bufferMinutes} Min. nicht ein.`,
@@ -1173,12 +1828,19 @@ export function materializeProposal(
     }
   });
 
-  // Gewerbe je Tag und Woche.
+  // Gewerbe je Tag und Woche – bereits Begonnenes (ohne „ausgelassen“) zählt mit.
+  const begun = businessByDay(
+    locked.filter((e) => e.completion_status !== "skipped"),
+    timeZone,
+  );
+  const proposed = businessByDay(
+    checked.map((b) => b.entry),
+    timeZone,
+  );
   for (const day of context.days) {
-    const minutes = checked
-      .filter((b) => b.kind === "business" && b.date === day.date)
-      .reduce((sum, b) => sum + (b.end - b.start) / MINUTE_MS, 0);
-    if (minutes > day.businessMaxMinutes) {
+    const proposedOnDay = proposed.get(day.date) ?? 0;
+    const minutes = proposedOnDay + (begun.get(day.date) ?? 0);
+    if (proposedOnDay > 0 && minutes > day.businessMaxMinutes) {
       errors.push(
         day.businessMaxMinutes === 0
           ? `Am ${dayLabel(day.date)} ist kein Gewerbe vorgesehen.`
@@ -1186,23 +1848,40 @@ export function materializeProposal(
       );
     }
   }
-  const businessTotal = checked
-    .filter((b) => b.kind === "business")
-    .reduce((sum, b) => sum + (b.end - b.start) / MINUTE_MS, 0);
-  if (businessTotal < context.settings.businessTargetMinutes) {
+  const begunTotal = sumValues(begun);
+  const businessTotal = begunTotal + sumValues(proposed);
+  const target = context.settings.businessTargetMinutes;
+  let minimum = target;
+  if (proposal.businessMinimum) {
+    if (proposal.businessMinimum.minutes >= target) {
+      errors.push(
+        `businessMinimum senkt das Gewerbe-Minimum nur unter das Wochenziel (${formatDuration(target)}).`,
+      );
+    } else {
+      minimum = proposal.businessMinimum.minutes;
+      exceptions.businessMinimum = {
+        minutes: minimum,
+        reason: cleanPlannerText(proposal.businessMinimum.reason, PLANNER_REASON_MAX_LENGTH),
+      };
+    }
+  }
+  if (businessTotal < minimum) {
     errors.push(
-      `Gewerbe-Minimum nicht erreicht: nur ${formatDuration(businessTotal)} geplant (Wochenziel ${formatDuration(context.settings.businessTargetMinutes)}).`,
+      `Gewerbe-Minimum nicht erreicht: nur ${formatDuration(businessTotal)} geplant${begunTotal > 0 ? ` (davon bereits begonnen ${formatDuration(begunTotal)})` : ""} (${minimum === target ? "Wochenziel" : "für diese Woche angegeben"} ${formatDuration(minimum)}).`,
     );
   }
 
   if (errors.length > 0) return { ok: false, errors };
-  const entries: PlannedEntry[] = [
-    ...context.fixed
-      .filter((e) => e.source === "recurring")
-      .map((e): PlannedEntry => ({ ...e, source: "recurring" })),
-    ...checked.map((b) => b.entry),
-  ].sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
-  return { ok: true, entries, oneOffs: context.fixed.filter((e) => e.source === "manual") };
+  const entries = [...recurringEntries, ...checked.map((b) => b.entry)].sort(
+    (a, b) => startOf(a) - startOf(b) || endOf(a) - endOf(b),
+  );
+  return {
+    ok: true,
+    entries,
+    oneOffs: context.fixed.filter((e) => e.source === "manual"),
+    locked,
+    exceptions,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1214,7 +1893,9 @@ export interface EvaluatedEntry {
   category: EntryCategory;
   start_at: string;
   end_at: string;
-  completion_status: "planned" | "completed" | "skipped";
+  completion_status: CompletionStatus;
+  /** Herkunft; nur Wiederholungseinträge werden mit den Wiederholungen verglichen. */
+  source?: EntrySource;
 }
 
 export interface PlanCheck {
@@ -1225,26 +1906,28 @@ export interface PlanCheck {
   value?: string;
   /** Muss für das Veröffentlichen erfüllt sein. */
   hard: boolean;
+  /** Regel dieser Woche: nicht erfüllt = Abweichung (sichtbar, aber kein Hindernis). */
+  deviation?: boolean;
 }
 
 export interface PlanEvaluation {
   checks: PlanCheck[];
   minutes: Record<GoalKey, number>;
+  /** Überschneidungen, die ab `notBefore` noch bestehen. */
   overlapCount: number;
   /** Was vor dem Veröffentlichen entschieden bzw. behoben werden muss. */
   openDecisions: string[];
+  /** Abweichungen von Wiederholungen und Regeln in dieser Woche (mit Grund, wenn bekannt). */
+  deviations: string[];
   publishable: boolean;
 }
 
-function sameInstant(a: string, b: string): boolean {
-  return Date.parse(a) === Date.parse(b);
-}
-
-function slotCheck(
+function slotDeviations(
   context: PlanningContext,
   entries: readonly EvaluatedEntry[],
   goal: PlannerSlotGoal,
-): { ok: boolean; problems: string[] } {
+  skippedReasons: Readonly<Record<string, string>>,
+): string[] {
   const slots = context.slots.filter((s) => s.goal === goal);
   const goalEntries = entries.filter((e) => e.category === goal);
   const problems: string[] = [];
@@ -1262,31 +1945,45 @@ function slotCheck(
     if (onDay.length > 1) problems.push(`Mehr als ein Block „${label}“ am ${dayLabel(day.date)}.`);
     const fitting = onDay.filter(
       (e) =>
-        Date.parse(e.start_at) >= slot.windowStartAt &&
-        Date.parse(e.end_at) <= slot.windowEndAt &&
-        (Date.parse(e.end_at) - Date.parse(e.start_at)) / MINUTE_MS === slot.durationMinutes,
+        startOf(e) >= slot.windowStartAt &&
+        endOf(e) <= slot.windowEndAt &&
+        (endOf(e) - startOf(e)) / MINUTE_MS === slot.durationMinutes,
     );
+    const reason = skippedReasons[slot.slotId];
     if (slot.requirement === "required" && fitting.length === 0) {
       problems.push(
-        `${label} am ${dayLabel(day.date)} fehlt (${formatDuration(slot.durationMinutes)} zwischen ${slot.windowStart} und ${slot.windowEnd}).`,
+        reason
+          ? withReason(`${label} am ${dayLabel(day.date)} ausgelassen`, reason)
+          : `${label} am ${dayLabel(day.date)} fehlt (${formatDuration(slot.durationMinutes)} zwischen ${slot.windowStart} und ${slot.windowEnd}${slot.status === "missed" ? "; Zeitfenster vorbei" : ""}).`,
       );
     } else if (onDay.length > 0 && fitting.length === 0) {
       problems.push(`${label} am ${dayLabel(day.date)} passt nicht zu Zeitfenster und Dauer.`);
     }
   }
-  return { ok: problems.length === 0, problems };
+  return problems;
 }
 
+/**
+ * Bewertet einen Entwurf. Pflicht (hart) sind vollständige Einstellungen, die Zeitzone, keine
+ * Überschneidungen und kein Gewerbe im Dienst – soweit ab `notBefore` noch änderbar. Abweichungen
+ * von Wiederholungen, Zeitfenstern und Gewerbe-Minimum werden gemeldet (mit Grund, wenn der
+ * Vorschlag ihn nennt), verhindern das Veröffentlichen aber nicht: Neue Vorschläge dürfen nur
+ * ausdrücklich abweichen, und veröffentlicht wird erst nach Bestätigung durch den Benutzer.
+ */
 export function evaluatePlanDraft(
   context: PlanningContext,
   entries: readonly EvaluatedEntry[],
+  exceptions: DeclaredExceptions | null = null,
 ): PlanEvaluation {
+  const { timeZone } = context;
   const checks: PlanCheck[] = [];
   const openDecisions: string[] = [];
+  const deviations: string[] = [];
   const add = (check: PlanCheck, problems: readonly string[] = []) => {
     checks.push(check);
-    if (check.hard && !check.ok)
-      openDecisions.push(...(problems.length > 0 ? problems : [check.label]));
+    if (check.ok) return;
+    if (check.hard) openDecisions.push(...(problems.length > 0 ? problems : [check.label]));
+    else if (check.deviation) deviations.push(...problems);
   };
 
   const allMissing = getMissingPlanningRequirements(context);
@@ -1312,60 +2009,64 @@ export function evaluatePlanDraft(
     hard: true,
   });
 
-  const missingFixed = (category: "duty" | "other") =>
-    context.fixed.filter(
-      (f) =>
-        (category === "duty" ? f.category === "duty" : f.category !== "duty") &&
-        !entries.some(
-          (e) =>
-            e.category === f.category &&
-            e.title === f.title &&
-            sameInstant(e.start_at, f.start_at) &&
-            sameInstant(e.end_at, f.end_at),
-        ),
-    );
-  {
-    const hasDuty = context.fixed.some((f) => f.category === "duty");
-    const gaps = missingFixed("duty");
+  // Wiederholungen: Abweichungen dieser Woche.
+  const recurring = recurringDeviations(
+    matchRecurring(
+      context.occurrences,
+      entries.filter((e) => e.source === "recurring"),
+      timeZone,
+    ),
+    context.notBefore,
+    timeZone,
+  );
+  const describe = (deviation: RecurringDeviation) =>
+    withReason(describeDeviation(deviation, timeZone), exceptions?.recurring[deviation.ref]);
+  const dutyDeviations = recurring.filter((d) => d.category === "duty").map(describe);
+  const otherDeviations = recurring.filter((d) => d.category !== "duty").map(describe);
+  if (context.occurrences.some((o) => o.category === "duty")) {
     add(
-      { key: "duty", label: "Dienst vollständig", ok: hasDuty && gaps.length === 0, hard: true },
-      hasDuty
-        ? gaps.map(
-            (f) =>
-              `Dienst am ${dayLabel(toLocalDate(new Date(f.start_at), context.timeZone))} (${formatLocalRange(Date.parse(f.start_at), Date.parse(f.end_at), context.timeZone)}) fehlt oder wurde verändert.`,
-          )
-        : missingMessage("commitments"),
+      {
+        key: "duty",
+        label: "Dienst vollständig",
+        ok: dutyDeviations.length === 0,
+        hard: false,
+        deviation: true,
+      },
+      dutyDeviations,
     );
+  } else {
+    add({ key: "duty", label: "Dienst vollständig", ok: false, hard: true }, [
+      ...missingMessage("commitments"),
+      ...dutyDeviations,
+    ]);
   }
-  if (context.fixed.some((f) => f.category !== "duty")) {
-    const gaps = missingFixed("other");
+  if (context.occurrences.some((o) => o.category !== "duty") || otherDeviations.length > 0) {
     add(
       {
         key: "fixed",
         label: "Feste Verpflichtungen vollständig",
-        ok: gaps.length === 0,
-        hard: true,
+        ok: otherDeviations.length === 0,
+        hard: false,
+        deviation: true,
       },
-      gaps.map(
-        (f) =>
-          `${CATEGORY_LABELS[f.category]} am ${dayLabel(toLocalDate(new Date(f.start_at), context.timeZone))} (${formatLocalRange(Date.parse(f.start_at), Date.parse(f.end_at), context.timeZone)}) fehlt oder wurde verändert.`,
-      ),
+      otherDeviations,
     );
   }
 
   for (const goal of PLANNER_SLOT_GOALS) {
     const key = `${goal}-slots` as const;
     const absent = missingMessage(key);
-    const result = slotCheck(context, entries, goal);
+    const problems = slotDeviations(context, entries, goal, exceptions?.slots ?? {});
     add(
       {
         key,
         label:
           goal === "sport" ? "Trainingstage erfüllt" : `${GOAL_LABELS.relationship}-Tage erfüllt`,
-        ok: absent.length === 0 && result.ok,
-        hard: true,
+        ok: absent.length === 0 && problems.length === 0,
+        hard: absent.length > 0,
+        deviation: absent.length === 0,
       },
-      [...absent, ...result.problems],
+      [...absent, ...problems],
     );
   }
 
@@ -1382,22 +2083,33 @@ export function evaluatePlanDraft(
     value: formatDuration(minutes.business),
     hard: false,
   });
-  add({
-    key: "business-minimum",
-    label: `Gewerbe-Minimum erreicht (${formatDuration(target)})`,
-    ok: target > 0 && minutes.business >= target,
-    hard: true,
-  });
+  const lowered = exceptions?.businessMinimum;
+  add(
+    {
+      key: "business-minimum",
+      label: `Gewerbe-Minimum erreicht (${formatDuration(target)})`,
+      ok: target > 0 && minutes.business >= target,
+      hard: false,
+      deviation: true,
+    },
+    [
+      withReason(
+        `Gewerbe ${formatDuration(minutes.business)} statt mindestens ${formatDuration(target)}`,
+        lowered
+          ? `${lowered.reason} (diese Woche mindestens ${formatDuration(lowered.minutes)})`
+          : null,
+      ),
+    ],
+  );
 
+  // Pflicht nur, soweit ab `notBefore` noch etwas zu ändern ist (Vergangenes bleibt, wie es war).
+  const stillOpen = (a: EvaluatedEntry, b: EvaluatedEntry) =>
+    Math.min(endOf(a), endOf(b)) > context.notBefore;
   const duties = entries.filter((e) => e.category === "duty");
   const businessOnDuty = entries.filter(
     (e) =>
       e.category === "business" &&
-      duties.some(
-        (d) =>
-          Date.parse(e.start_at) < Date.parse(d.end_at) &&
-          Date.parse(d.start_at) < Date.parse(e.end_at),
-      ),
+      duties.some((d) => startOf(e) < endOf(d) && startOf(d) < endOf(e) && stillOpen(e, d)),
   );
   add({
     key: "duty-not-business",
@@ -1406,7 +2118,7 @@ export function evaluatePlanDraft(
     hard: true,
   });
 
-  const overlapCount = detectOverlaps(entries).length;
+  const overlapCount = detectOverlaps(entries).filter((o) => stillOpen(o.first, o.second)).length;
   add({
     key: "overlaps",
     label: "Überschneidungen",
@@ -1418,11 +2130,11 @@ export function evaluatePlanDraft(
   // Weiche Regeln (Hinweise): Pausen, Gewerbe-Rahmen und Tageshöchstwerte.
   const preferences = context.preferences;
   if (preferences) {
-    const sorted = [...entries].sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
+    const sorted = [...entries].sort((a, b) => startOf(a) - startOf(b));
     const tightGaps = sorted.filter((entry, i) => {
       const next = sorted[i + 1];
       if (!next) return false;
-      const gap = Date.parse(next.start_at) - Date.parse(entry.end_at);
+      const gap = startOf(next) - endOf(entry);
       return gap >= 0 && gap < preferences.bufferMinutes * MINUTE_MS;
     }).length;
     add({
@@ -1432,27 +2144,20 @@ export function evaluatePlanDraft(
       value: tightGaps === 0 ? undefined : `${tightGaps}× knapp`,
       hard: false,
     });
-    const businessByDay = new Map<LocalDate, number>();
-    let outsideWindow = 0;
-    for (const e of entries.filter((x) => x.category === "business")) {
-      const date = toLocalDate(new Date(e.start_at), context.timeZone);
-      businessByDay.set(
-        date,
-        (businessByDay.get(date) ?? 0) +
-          (Date.parse(e.end_at) - Date.parse(e.start_at)) / MINUTE_MS,
-      );
-      const start = toLocalTime(new Date(e.start_at), context.timeZone);
-      const end = toLocalTime(new Date(e.end_at), context.timeZone);
-      if (
+    const business = entries.filter((x) => x.category === "business");
+    const perDay = businessByDay(business, timeZone);
+    const outsideWindow = business.filter((e) => {
+      const date = toLocalDate(new Date(e.start_at), timeZone);
+      const start = toLocalTime(new Date(e.start_at), timeZone);
+      const end = toLocalTime(new Date(e.end_at), timeZone);
+      return (
         start < preferences.businessEarliestStart ||
         end > preferences.businessLatestEnd ||
-        toLocalDate(new Date(e.end_at), context.timeZone) !== date
-      ) {
-        outsideWindow += 1;
-      }
-    }
+        toLocalDate(new Date(e.end_at), timeZone) !== date
+      );
+    }).length;
     const overDaily = context.days.filter(
-      (d) => (businessByDay.get(d.date) ?? 0) > d.businessMaxMinutes,
+      (d) => (perDay.get(d.date) ?? 0) > d.businessMaxMinutes,
     ).length;
     add({
       key: "business-limits",
@@ -1464,5 +2169,5 @@ export function evaluatePlanDraft(
 
   if (entries.length === 0) openDecisions.push("Der Entwurf enthält keine Einträge.");
   const publishable = entries.length > 0 && checks.every((c) => !c.hard || c.ok);
-  return { checks, minutes, overlapCount, openDecisions, publishable };
+  return { checks, minutes, overlapCount, openDecisions, deviations, publishable };
 }

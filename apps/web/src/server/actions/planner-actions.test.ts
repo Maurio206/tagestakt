@@ -106,10 +106,18 @@ describe("publishPlannedWeekAction", () => {
     expect(plannerData.publishReviewedWeek).not.toHaveBeenCalled();
   });
 
-  it("unvollständiger Entwurf (Pflichtregel verletzt) wird nicht veröffentlicht", async () => {
-    scheduleData.getWeekWithEntries.mockResolvedValue(
-      draftWeek(plannedEntries().filter((e) => e.category !== "sport")),
-    );
+  it("Entwurf mit verletzter Pflichtregel (Gewerbe im Dienst) wird nicht veröffentlicht", async () => {
+    const duringDuty = {
+      title: "Gewerbe im Dienst (Beispiel)",
+      category: "business" as const,
+      start_at: "2026-10-14T07:00:00.000Z",
+      end_at: "2026-10-14T08:00:00.000Z",
+      location: null,
+      note: null,
+      source: "agent" as const,
+      completion_status: "planned" as const,
+    };
+    scheduleData.getWeekWithEntries.mockResolvedValue(draftWeek([...plannedEntries(), duringDuty]));
     const state = await publishPlannedWeekAction(
       DRAFT_ID,
       WEEK,
@@ -117,8 +125,19 @@ describe("publishPlannedWeekAction", () => {
       form({ stand: FINGERPRINT }),
     );
     expect(state.status).toBe("error");
-    expect(state.message).toContain("Training am Mo 12.10. fehlt");
+    expect(state.message).toContain("Dienstzeit nicht als Gewerbe gezählt");
     expect(plannerData.publishReviewedWeek).not.toHaveBeenCalled();
+  });
+
+  it("Abweichung von einer Regel (Training fehlt) ist sichtbar, verhindert aber nichts", async () => {
+    const entries = plannedEntries().filter((e) => e.category !== "sport");
+    scheduleData.getWeekWithEntries.mockResolvedValue(draftWeek(entries));
+    plannerData.publishReviewedWeek.mockResolvedValue({ status: "published" });
+    await expect(
+      publishPlannedWeekAction(DRAFT_ID, WEEK, initialActionState, form({ stand: FINGERPRINT })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(plannerData.loadPlanningContext).toHaveBeenCalledWith(WEEK, expect.any(Date), entries);
+    expect(plannerData.publishReviewedWeek).toHaveBeenCalledWith(DRAFT_ID, FINGERPRINT);
   });
 
   it("geprüfter Entwurf wird mit genau diesem Prüfstand veröffentlicht", async () => {

@@ -112,11 +112,11 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
     draftMeta ? getWeekFingerprint(draftMeta.id) : null,
     !draftMeta && published ? getWeekWithEntries(published.id) : null,
   ]);
-  // Einzeltermine der Basisversion (Entwurf, sonst veröffentlichte Version) gehören fest dazu.
+  // Basisversion (Entwurf, sonst veröffentlichte Version): Einzeltermine gehören fest dazu.
   const context = await loadPlanningContext(
     weekStart,
     now,
-    draft?.schedule_entries ?? publishedWeek?.schedule_entries ?? [],
+    draft?.schedule_entries ?? publishedWeek?.schedule_entries ?? null,
   );
 
   const missing = getMissingPlanningRequirements(context).filter((m) => m.key !== "week");
@@ -129,7 +129,8 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
     sport: context.settings.sportTargetMinutes,
     relationship: context.settings.relationshipTargetMinutes,
   };
-  const dutyCount = context.fixed.filter((f) => f.category === "duty").length;
+  const dutyCount = context.occurrences.filter((o) => o.category === "duty").length;
+  const oneOffCount = context.fixed.filter((f) => f.source === "manual").length;
   const today = toLocalDate(now);
 
   return (
@@ -194,8 +195,9 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
         </div>
         <ul className="stack-tight muted">
           <li>
-            {context.fixed.length} feste Termine (Wiederholungen und Einzeltermine), davon{" "}
-            {dutyCount} Dienst – sie werden unverändert übernommen.
+            {context.occurrences.length} Wiederholungen (davon {dutyCount} Dienst) und {oneOffCount}{" "}
+            Einzeltermine – sie werden übernommen. Abweichungen gelten nur für diese Woche und nur
+            mit Grund; die Wiederholungen selbst bleiben unverändert.
           </li>
           <li>
             Training: {context.slots.filter((s) => s.goal === "sport").length} Tage mit Zeitfenster;{" "}
@@ -250,7 +252,27 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
                 )}
               </dd>
             </div>
+            <div className={evaluation.deviations.length === 0 ? "check-row" : "check-row is-open"}>
+              <dt>Abweichungen diese Woche</dt>
+              <dd>
+                {evaluation.deviations.length === 0 ? (
+                  "keine"
+                ) : (
+                  <ul className="stack-tight">
+                    {evaluation.deviations.map((deviation) => (
+                      <li key={deviation}>{deviation}</li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </div>
           </dl>
+          {evaluation.deviations.length > 0 ? (
+            <p className="small muted">
+              Abweichungen von Wiederholungen und Regeln verhindern das Veröffentlichen nicht –
+              bitte vorher prüfen, ob sie so gewollt sind.
+            </p>
+          ) : null}
 
           <details className="disclosure">
             <summary>Weitere Prüfungen</summary>
@@ -260,7 +282,7 @@ export default async function PlannerPage({ searchParams }: { searchParams: Sear
                 .map((check) => (
                   <li key={check.key}>
                     {check.label}: {check.value ?? yesNo(check.ok)}
-                    {check.hard ? "" : " (Hinweis)"}
+                    {check.hard ? "" : check.deviation ? " (Abweichung)" : " (Hinweis)"}
                   </li>
                 ))}
             </ul>

@@ -8,8 +8,9 @@
  * Geprüft: OAuth (PKCE, Code-Einmaligkeit, Ablauf, Rotation, Wiederverwendung, Widerruf,
  * Ressourcenbindung, fremde Konten), alle sieben Tools mit echter Datenbank (Kontext ohne
  * persönliche Daten, Prüfen, idempotentes Speichern, veralteter und paralleler Stand,
- * Einzeltermine, Bestätigung, Ablauf, doppeltes Veröffentlichen, Verwerfen) und ein
- * Durchstich über den echten /mcp-Endpunkt mit dem offiziellen Client.
+ * Einzeltermine, Abweichungen nur für eine Woche, laufende Woche mit unverändertem
+ * Vergangenem und Erledigt-Status, Bestätigung, Ablauf, doppeltes Veröffentlichen, Verwerfen)
+ * und ein Durchstich über den echten /mcp-Endpunkt mit dem offiziellen Client.
  */
 import { createHash } from "node:crypto";
 
@@ -40,7 +41,7 @@ import {
 } from "./planning-service";
 import { CONNECTOR_SCOPES } from "./scopes";
 import { generateToken, sha256Hex } from "./tokens";
-import { upcomingWeekStarts } from "@tagestakt/schedule-schema";
+import { addDays, upcomingWeekStarts } from "@tagestakt/schedule-schema";
 
 const DATABASE_URL = process.env.TAGESTAKT_E2E_DATABASE_URL ?? "";
 const OWNER = process.env.TAGESTAKT_E2E_OWNER ?? "";
@@ -51,6 +52,7 @@ const CLIENT_ID = "https://claude.ai/oauth/mcp-client-metadata";
 const CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 const VERIFIER = "e2e-verifier-0123456789-abcdefghijklmnopqrstuvwxyz";
 const CHALLENGE = createHash("sha256").update(VERIFIER).digest("base64url");
+const CURRENT_WEEK = "2026-10-05";
 const WEEK = "2026-10-12";
 const NEXT_WEEK = "2026-10-19";
 const NOW = new Date("2026-10-09T12:00:00Z");
@@ -75,7 +77,15 @@ const business = (date: string, start: string, end: string): Block => ({
   start,
   end,
 });
-function plan(overrides: Block[] = [], week = WEEK) {
+type RecurringChange =
+  | { action: "adjust"; ref: string; start: string; end: string; reason: string }
+  | { action: "cancel"; ref: string; reason: string }
+  | { action: "regular"; ref: string };
+/** Dienst Mo–Fr ausdrücklich wie in den Wiederholungen (Basisversion ohne Wiederholungen). */
+const dutyAsRule = (week: string): RecurringChange[] =>
+  [0, 1, 2, 3, 4].map((day) => ({ action: "regular", ref: `duty-${addDays(week, day)}-0800` }));
+
+function plan(overrides: Block[] = [], week = WEEK, recurringChanges = dutyAsRule(week)) {
   const base: Block[] =
     week === WEEK
       ? [
@@ -120,7 +130,12 @@ function plan(overrides: Block[] = [], week = WEEK) {
             end: "21:00",
           },
         ];
-  return { weekStart: week, blocks: [...base, ...overrides], summary: "Testwoche (Beispiel)." };
+  return {
+    weekStart: week,
+    blocks: [...base, ...overrides],
+    summary: "Testwoche (Beispiel).",
+    recurringChanges,
+  };
 }
 
 /** Planungsregeln und Daten eines Test-Benutzers – über RLS als dieser Benutzer angelegt. */
@@ -153,6 +168,52 @@ async function seedOwner(ownerId: string, withPublishedWeek: boolean) {
                        '2026-10-17 10:00+02', '2026-10-17 11:00+02',
                        'Beispielstraße 1', 'Versichertenkarte (Beispiel)', 'manual')`;
       await tx`update public.schedule_weeks set status = 'published' where id = ${week!.id}::uuid`;
+
+      // Laufende Woche (NOW = Freitag): veröffentlicht, teils erledigt bzw. ausgelassen.
+      const [current] = await tx<{ id: string }[]>`
+        insert into public.schedule_weeks (week_start) values (${CURRENT_WEEK}::date) returning id`;
+      const entry = (
+        title: string,
+        category: string,
+        day: string,
+        start: string,
+        end: string,
+        source: string,
+        status: string,
+        place: { location: string | null; note: string | null } = { location: null, note: null },
+      ) => tx`insert into public.schedule_entries (schedule_week_id, title, category, start_at,
+                 end_at, location, note, source, completion_status)
+               values (${current!.id}::uuid, ${title}, ${category},
+                       ${`2026-10-${day} ${start}+02`}::timestamptz,
+                       ${`2026-10-${day} ${end}+02`}::timestamptz,
+                       ${place.location}::text, ${place.note}::text, ${source}, ${status})`;
+      for (const [day, status] of [
+        ["05", "completed"],
+        ["06", "planned"],
+        ["07", "planned"],
+        ["08", "planned"],
+        // Schon vorab als erledigt markiert: Der Status bleibt auch bei geändertem Ende.
+        ["09", "completed"],
+      ] as const) {
+        await entry("Dienst (Beispiel)", "duty", day, "08:00", "12:00", "recurring", status, {
+          location: "Dienstort (Beispiel)",
+          note: "Interne Notiz (Beispiel)",
+        });
+      }
+      await entry("Akquise (Beispiel)", "business", "05", "13:00", "17:00", "agent", "completed");
+      await entry("Training (Beispiel)", "sport", "05", "18:30", "19:30", "agent", "completed");
+      await entry("Akquise (Beispiel)", "business", "08", "13:00", "17:00", "agent", "skipped");
+      await entry("Akquise (Beispiel)", "business", "09", "15:00", "18:00", "agent", "planned");
+      await entry(
+        "Einzeltermin (Beispiel)",
+        "appointment",
+        "10",
+        "10:00",
+        "11:00",
+        "manual",
+        "planned",
+      );
+      await tx`update public.schedule_weeks set status = 'published' where id = ${current!.id}::uuid`;
     }
   });
 }
@@ -456,15 +517,33 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       ]);
       expect(context.publishedPlan?.version).toBe(1);
       expect(context.existingDraft).toBeNull();
+      // Die veröffentlichte Version enthält keine Wiederholungen: Das ist eine Abweichung, die
+      // ein Vorschlag ausdrücklich übernehmen oder zurücksetzen muss.
+      expect(context.currentDeviations).toHaveLength(5);
+      expect(
+        context.currentDeviations.every((d) => d.deviation === "entfällt" && d.mustAddress),
+      ).toBe(true);
     });
 
-    it("andere Wochen als die kommenden werden abgelehnt", async () => {
-      expect(await failureOf(getPlanningContext(deps(), auth, "2026-10-05"))).toBe(
-        "week_not_allowed",
-      );
-      expect(await failureOf(getPlanningContext(deps(), auth, "2027-01-04"))).toBe(
-        "week_not_allowed",
-      );
+    it("nur die laufende und die nächsten Wochen; Vergangenes wird abgelehnt", async () => {
+      for (const week of ["2026-09-28", "2027-01-04"]) {
+        expect(await failureOf(getPlanningContext(deps(), auth, week))).toBe("week_not_allowed");
+      }
+      const current = await getPlanningContext(deps(), auth, CURRENT_WEEK);
+      outputs.push(current);
+      expect(current.earliestStart).toEqual({ date: "2026-10-09", time: "14:00" });
+      expect(current.alreadyBegun).toEqual({ businessMinutes: 240 });
+      expect(current.days[0]?.busy.every((b) => b.begun)).toBe(true);
+    });
+
+    it("bestehende Abweichungen gehen nicht still verloren", async () => {
+      const silent = await validateWeekPlan(deps(), auth, plan([], WEEK, []));
+      expect(silent.valid).toBe(false);
+      expect(
+        silent.errors.filter((e) =>
+          e.startsWith("Abweichung im aktuellen Stand nicht berücksichtigt"),
+        ),
+      ).toHaveLength(5);
     });
 
     it("validate_week_plan prüft vollständig und speichert nichts", async () => {
@@ -576,6 +655,8 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
     });
 
     it("save_week_draft: in TagesTakt geänderte Wiederholungen werden nie still zurückgesetzt", async () => {
+      const TUESDAY = "duty-2026-10-13-0800";
+      const withoutDutyChanges = plan([], WEEK, []);
       // Der Eigentümer verschiebt im Entwurf den Dienst am Dienstag (z. B. Schichttausch).
       const moveTuesdayDuty = (from: string, start: string, end: string) =>
         asOwnerRole(
@@ -590,21 +671,54 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
         );
       await moveTuesdayDuty("2026-10-13 08:00+02", "2026-10-13 08:30+02", "2026-10-13 12:30+02");
       const changed = (await getWeekDraft(deps(), auth, WEEK)).draft!;
+      expect(changed.overview.deviations).toEqual([
+        "Dienst am Di 13.10.: 08:30–12:30 statt 08:00–12:00",
+      ]);
       expect(
         await failureOf(
-          saveWeekDraft(deps(), auth, { ...plan(), expectedDraftRef: changed.draftRef }),
+          saveWeekDraft(deps(), auth, {
+            ...withoutDutyChanges,
+            expectedDraftRef: changed.draftRef,
+          }),
         ),
-      ).toBe("conflict");
+      ).toBe("validation_failed");
       expect((await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef).toBe(changed.draftRef);
+      const context = await getPlanningContext(deps(), auth, WEEK);
+      expect(context.currentDeviations).toEqual([
+        expect.objectContaining({
+          ref: TUESDAY,
+          deviation: "andere Zeit",
+          current: { start: "08:30", end: "12:30" },
+          mustAddress: true,
+        }),
+      ]);
 
-      // Abweichung zurückgenommen: Neuplanen ist wieder möglich.
-      await moveTuesdayDuty("2026-10-13 08:30+02", "2026-10-13 08:00+02", "2026-10-13 12:00+02");
-      const restored = (await getWeekDraft(deps(), auth, WEEK)).draft!;
-      const saved = await saveWeekDraft(deps(), auth, {
-        ...plan(),
-        expectedDraftRef: restored.draftRef,
+      // Übernehmen (nur diese Woche, mit Grund) – die Wiederholung selbst bleibt unverändert.
+      const kept = await saveWeekDraft(deps(), auth, {
+        ...plan([], WEEK, [
+          { action: "adjust", ref: TUESDAY, start: "08:30", end: "12:30", reason: "Testgrund" },
+        ]),
+        expectedDraftRef: changed.draftRef,
       });
-      expect(saved.saved).toBe(true);
+      expect(kept.overview.deviations).toEqual([
+        "Dienst am Di 13.10.: 08:30–12:30 statt 08:00–12:00 – Grund: Testgrund",
+      ]);
+      expect(kept.overview.summary).toContain(
+        "Abweichungen diese Woche: Dienst am Di 13.10.: 08:30–12:30 statt 08:00–12:00 – Grund: Testgrund",
+      );
+      const rules = await asOwnerRole(
+        OWNER,
+        (tx) => tx<{ start_time: string }[]>`
+          select start_time::text from public.recurring_commitments where weekday = 2`,
+      );
+      expect(rules.map((r) => r.start_time)).toEqual(["08:00:00"]);
+
+      // Ausdrücklich zurücksetzen (nur nach Rückfrage beim Benutzer).
+      const reset = await saveWeekDraft(deps(), auth, {
+        ...plan([], WEEK, [{ action: "regular", ref: TUESDAY }]),
+        expectedDraftRef: kept.draftRef,
+      });
+      expect(reset.overview.deviations).toEqual([]);
     });
 
     it("get_week_draft: Server-Prüfübersicht", async () => {
@@ -784,9 +898,182 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       ).toBe("no_draft");
     });
 
+    describe("laufende Woche", () => {
+      // Freitag 10:00 Uhr: Der Dienst (08:00–12:00) läuft gerade.
+      const morning = () => ({ config, now: () => new Date("2026-10-09T08:00:00Z") });
+      const FRIDAY_DUTY = "duty-2026-10-09-0800";
+      type Row = {
+        id: string;
+        title: string;
+        category: string;
+        start_at: Date;
+        end_at: Date;
+        source: string;
+        completion_status: string;
+      };
+      const rowsOf = (status: string) =>
+        asOwnerRole(
+          OWNER,
+          (tx) => tx<Row[]>`
+            select e.id, e.title, e.category, e.start_at, e.end_at, e.source, e.completion_status
+              from public.schedule_entries e
+              join public.schedule_weeks w on w.id = e.schedule_week_id
+             where w.week_start = ${CURRENT_WEEK}::date and w.status = ${status}
+             order by e.start_at, e.end_at, e.category`,
+        );
+      const view = (rows: Row[]) =>
+        rows.map(
+          (r) =>
+            `${r.category} ${r.start_at.toISOString()}–${r.end_at.toISOString()} ${r.completion_status}`,
+        );
+      const proposal = (recurringChanges: RecurringChange[]) => ({
+        weekStart: CURRENT_WEEK,
+        blocks: [
+          business("2026-10-09", "13:00", "17:00"),
+          {
+            kind: "relationship" as const,
+            slotId: "relationship-2026-10-09",
+            date: "2026-10-09",
+            start: "19:00",
+            end: "21:00",
+          },
+        ],
+        recurringChanges,
+        businessMinimum: { minutes: 480, reason: "Testgrund: Woche fast vorbei" },
+      });
+
+      it("Vergangenes und Laufendes lassen sich nicht still ändern", async () => {
+        const reason = "Testgrund";
+        for (const recurringChanges of [
+          [{ action: "cancel" as const, ref: FRIDAY_DUTY, reason }],
+          [{ action: "cancel" as const, ref: "duty-2026-10-05-0800", reason }],
+          [
+            {
+              action: "adjust" as const,
+              ref: FRIDAY_DUTY,
+              start: "09:00",
+              end: "11:00",
+              reason,
+            },
+          ],
+        ]) {
+          const result = await validateWeekPlan(morning(), auth, proposal(recurringChanges));
+          expect(result.valid).toBe(false);
+        }
+        const strict = await validateWeekPlan(morning(), auth, {
+          ...proposal([]),
+          businessMinimum: null,
+        });
+        expect(strict.errors.join(" ")).toContain("davon bereits begonnen 4 Std.");
+        expect(await weeksOf(OWNER, CURRENT_WEEK)).toEqual([{ version: 1, status: "published" }]);
+      });
+
+      it("ab jetzt wird ersetzt; Begonnenes bleibt mit Erledigt-Status, laufender Dienst kürzer", async () => {
+        const published = await rowsOf("published");
+        const saved = await saveWeekDraft(morning(), auth, {
+          ...proposal([
+            {
+              action: "adjust",
+              ref: FRIDAY_DUTY,
+              start: "08:00",
+              end: "11:00",
+              reason: "Testgrund: früher Schluss",
+            },
+          ]),
+          expectedDraftRef: null,
+        });
+        outputs.push(saved);
+        expect(saved.overview.publishable).toBe(true);
+        expect(saved.overview.deviations).toEqual(
+          expect.arrayContaining([
+            "Dienst am Fr 09.10.: 08:00–11:00 statt 08:00–12:00 – Grund: Testgrund: früher Schluss",
+            "Gewerbe 8 Std. statt mindestens 20 Std. – Grund: Testgrund: Woche fast vorbei (diese Woche mindestens 8 Std.)",
+          ]),
+        );
+        expect(await weeksOf(OWNER, CURRENT_WEEK)).toEqual([
+          { version: 1, status: "published" },
+          { version: 2, status: "draft" },
+        ]);
+
+        const cutoff = Date.parse("2026-10-09T08:00:00Z");
+        const draft = await rowsOf("draft");
+        const begunBefore = published.filter((r) => r.start_at.getTime() < cutoff);
+        const begunAfter = draft.filter((r) => r.start_at.getTime() < cutoff);
+        // Alles Begonnene bleibt (inkl. Erledigt- und Ausgelassen-Status); nur das Ende des
+        // laufenden Dienstes ändert sich.
+        expect(view(begunAfter)).toEqual(
+          view(begunBefore).map((line) =>
+            line.startsWith("duty 2026-10-09T06:00")
+              ? "duty 2026-10-09T06:00:00.000Z–2026-10-09T09:00:00.000Z completed"
+              : line,
+          ),
+        );
+        expect(view(begunAfter)).toEqual(
+          expect.arrayContaining([
+            expect.stringMatching(/^duty 2026-10-05.* completed$/),
+            expect.stringMatching(/^business 2026-10-05.* completed$/),
+            expect.stringMatching(/^sport 2026-10-05.* completed$/),
+            expect.stringMatching(/^business 2026-10-08.* skipped$/),
+          ]),
+        );
+        // Ab jetzt: der neue Vorschlag statt des alten Gewerbeblocks; Einzeltermin bleibt.
+        expect(view(draft.filter((r) => r.start_at.getTime() >= cutoff))).toEqual([
+          "business 2026-10-09T11:00:00.000Z–2026-10-09T15:00:00.000Z planned",
+          "relationship 2026-10-09T17:00:00.000Z–2026-10-09T19:00:00.000Z planned",
+          "appointment 2026-10-10T08:00:00.000Z–2026-10-10T09:00:00.000Z planned",
+        ]);
+
+        // Wiederholung derselben Anfrage ändert nichts.
+        const replay = await saveWeekDraft(morning(), auth, {
+          ...proposal([
+            {
+              action: "adjust",
+              ref: FRIDAY_DUTY,
+              start: "08:00",
+              end: "11:00",
+              reason: "Testgrund: früher Schluss",
+            },
+          ]),
+          expectedDraftRef: saved.draftRef,
+        });
+        expect(replay).toMatchObject({ replayed: true, draftRef: saved.draftRef });
+        expect((await rowsOf("draft")).map((r) => r.id)).toEqual(draft.map((r) => r.id));
+      });
+
+      it("veröffentlichen mit sichtbaren Abweichungen; Erledigt-Status bleibt", async () => {
+        const ref = (await getWeekDraft(morning(), auth, CURRENT_WEEK)).draft!.draftRef;
+        const prepared = await prepareWeekPublish(morning(), auth, {
+          weekStart: CURRENT_WEEK,
+          expectedDraftRef: ref,
+        });
+        expect(prepared.overview.publishable).toBe(true);
+        expect(prepared.overview.summary.join("\n")).toContain(
+          "Abweichungen diese Woche: Dienst am Fr 09.10.: 08:00–11:00 statt 08:00–12:00",
+        );
+        await publishWeekDraft(morning(), auth, {
+          weekStart: CURRENT_WEEK,
+          expectedDraftRef: ref,
+          confirmationId: prepared.confirmationId,
+        });
+        expect(await weeksOf(OWNER, CURRENT_WEEK)).toEqual([
+          { version: 1, status: "archived" },
+          { version: 2, status: "published" },
+        ]);
+        const visible = view(await rowsOf("published"));
+        expect(visible).toEqual(
+          expect.arrayContaining([
+            expect.stringMatching(/^business 2026-10-05.* completed$/),
+            expect.stringMatching(/^business 2026-10-08.* skipped$/),
+            "duty 2026-10-09T06:00:00.000Z–2026-10-09T09:00:00.000Z completed",
+          ]),
+        );
+      });
+    });
+
     it("das fremde Konto bleibt unberührt und unsichtbar", async () => {
       expect(await weeksOf(FOREIGN)).toEqual([]);
       expect(await weeksOf(FOREIGN, NEXT_WEEK)).toEqual([]);
+      expect(await weeksOf(FOREIGN, CURRENT_WEEK)).toEqual([]);
     });
 
     it("keine Auth-, E-Mail-, Notiz-, Titel- oder ID-Daten in den Tool-Ausgaben", () => {

@@ -2,9 +2,11 @@ import "server-only";
 
 import {
   type ConnectorPlanningContext,
+  type DeclaredExceptions,
   type EvaluatedEntry,
   type LocalDate,
   type NeutralBlock,
+  PLANNER_HORIZON_WEEKS,
   PLANNER_SUMMARY_MAX_LENGTH,
   type PlannedEntry,
   type PlanningContext,
@@ -16,7 +18,7 @@ import {
   materializeProposal,
   neutralBlocks,
   neutralizePlannerText,
-  upcomingWeekStarts,
+  plannableWeekStarts,
 } from "@tagestakt/schedule-schema";
 
 import { type ConnectorConfig } from "./config";
@@ -77,11 +79,13 @@ const DRAFT_REF_PATTERN = /^[0-9a-f]{64}$/;
 // Gemeinsame Bausteine
 // ---------------------------------------------------------------------------
 
-function assertUpcomingWeek(weekStart: LocalDate, now: Date): void {
-  if (!upcomingWeekStarts(now).includes(weekStart)) {
+/** Die laufende Woche (ab jetzt) und die nächsten Wochen; Vergangenes bleibt unverändert. */
+function assertPlannableWeek(weekStart: LocalDate, now: Date): void {
+  const weeks = plannableWeekStarts(now);
+  if (!weeks.includes(weekStart)) {
     throw new ToolFailure(
       "week_not_allowed",
-      `Erlaubt sind nur die kommenden Wochen ab Montag: ${upcomingWeekStarts(now).join(", ")}.`,
+      `Erlaubt sind die laufende und die nächsten ${PLANNER_HORIZON_WEEKS} Wochen (jeweils Montag): ${weeks.join(", ")}.`,
     );
   }
 }
@@ -115,6 +119,8 @@ export interface DraftOverview {
   businessMinimumReached: boolean;
   overlaps: number;
   openDecisions: string[];
+  /** Abweichungen von Wiederholungen und Regeln in dieser Woche (mit Grund, wenn genannt). */
+  deviations: string[];
   hints: string[];
   publishable: boolean;
   /** Dieselbe Übersicht als Zeilen für die Anzeige im Gespräch. */
@@ -127,13 +133,15 @@ export function draftOverview(
   entries: readonly EvaluatedEntry[],
   version: number | null,
   draftRef: string | null,
+  exceptions: DeclaredExceptions | null = null,
 ): DraftOverview {
-  const evaluation = evaluatePlanDraft(context, entries);
+  const evaluation = evaluatePlanDraft(context, entries, exceptions);
   const byKey = new Map(evaluation.checks.map((check) => [check.key, check]));
   const ok = (key: string) => byKey.get(key)?.ok ?? false;
   const openDecisions = evaluation.openDecisions.map(neutralizePlannerText);
+  const deviations = evaluation.deviations.map(neutralizePlannerText);
   const hints = evaluation.checks
-    .filter((check) => !check.hard && !check.ok)
+    .filter((check) => !check.hard && !check.ok && !check.deviation)
     .map((check) =>
       neutralizePlannerText(check.value ? `${check.label}: ${check.value}` : check.label),
     );
@@ -148,6 +156,7 @@ export function draftOverview(
     businessMinimumReached: ok("business-minimum"),
     overlaps: evaluation.overlapCount,
     openDecisions,
+    deviations,
     hints,
     publishable: evaluation.publishable,
     summary: [
@@ -156,6 +165,7 @@ export function draftOverview(
       `Beziehungstage erfüllt: ${yesNo(ok("relationship-slots"))}`,
       `Gewerbeminuten: ${evaluation.minutes.business} (Minimum ${context.settings.businessTargetMinutes})`,
       `Gewerbe-Minimum erreicht: ${yesNo(ok("business-minimum"))}`,
+      `Abweichungen diese Woche: ${deviations.length === 0 ? "keine" : deviations.join(" | ")}`,
       `Überschneidungen: ${evaluation.overlapCount}`,
       `Offene Entscheidungen: ${openDecisions.length === 0 ? "keine" : openDecisions.join(" | ")}`,
       `Entwurfsversion: ${version ?? "–"}`,
@@ -166,26 +176,6 @@ export function draftOverview(
 async function ownerState(tx: Tx, auth: ConnectorAuth, weekStart: LocalDate, now: Date) {
   await asOwner(tx, auth.ownerId);
   return loadWeekState(tx, weekStart, now);
-}
-
-/**
- * Weichen wiederkehrende Einträge des vorhandenen Entwurfs von den Wiederholungen ab – etwa in
- * TagesTakt für diese Woche verschoben oder entfernt? Ein Vorschlag ersetzt die geplanten
- * Einträge durch die Wiederholungen; solche Abweichungen dürfen dabei nie still verloren gehen.
- */
-function recurringChangedInDraft(state: WeekState): boolean {
-  if (!state.draft) return false;
-  const key = (entry: { category: string; title: string; start_at: string; end_at: string }) =>
-    `${entry.category}|${entry.title}|${Date.parse(entry.start_at)}|${Date.parse(entry.end_at)}`;
-  const expected = state.context.fixed
-    .filter((f) => f.source === "recurring")
-    .map(key)
-    .sort();
-  const actual = state.draft.entries
-    .filter((e) => e.source === "recurring")
-    .map(key)
-    .sort();
-  return expected.length !== actual.length || expected.some((value, i) => value !== actual[i]);
 }
 
 function requireDraft(state: WeekState, expectedDraftRef: string) {
@@ -211,7 +201,7 @@ export async function getPlanningContext(
   weekStart: LocalDate,
 ): Promise<ConnectorPlanningContext> {
   const now = deps.now();
-  assertUpcomingWeek(weekStart, now);
+  assertPlannableWeek(weekStart, now);
   return connectorTransaction(deps.config, async (tx) => {
     await tx`set transaction read only`;
     const state = await ownerState(tx, auth, weekStart, now);
@@ -243,15 +233,21 @@ export interface ValidationResult {
   blocks: NeutralBlock[];
 }
 
+interface ValidPlan {
+  /** Alle geplanten Einträge der Woche ohne Einzeltermine: Begonnenes und ab jetzt Geplantes. */
+  desired: PlannedEntry[];
+  exceptions: DeclaredExceptions;
+}
+
 function validateAgainst(
   state: WeekState,
   proposal: WeekPlanProposal,
-): { result: ValidationResult; entries: PlannedEntry[] | null } {
+): { result: ValidationResult; plan: ValidPlan | null } {
   const missing = getMissingPlanningRequirements(state.context).map((m) =>
     neutralizePlannerText(m.message),
   );
   if (missing.length > 0) {
-    return { result: { valid: false, errors: missing, overview: null, blocks: [] }, entries: null };
+    return { result: { valid: false, errors: missing, overview: null, blocks: [] }, plan: null };
   }
   const materialized = materializeProposal(state.context, proposal);
   if (!materialized.ok) {
@@ -262,13 +258,26 @@ function validateAgainst(
         overview: null,
         blocks: [],
       },
-      entries: null,
+      plan: null,
     };
   }
-  const planned: SourcedEntry[] = [...materialized.entries, ...materialized.oneOffs].map(
-    (entry) => ({ ...entry, completion_status: "planned" as const }),
-  );
-  const overview = draftOverview(state.context, planned, null, null);
+  const planned: SourcedEntry[] = [
+    ...materialized.locked,
+    ...[...materialized.entries, ...materialized.oneOffs].map((entry) => ({
+      ...entry,
+      completion_status: "planned" as const,
+    })),
+  ];
+  const overview = draftOverview(state.context, planned, null, null, materialized.exceptions);
+  const begun = materialized.locked.map((entry): PlannedEntry => ({
+    title: entry.title,
+    category: entry.category,
+    start_at: entry.start_at,
+    end_at: entry.end_at,
+    location: entry.location,
+    note: entry.note,
+    source: entry.source,
+  }));
   return {
     result: {
       valid: overview.publishable,
@@ -276,7 +285,9 @@ function validateAgainst(
       overview,
       blocks: blocksOf(state.context, planned),
     },
-    entries: overview.publishable ? materialized.entries : null,
+    plan: overview.publishable
+      ? { desired: [...begun, ...materialized.entries], exceptions: materialized.exceptions }
+      : null,
   };
 }
 
@@ -287,7 +298,7 @@ export async function validateWeekPlan(
   proposal: WeekPlanProposal,
 ): Promise<ValidationResult> {
   const now = deps.now();
-  assertUpcomingWeek(proposal.weekStart, now);
+  assertPlannableWeek(proposal.weekStart, now);
   return connectorTransaction(deps.config, async (tx) => {
     await tx`set transaction read only`;
     const state = await ownerState(tx, auth, proposal.weekStart, now);
@@ -310,7 +321,7 @@ export async function saveWeekDraft(
   input: WeekPlanProposal & { expectedDraftRef: string | null },
 ): Promise<SaveResult> {
   const now = deps.now();
-  assertUpcomingWeek(input.weekStart, now);
+  assertPlannableWeek(input.weekStart, now);
   if (input.expectedDraftRef !== null && !DRAFT_REF_PATTERN.test(input.expectedDraftRef)) {
     throw new ToolFailure("conflict", "Ungültiger Entwurfsbezug.");
   }
@@ -318,15 +329,11 @@ export async function saveWeekDraft(
     await asOwner(tx, auth.ownerId);
     await lockWeek(tx, auth.ownerId, input.weekStart);
     const state = await loadWeekState(tx, input.weekStart, now);
-    if (recurringChangedInDraft(state)) {
-      throw new ToolFailure(
-        "conflict",
-        "Im vorhandenen Entwurf weichen wiederkehrende Termine von den Wiederholungen ab (z. B. in TagesTakt für diese Woche verschoben oder entfernt). Ein neuer Vorschlag würde das zurücksetzen und wird deshalb nicht gespeichert. Bitte mit dem Benutzer klären: die Abweichung in TagesTakt zurücknehmen oder den Entwurf nur auf seinen ausdrücklichen Wunsch mit discard_week_draft verwerfen und neu planen.",
-      );
-    }
-    const { weekStart, blocks, summary } = input;
-    const validation = validateAgainst(state, { weekStart, blocks, summary });
-    if (!validation.result.valid || !validation.entries) {
+    // Abweichungen im aktuellen Stand prüft materializeProposal: Sie müssen im Vorschlag
+    // übernommen oder ausdrücklich zurückgesetzt werden – nichts geht still verloren.
+    const { expectedDraftRef, ...proposal } = input;
+    const validation = validateAgainst(state, proposal);
+    if (!validation.result.valid || !validation.plan) {
       throw new ToolFailure(
         "validation_failed",
         "Der Plan ist nicht gültig und wurde nicht gespeichert.",
@@ -342,12 +349,13 @@ export async function saveWeekDraft(
     const previous = state.draft?.fingerprint ?? null;
     const saved = await saveDraft(tx, {
       weekStart: input.weekStart,
-      expected:
-        state.draft && input.expectedDraftRef !== null
-          ? { draftId: state.draft.week.id, fingerprint: input.expectedDraftRef }
-          : null,
-      entries: validation.entries,
-      planningNote: summary ? cleanPlannerText(summary, PLANNER_SUMMARY_MAX_LENGTH) || null : null,
+      expectedDraftRef,
+      desired: validation.plan.desired,
+      cutoff: state.context.notBefore,
+      historyFromRules: !state.draft && !state.published,
+      planningNote: proposal.summary
+        ? cleanPlannerText(proposal.summary, PLANNER_SUMMARY_MAX_LENGTH) || null
+        : null,
     });
     const after = await loadWeekState(tx, input.weekStart, now);
     if (!after.draft || after.draft.week.id !== saved.id) throw new Error("draft_missing");
@@ -361,6 +369,7 @@ export async function saveWeekDraft(
         after.draft.entries,
         saved.version,
         after.draft.fingerprint,
+        validation.plan.exceptions,
       ),
     };
   });
@@ -383,7 +392,7 @@ export async function getWeekDraft(
   weekStart: LocalDate,
 ): Promise<DraftView> {
   const now = deps.now();
-  assertUpcomingWeek(weekStart, now);
+  assertPlannableWeek(weekStart, now);
   return connectorTransaction(deps.config, async (tx) => {
     await tx`set transaction read only`;
     const state = await ownerState(tx, auth, weekStart, now);
@@ -431,7 +440,7 @@ export async function prepareWeekPublish(
   input: { weekStart: LocalDate; expectedDraftRef: string },
 ): Promise<PreparedPublish> {
   const now = deps.now();
-  assertUpcomingWeek(input.weekStart, now);
+  assertPlannableWeek(input.weekStart, now);
   return connectorTransaction(deps.config, async (tx) => {
     await asOwner(tx, auth.ownerId);
     await lockWeek(tx, auth.ownerId, input.weekStart);
@@ -490,7 +499,7 @@ export async function publishWeekDraft(
   input: { weekStart: LocalDate; expectedDraftRef: string; confirmationId: string },
 ): Promise<PublishResult> {
   const now = deps.now();
-  assertUpcomingWeek(input.weekStart, now);
+  assertPlannableWeek(input.weekStart, now);
   const invalid = () =>
     new ToolFailure(
       "confirmation_invalid",
@@ -568,7 +577,7 @@ export async function discardWeekDraft(
   input: { weekStart: LocalDate; expectedDraftRef: string },
 ): Promise<{ discarded: true; version: number }> {
   const now = deps.now();
-  assertUpcomingWeek(input.weekStart, now);
+  assertPlannableWeek(input.weekStart, now);
   return connectorTransaction(deps.config, async (tx) => {
     await asOwner(tx, auth.ownerId);
     await lockWeek(tx, auth.ownerId, input.weekStart);
