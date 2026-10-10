@@ -10,7 +10,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react-n
 import { Dimensions, StyleSheet } from "react-native";
 
 import { type PlanResult } from "@/lib/plan-status";
-import { WeekGrid, gridMetrics } from "@/components/week-grid";
+import { GRID_ZOOM_LEVELS, WeekGrid, gridMetrics } from "@/components/week-grid";
 import { WeekGridFrame, inlineGridHeight } from "@/components/week-grid-frame";
 import WeekScreen from "@/app/(tabs)/woche";
 
@@ -221,6 +221,13 @@ describe("Maße", () => {
     expect(gridMetrics(360, 2).hourHeight).toBe(78);
   });
 
+  it("Stundenzoom staucht nur die Stunden – Tagesbreite und Zeitspalte bleiben", () => {
+    expect(GRID_ZOOM_LEVELS).toEqual([1, 0.75, 0.5]);
+    expect(gridMetrics(360, 1, 0.75)).toEqual({ hourHeight: 39, timeWidth: 48, dayWidth: 90 });
+    expect(gridMetrics(360, 1, 0.5)).toEqual({ hourHeight: 26, timeWidth: 48, dayWidth: 90 });
+    expect(gridMetrics(360, 1.3, 0.5)).toEqual({ hourHeight: 34, timeWidth: 62, dayWidth: 117 });
+  });
+
   it("eingebettete Höhe folgt dem sichtbaren Bereich (≈ 70 %)", () => {
     expect(inlineGridHeight(0)).toBe(420);
     expect(inlineGridHeight(700)).toBe(490);
@@ -309,6 +316,89 @@ describe("WeekGridFrame – Vollbild", () => {
     await rerender(frame(false));
     expect(screen.queryByTestId("week-grid-fullscreen")).toBeNull();
     expect(translate("week-grid-content")).toEqual({ x: -150, y: -120 });
+  });
+});
+
+describe("WeekGridFrame – Stundenzoom", () => {
+  const onFullscreenChange = jest.fn();
+  const frame = (fullscreen: boolean) => (
+    <WeekGridFrame
+      title="KW 41 (Beispiel)"
+      weekStart={WEEK}
+      entries={ENTRIES}
+      overlapIds={OVERLAPS}
+      now={NOW}
+      selectedId={null}
+      onSelect={jest.fn()}
+      fullscreen={fullscreen}
+      onFullscreenChange={onFullscreenChange}
+    />
+  );
+  const zoomOut = () => screen.getByRole("button", { name: "Stunden herauszoomen" });
+  const zoomIn = () => screen.getByRole("button", { name: "Stunden hineinzoomen" });
+  const blockStyle = () => flat(`week-grid-block-${businessBlock.id}`);
+
+  it("verkleinert nur die Stunden; die Tage bleiben gleich breit (≈ 4 Tage sichtbar)", async () => {
+    await render(frame(false));
+    const { hourHeight, dayWidth } = metrics();
+    expect(blockStyle().height).toBeCloseTo(4 * hourHeight - 2);
+    expect(screen.getByLabelText("Stundenzoom 100 %")).toBeTruthy();
+    // Große Ziele (≥ 48 dp); weiter hinein als 100 % geht nicht.
+    expect(StyleSheet.flatten(zoomOut().props.style)).toMatchObject({ width: 48, height: 48 });
+    expect(zoomIn()).toBeDisabled();
+
+    await fireEvent.press(zoomOut());
+    expect(screen.getByLabelText("Stundenzoom 75 %")).toBeTruthy();
+    const zoomed = gridMetrics(0, Dimensions.get("window").fontScale, 0.75);
+    expect(blockStyle().top).toBeCloseTo((15.5 - FIRST_HOUR) * zoomed.hourHeight);
+    expect(blockStyle().height).toBeCloseTo(4 * zoomed.hourHeight - 2);
+    expect(blockStyle().width).toBeCloseTo((dayWidth - 6) / 2 - 2);
+    expect(flat("week-grid-col-2026-10-05").width).toBe(dayWidth);
+
+    await fireEvent.press(zoomOut());
+    expect(screen.getByLabelText("Stundenzoom 50 %")).toBeTruthy();
+    expect(zoomOut()).toBeDisabled();
+    await fireEvent.press(zoomIn());
+    await fireEvent.press(zoomIn());
+    expect(blockStyle().height).toBeCloseTo(4 * hourHeight - 2);
+    expect(zoomIn()).toBeDisabled();
+  });
+
+  it("die oberste sichtbare Stunde bleibt oben, die seitliche Position bleibt", async () => {
+    await render(frame(false));
+    await drag(screen.getByTestId("week-grid-body"), { dx: -100, dy: -200 });
+    expect(translate("week-grid-content")).toEqual({ x: -100, y: -200 });
+    await fireEvent.press(zoomOut());
+    expect(translate("week-grid-content")).toEqual({ x: -100, y: -150 });
+    expect(translate("week-grid-hours")).toEqual({ x: 0, y: -150 });
+    expect(translate("week-grid-heads")).toEqual({ x: -100, y: 0 });
+    // Nach dem Zoomen geht das Verschieben nahtlos weiter.
+    await drag(screen.getByTestId("week-grid-body"), { dx: -10, dy: -10 });
+    expect(translate("week-grid-content")).toEqual({ x: -110, y: -160 });
+    await fireEvent.press(zoomIn());
+    expect(translate("week-grid-content")).toEqual({ x: -110, y: -213 });
+  });
+
+  it("Zoom gilt auch im Vollbild und wird in beide Richtungen übernommen", async () => {
+    const { rerender } = await render(frame(false));
+    await fireEvent.press(zoomOut());
+    await rerender(frame(true));
+    const full = screen.getByTestId("week-grid-fullscreen");
+    const fullBlock = () =>
+      StyleSheet.flatten(
+        within(full).getByTestId(`week-grid-block-${businessBlock.id}`).props.style,
+      );
+    const at = (zoom: number) => gridMetrics(0, Dimensions.get("window").fontScale, zoom);
+    expect(fullBlock().height).toBeCloseTo(4 * at(0.75).hourHeight - 2);
+    // Im Vollbild sitzt der Zoom in dessen Kopfzeile – keine doppelten Knöpfe.
+    expect(screen.getAllByRole("button", { name: "Stunden herauszoomen" })).toHaveLength(1);
+    await fireEvent.press(within(full).getByRole("button", { name: "Stunden herauszoomen" }));
+    expect(fullBlock().height).toBeCloseTo(4 * at(0.5).hourHeight - 2);
+
+    await fireEvent(screen.getByTestId("week-grid-modal"), "requestClose");
+    await rerender(frame(false));
+    expect(blockStyle().height).toBeCloseTo(4 * at(0.5).hourHeight - 2);
+    expect(screen.getByLabelText("Stundenzoom 50 %")).toBeTruthy();
   });
 });
 

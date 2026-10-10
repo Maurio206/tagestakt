@@ -255,3 +255,55 @@ describe("Vollbild des Wochenrasters", () => {
     });
   });
 });
+
+describe("Stundenzoom des Wochenrasters", () => {
+  const wrap = () => document.querySelector<HTMLElement>(".week-grid-wrap")!;
+  const zoomOut = () => screen.getByRole("button", { name: "Stunden herauszoomen" });
+  const zoomIn = () => screen.getByRole("button", { name: "Stunden hineinzoomen" });
+
+  it("staucht nur die Stunden in Stufen 100 / 75 / 50 % und zeigt die Stufe an", () => {
+    render(<WeekGridFrame>{grid()}</WeekGridFrame>);
+    expect(screen.getByRole("group", { name: "Stundenzoom" })).toBeInTheDocument();
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("1");
+    expect(screen.getByText(/100 %/)).toHaveTextContent("Stundenzoom 100 %");
+    expect(zoomIn()).toBeDisabled();
+
+    fireEvent.click(zoomOut());
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("0.75");
+    fireEvent.click(zoomOut());
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("0.5");
+    expect(screen.getByText(/50 %/)).toHaveTextContent("Stundenzoom 50 %");
+    expect(zoomOut()).toBeDisabled();
+
+    fireEvent.click(zoomIn());
+    fireEvent.click(zoomIn());
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("1");
+  });
+
+  it("die oberste sichtbare Stunde bleibt oben (senkrechte Position im Verhältnis)", () => {
+    render(<WeekGridFrame>{grid()}</WeekGridFrame>);
+    let scrollTop = 400;
+    Object.defineProperty(wrap(), "scrollTop", {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value;
+      },
+      configurable: true,
+    });
+    fireEvent.click(zoomOut());
+    expect(scrollTop).toBe(300);
+    fireEvent.click(zoomOut());
+    expect(scrollTop).toBe(200);
+    fireEvent.click(zoomIn());
+    expect(scrollTop).toBe(300);
+  });
+
+  it("Zoomstufe bleibt beim Wechsel ins Vollbild und zurück erhalten", () => {
+    render(<WeekGridFrame>{grid()}</WeekGridFrame>);
+    fireEvent.click(zoomOut());
+    fireEvent.click(screen.getByRole("button", { name: "Vollbild" }));
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("0.75");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(wrap().style.getPropertyValue("--hour-zoom")).toBe("0.75");
+  });
+});

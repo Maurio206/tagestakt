@@ -108,6 +108,18 @@ describe("Wochenplan auf schmalen Bildschirmen", () => {
     );
   });
 
+  it("Stundenzoom staucht nur die Stunden, die Tagesspalten behalten ihre Mindestbreite", () => {
+    // Basis wie :root, damit der Zoom von derselben Stundenhöhe ausgeht.
+    expect(css).toMatch(/:root \{[^}]*--hour-height: 44px;/);
+    expect(narrow).toMatch(
+      /\.week-grid-wrap \.wk \{\s*--hour-height: calc\(44px \* var\(--hour-zoom, 1\)\);[^}]*minmax\(90px, 1fr\)/,
+    );
+    // Breite Bildschirme (Desktop) kennen keinen Zoom.
+    expect(css.slice(0, css.indexOf("@media (max-width: 1099.98px) {"))).not.toContain(
+      "--hour-zoom",
+    );
+  });
+
   it("nur der Wochenplan scrollt; Zeitspalte und Tagesköpfe bleiben stehen", () => {
     expect(narrow).toMatch(/\.week-grid-wrap \{[^}]*overflow: auto;/);
     expect(narrow).toMatch(/\.week-grid-wrap \.wk \{[^}]*overflow: visible;/);

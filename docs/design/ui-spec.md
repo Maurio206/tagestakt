@@ -92,6 +92,10 @@ heute hervorgehoben mit Jetzt-Linie. Geometrie aus `getWeekGridLayout`
 (`packages/schedule-schema`). Antippen eines Blocks öffnet dessen Details als Blatt über dem Raster
 (Scrollposition bleibt), „Tag öffnen“ führt in die Tagesansicht. „Vollbild“ zeigt das Raster
 bildschirmfüllend innerhalb der Safe Areas; Android-Zurück beendet zuerst das Vollbild.
+**Stundenzoom** (seit 10.10.2026): [−] und [+] mit der Stufe dazwischen (100 / 75 / 50 %),
+eingebettet und im Vollbild; gezoomt wird nur die Stundenhöhe, die Tagesspalten behalten ihre
+Breite (im Hochformat rund vier Tage). Die oberste sichtbare Stunde bleibt beim Zoomen oben, die
+Stufe bleibt beim Wechsel ins und aus dem Vollbild erhalten.
 
 1. **Aktivität läuft** (Vorrang vor dem Plan): Ziel-Chip + „Läuft“, Titel, Laufzeit (Mono),
    „seit 17:04 · Plan bis 20:00“, Bezug zum Planblock, **Beenden**, „Zeit korrigieren“,
@@ -211,6 +215,10 @@ Ab 1100 px bleibt die Ansicht unverändert (kein Vollbild-Schalter).
   beenden Esc, Android-Zurück (Ende des System-Vollbilds) und ein Wechsel auf Desktopbreite.
   Antippen eines Blocks im Vollbild beendet es und zeigt danach dessen Details; die Markierung
   „Notiz“ im Tageskopf beendet es ebenfalls (die Tagesnotiz liegt außerhalb des Rasters).
+- **Stundenzoom:** links neben „Vollbild“ [−] und [+] (je 44 px) mit der Stufe dazwischen
+  (100 / 75 / 50 %). Nur die Stundenhöhe ändert sich (`--hour-zoom` am Scrollbereich), die Spalten
+  bleiben mindestens 90 px breit; die oberste sichtbare Stunde bleibt oben. Gilt auch im Vollbild;
+  auf dem Desktop gibt es keinen Zoom.
 
 ## Zustände (beide Plattformen)
 

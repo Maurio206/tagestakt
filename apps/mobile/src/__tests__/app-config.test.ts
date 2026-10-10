@@ -49,8 +49,8 @@ describe("Android-Berechtigungen (app.json)", () => {
     expect(appConfig.expo.orientation).toBe("default");
   });
 
-  it("Release: versionCode 4 (Startbildschirm-Widget), eigenes Release-Plugin eingebunden", () => {
-    expect(android.versionCode).toBe(4);
+  it("Release: versionCode 5 (Stundenzoom im Wochenraster), eigenes Release-Plugin eingebunden", () => {
+    expect(android.versionCode).toBe(5);
     expect(appConfig.expo.plugins).toContain("./plugins/with-android-release");
   });
 

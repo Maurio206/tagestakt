@@ -27,10 +27,16 @@ export type { GridOffset };
 /** Grundmaße (dp) bei Standardschrift; sie wachsen mit der Systemschrift (bis 150 %). */
 export const GRID_METRICS = { hourHeight: 52, timeWidth: 48, minDayWidth: 90, minBlock: 24 };
 
-/** Maße des Rasters aus Breite und Schriftgröße – keine festen Gerätewerte. */
-export function gridMetrics(width: number, fontScale: number) {
+/**
+ * Zoomstufen der Stundenachse (100 %, 75 %, 50 %). Gezoomt wird nur die Höhe einer Stunde – die
+ * Tagesbreite bleibt, im Hochformat also weiterhin rund vier Tage nebeneinander.
+ */
+export const GRID_ZOOM_LEVELS = [1, 0.75, 0.5] as const;
+
+/** Maße des Rasters aus Breite, Schriftgröße und Stundenzoom – keine festen Gerätewerte. */
+export function gridMetrics(width: number, fontScale: number, zoom = 1) {
   const scale = Math.min(1.5, Math.max(1, fontScale));
-  const hourHeight = Math.round(GRID_METRICS.hourHeight * scale);
+  const hourHeight = Math.round(GRID_METRICS.hourHeight * scale * zoom);
   const timeWidth = Math.round(GRID_METRICS.timeWidth * scale);
   const minDay = Math.round(GRID_METRICS.minDayWidth * Math.min(1.3, scale));
   // Passen alle sieben Tage hinein (Querformat, Tablet), teilen sie sich die Breite.
@@ -144,7 +150,7 @@ function GridBlock({
  * Zeitraster einer Woche wie im mobilen Wochenplan der Website: Zeitachse links, sieben
  * Tagesspalten nebeneinander. Ein Finger verschiebt Tage und Stunden frei in beide Richtungen,
  * auch diagonal; Zeitspalte und Kopfzeile laufen auf ihrer Achse mit und bleiben auf der
- * anderen stehen. Datengrundlage und Geometrie kommen
+ * anderen stehen. `zoom` staucht nur die Stundenachse. Datengrundlage und Geometrie kommen
  * aus `@tagestakt/schedule-schema` (`getWeekGridLayout`) – keine eigene Zeitlogik.
  */
 export function WeekGrid({
@@ -157,6 +163,7 @@ export function WeekGrid({
   height,
   initialOffset,
   onOffsetChange,
+  zoom = 1,
 }: {
   weekStart: LocalDate;
   entries: readonly ScheduleEntry[];
@@ -170,11 +177,13 @@ export function WeekGrid({
   initialOffset?: GridOffset;
   /** Meldet die Position nach jeder Bewegung (nach dem Loslassen bzw. dem Schwung). */
   onOffsetChange?: (offset: GridOffset) => void;
+  /** Stundenzoom (siehe `GRID_ZOOM_LEVELS`); die Tagesbreite bleibt unverändert. */
+  zoom?: number;
 }) {
   const theme = useTheme();
   const { fontScale } = useWindowDimensions();
   const [width, setWidth] = useState(0);
-  const { hourHeight, timeWidth, dayWidth } = gridMetrics(width, fontScale);
+  const { hourHeight, timeWidth, dayWidth } = gridMetrics(width, fontScale, zoom);
   const { days, firstHour, lastHour } = getWeekGridLayout(entries, weekStart);
   const hours = Array.from({ length: lastHour - firstHour }, (_, i) => firstHour + i);
   const gridHeight = hourHeight * (lastHour - firstHour);
