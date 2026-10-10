@@ -397,6 +397,53 @@ function checkRollback(scenario, before) {
  * Rollen gelten für den ganzen Cluster und überstehen `supabase db reset`. Damit die Vorprüfung
  * wie in Produktion einen Cluster ohne Connector-Rolle vorfindet, wird sie lokal entfernt.
  */
+/**
+ * Die Nachprüfung muss jedes fehlende Recht der Connector-Rolle erkennen (nicht nur „gar
+ * keins“). Das Recht wird nur innerhalb einer zurückgerollten Transaktion entzogen.
+ */
+function checkConnectorGrantDetection(scenario) {
+  const postcheck = readFileSync("scripts/db/production-postcheck-20261009120000.sql", "utf8");
+  const probe = `begin;
+revoke delete on connector.oauth_tokens from tagestakt_connector;
+${postcheck.replace(/^set transaction read only;$/m, "")}
+rollback;`;
+  let detected = false;
+  try {
+    execFileSync(
+      "docker",
+      [
+        "exec",
+        "-i",
+        DB_CONTAINER,
+        "psql",
+        "-U",
+        scenario.migrateAs,
+        "-d",
+        "postgres",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-At",
+        "-q",
+      ],
+      { encoding: "utf8", input: probe, stdio: ["pipe", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    detected = String(error.stderr).includes(
+      "Rechte von tagestakt_connector auf connector.oauth_tokens falsch",
+    );
+  }
+  if (!detected)
+    throw new Error("Nachprüfung erkennt ein fehlendes Recht der Connector-Rolle nicht.");
+  if (
+    !psqlText(
+      "select has_table_privilege('tagestakt_connector', 'connector.oauth_tokens', 'delete');",
+    ).startsWith("t")
+  ) {
+    throw new Error("Probe hat Rechte der Connector-Rolle dauerhaft verändert.");
+  }
+  process.stdout.write("Nachprüfung erkennt fehlende Rechte der Connector-Rolle.\n");
+}
+
 function dropLocalConnectorRole() {
   psqlText(`do $$
              begin
@@ -440,6 +487,7 @@ function runScenario(scenario) {
     }
     process.stdout.write(`${migration.version}: Altdaten unverändert, ${migration.expect}.\n`);
   }
+  checkConnectorGrantDetection(scenario);
   if (scenario.history) {
     // Verlauf korrekt eingetragen: Die Supabase-CLI hat nichts mehr anzuwenden.
     supabase(["migration", "up", "--local"]);

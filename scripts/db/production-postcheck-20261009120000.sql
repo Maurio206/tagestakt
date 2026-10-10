@@ -149,8 +149,12 @@ begin
                   and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'authenticator')) then
       raise exception 'Eine API-Rolle hat Rechte auf %', v_table;
     end if;
-    if not has_table_privilege('tagestakt_connector', v_table, 'select, insert, update, delete')
-       or has_table_privilege('tagestakt_connector', v_table, 'truncate') then
+    -- Jedes Recht einzeln: Mit einer Liste meldet has_table_privilege schon ein einziges Recht.
+    if not has_table_privilege('tagestakt_connector', v_table, 'select')
+       or not has_table_privilege('tagestakt_connector', v_table, 'insert')
+       or not has_table_privilege('tagestakt_connector', v_table, 'update')
+       or not has_table_privilege('tagestakt_connector', v_table, 'delete')
+       or has_table_privilege('tagestakt_connector', v_table, 'truncate, references, trigger') then
       raise exception 'Rechte von tagestakt_connector auf % falsch', v_table;
     end if;
   end loop;

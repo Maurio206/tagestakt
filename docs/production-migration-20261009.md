@@ -72,7 +72,7 @@ fortfahren:
 | `supabase/migrations/20261009120000_planning_rules.sql` | `d9726c9ed4bf03843d138cf54272cbd1a38dd124f617e2a9bafd03f9c8f83af4` |
 | `scripts/db/production-precheck-20261009120000.sql`     | `9ada4ace2370c2815a0062b72c0853b4e3aa64616b137e31d81f6be959fcfa9d` |
 | `scripts/db/data-fingerprint.sql`                       | `9b818dced4e58c7d45bb7f549d9451cda8dee4c438b30ff5b3ab796f7f74ad43` |
-| `scripts/db/production-postcheck-20261009120000.sql`    | `607e5be5153cf0748682a27691e867da2a823b5a40ab5cf9cb6f5d495e93db32` |
+| `scripts/db/production-postcheck-20261009120000.sql`    | `25c5aaaab4b7c0fa03969ce141adb6ae9be2117322828c7a51e1157e7c44b9cf` |
 | `scripts/db/rollback-20261009120000.sql`                | `382ee37b2810ba569d0a345249327a4174a62d936a9e721eadf211425bc6974c` |
 
 ## 1. Backup
