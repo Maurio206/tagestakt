@@ -189,14 +189,20 @@ mehr.
 
 ## 9. Connector in Claude verbinden und erster Test
 
-1. Claude-App → **Einstellungen → Connectoren → benutzerdefinierten Connector hinzufügen**
-   („Add custom connector“): Name `TagesTakt`, URL `https://plan.north-frame.de/mcp`. Die
-   erweiterten Felder (OAuth-Client-ID/-Secret) bleiben leer.
-2. „Verbinden“ → Browser öffnet die TagesTakt-Freigabeseite → ggf. anmelden → Client
-   (claude.ai) und Rechte prüfen → **„Zugriff erlauben“**.
-3. Tool-Berechtigungen des Connectors: Lese-Tools erlauben; für `publish_week_draft` und
-   `discard_week_draft` eine Bestätigung je Aufruf verlangen („Immer fragen“ bzw. „Needs
-   approval“).
+1. Claude (claude.ai oder App) → **Customize → Connectors** → **Add custom connector**: Name
+   `TagesTakt`, URL exakt `https://plan.north-frame.de/mcp` (ohne Schrägstrich am Ende – sie
+   muss der Ressource in den Metadaten entsprechen). Falls der Dialog Einstellungen anbietet:
+   Authentication **„Sign in now“**, OAuth client **„Use Claude's published identity“**.
+   **Nicht** „Register automatically“ (dynamische Registrierung bietet TagesTakt bewusst nicht
+   an) und keine eigene Client-ID bzw. kein Secret. Diese Einstellungen lassen sich später nicht
+   ändern – sonst Connector entfernen und neu anlegen.
+2. „Connect“ → Browser öffnet die TagesTakt-Freigabeseite → ggf. anmelden → Client
+   (claude.ai) und Rechte prüfen → **„Zugriff erlauben“**. Meldet die Seite „Dieser Client ist
+   für TagesTakt nicht zugelassen“, kommt das Client-Dokument nicht von claude.ai/claude.com:
+   abbrechen und gemeinsam klären (nichts freigeben).
+3. Tool-Berechtigungen unter **Customize → Connectors → TagesTakt**: Lese-Tools dürfen
+   „Always allow“; `publish_week_draft` und `discard_week_draft` **nicht** auf „Always allow“
+   stellen, damit Claude vor jedem Aufruf eine Bestätigung verlangt.
 4. Website → Einstellungen → „Claude-Connector“ zeigt die Verbindung (Client, Rechte, „zuletzt
    genutzt“).
 5. Erster Test im Chat: „Lies mit TagesTakt den Planungskontext der kommenden Woche und nenne mir
