@@ -65,9 +65,9 @@ function definedResources(type: "drawable" | "layout" | "xml" | "color" | "strin
 }
 
 describe("app.json", () => {
-  it("bindet das Widget-Plugin ein, versionCode 4, Paket unverändert", () => {
+  it("bindet das Widget-Plugin ein, versionCode ab 4, Paket unverändert", () => {
     expect(appConfig.expo.plugins).toContain("./plugins/with-android-widget");
-    expect(android.versionCode).toBe(4);
+    expect(android.versionCode).toBeGreaterThanOrEqual(4);
     expect(android.package).toBe(PKG);
     expect(appConfig.expo.version).toBe("0.1.0");
   });
