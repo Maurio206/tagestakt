@@ -174,6 +174,9 @@ Claude-App ──HTTPS, OAuth──▶ /mcp (Next.js) ──Rolle tagestakt_conn
 
 - Sieben feste Tools: Kontext lesen, prüfen, Entwurf speichern/lesen/verwerfen,
   Veröffentlichung vorbereiten und nach Bestätigung veröffentlichen.
+- Planbar sind die laufende Woche (ab jetzt; Begonnenes bleibt unverändert) und die nächsten
+  vier Wochen. Abweichungen von Wiederholungen und Regeln gelten nur für eine Woche und werden
+  ausdrücklich mit Grund genannt; die Wiederholungen selbst bleiben unverändert.
 - Regeln und Prüfung kommen aus `packages/schedule-schema/src/planner.ts` – dieselben wie in der
   Website. Claude erhält nur Zeiten und neutrale Arten.
 - OAuth-Daten liegen als Hashes im nicht exponierten Schema `connector`; Planungsdaten nur über

@@ -84,6 +84,11 @@ Vollständige Beschreibung und Bedrohungsanalyse: [claude-connector.md](claude-c
   kein freies SQL, kein allgemeines Datenbank-, Shell- oder HTTP-Tool.
 - **Veröffentlichen** nur über `prepare_week_publish` → `publish_week_draft` mit einmaliger,
   10 Minuten gültiger Bestätigung, gebunden an Freigabe, Woche und unveränderten Entwurf.
+- **Wochen und Abweichungen:** planbar sind die laufende Woche (ab jetzt) und die nächsten vier
+  Wochen. Bereits Begonnenes – inklusive Erledigt-Status – kann der Connector nicht ändern.
+  Wiederholungen und Planungsregeln sind über den Connector nicht änderbar; Abweichungen gelten
+  nur für eine Woche, müssen ausdrücklich mit Grund genannt werden und stehen sichtbar in der
+  Prüfübersicht.
 - **Datenminimierung:** Claude erhält nur Zeiten, neutrale Arten, Regeln und Versionen – keine
   Titel, Notizen, Orte, Tagesnotizen, E-Mail, IDs oder Tokens. Texte aus der Datenbank können
   deshalb keine Anweisungen an Claude sein.
