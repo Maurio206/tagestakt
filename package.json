@@ -24,6 +24,7 @@
     "db:lint": "supabase db lint --level warning",
     "db:upgrade-test": "node scripts/db-upgrade-test.mjs",
     "db:concurrency-test": "node scripts/db-concurrency-test.mjs",
+    "connector:e2e": "node scripts/connector-e2e-test.mjs",
     "db:types": "supabase gen types typescript --local --schema public > packages/schedule-schema/src/database.types.ts && prettier --write packages/schedule-schema/src/database.types.ts",
     "check:secrets": "node --test --test-reporter=dot scripts/secret-rules.test.mjs && node scripts/check-secrets.mjs"
   },
