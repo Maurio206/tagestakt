@@ -143,7 +143,7 @@ function entryKey(entry: WritableEntry | ScheduleEntry, withEnd = true): string 
 
 export interface DraftWrite {
   remove: string[];
-  /** Laufende Wiederholungen: nur das Ende ändert sich (ID und Erledigt-Status bleiben). */
+  /** Laufende Einträge: nur das Ende ändert sich (ID und Erledigt-Status bleiben). */
   endChanges: { id: string; end_at: string }[];
   insert: WritableEntry[];
 }
@@ -159,8 +159,8 @@ export class LockedEntryChangeError extends Error {
 /**
  * Was sich im Entwurf ändern muss, damit seine geplanten Einträge (ohne Einzeltermine) genau
  * `desired` entsprechen. Unveränderte Einträge bleiben mit ID und Erledigt-Status erhalten. Vor
- * `cutoff` Begonnenes wird nie entfernt oder neu angelegt – nur das Ende einer laufenden
- * Wiederholung darf sich ändern. `historyFromRules`: Woche ohne Version – Vergangenes aus den
+ * `cutoff` Begonnenes wird nie entfernt oder neu angelegt – nur das Ende eines laufenden
+ * Eintrags (Wiederholung oder geplanter Block) darf sich ändern. `historyFromRules`: Woche ohne Version – Vergangenes aus den
  * Wiederholungen wird erstmals angelegt.
  */
 export function planDraftWrite(
@@ -188,9 +188,7 @@ export function planDraftWrite(
       write.remove.push(row.id);
       continue;
     }
-    const index = insert.findIndex(
-      (entry) => row.source === "recurring" && entryKey(entry, false) === entryKey(row, false),
-    );
+    const index = insert.findIndex((entry) => entryKey(entry, false) === entryKey(row, false));
     const [entry] = index >= 0 ? insert.splice(index, 1) : [];
     if (!entry) throw new LockedEntryChangeError();
     write.endChanges.push({ id: row.id, end_at: entry.end_at });

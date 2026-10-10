@@ -79,12 +79,37 @@ export const SLOT_REQUIREMENT_LABELS: Readonly<Record<SlotRequirement, string>> 
 };
 
 /**
- * Was ein Vorschlag enthalten darf. Feste Verpflichtungen (Wiederholungen, Einzeltermine) setzt
- * ausschließlich der Server. `appointment`: zusätzlicher Termin, den der Benutzer für diese
- * Woche genannt hat.
+ * Was ein Vorschlag enthalten darf: jede Art außer Dienst. Wiederholungen und Einzeltermine setzt
+ * ausschließlich der Server. Gewerbe, Training und Beziehungszeit sind Planungsblöcke (Regeln,
+ * Zeitfenster, Pausen); alle übrigen Arten sind freie Blöcke mit eigenem Titel (Termine und
+ * Übergänge wie Fahrt, Körperpflege, Essen oder Schlaf).
  */
-export const PLANNER_BLOCK_KINDS = ["business", "sport", "relationship", "appointment"] as const;
+export const PLANNER_BLOCK_KINDS = [
+  "business",
+  "sport",
+  "relationship",
+  "appointment",
+  "commute",
+  "hygiene",
+  "meal",
+  "shopping",
+  "leisure",
+  "sleep",
+  "other",
+] as const;
 export type PlannerBlockKind = (typeof PLANNER_BLOCK_KINDS)[number];
+
+/** Planungsblöcke mit Regeln und Pausen; alle anderen Arten sind freie Blöcke. */
+export const PLANNER_GOAL_BLOCK_KINDS = ["business", "sport", "relationship"] as const;
+const GOAL_BLOCK_KINDS: ReadonlySet<string> = new Set(PLANNER_GOAL_BLOCK_KINDS);
+
+/**
+ * Freie Blöcke (Termin, Fahrt, Körperpflege, Essen, Einkaufen, Freizeit, Schlaf, Sonstiges):
+ * eigener Titel, kein Zeitfenster, dürfen ohne Pause anschließen und über Mitternacht enden.
+ */
+export function isFreeBlockKind(category: EntryCategory): boolean {
+  return category !== "duty" && !GOAL_BLOCK_KINDS.has(category);
+}
 
 export const PLANNER_MAX_BLOCKS = 60;
 export const PLANNER_TITLE_MAX_LENGTH = 60;
@@ -394,7 +419,7 @@ export interface PlannerOccurrence extends PlannerFixedEntry {
 
 /**
  * Geplanter Eintrag, der vor `notBefore` begonnen hat (laufende Woche). Er bleibt unverändert;
- * nur bei einer laufenden Wiederholung (`ref`) lässt sich das Ende anpassen.
+ * nur bei einem laufenden Eintrag (`ref`: Wiederholung oder geplanter Block) lässt sich das Ende ändern.
  */
 export interface PlannerLockedEntry {
   title: string;
@@ -689,9 +714,17 @@ export function buildPlanningContext(input: {
       base.filter((e) => e.source === "recurring"),
       timeZone,
     );
+    // Laufende Einträge bekommen einen Bezug: Wiederholungen den ihres Vorkommens, geplante
+    // Blöcke einen eigenen („block-…“) – bei beiden lässt sich nur noch das Ende ändern.
+    const runningBlocks = base.filter((e) => e.source === "agent" && running(e)).sort(byTime);
     const refOfRow = new Map<PlannerBaseEntry, string>([
       ...match.pairs.map(({ occurrence, row }) => [row, occurrence.ref] as const),
       ...match.extra.map(({ row, ref }) => [row, ref] as const),
+      ...assignRefs(
+        runningBlocks.map((row) => ({ row, category: row.category, start_at: row.start_at })),
+        "block-",
+        timeZone,
+      ).map(({ row, ref }) => [row, ref] as const),
     ]);
     const pairedRow = new Map(match.pairs.map(({ occurrence, row }) => [occurrence, row]));
     locked = base
@@ -706,7 +739,7 @@ export function buildPlanningContext(input: {
         note: e.note,
         source: e.source === "recurring" ? "recurring" : "agent",
         completion_status: e.completion_status,
-        ref: e.source === "recurring" && running(e) ? (refOfRow.get(e) ?? null) : null,
+        ref: running(e) ? (refOfRow.get(e) ?? null) : null,
       }));
     // Ein Vorkommen ist ab `notBefore` planbar, wenn sein Eintrag noch nicht begonnen hat bzw.
     // es (ohne Eintrag) erst ab `notBefore` beginnt.
@@ -1026,14 +1059,18 @@ const clockTimeSchema = z
 export const weekPlanBlockSchema = z
   .object({
     kind: z.enum(PLANNER_BLOCK_KINDS, {
-      error: "Erlaubt sind nur business, sport, relationship und appointment",
+      error: "Erlaubt sind alle Arten außer duty (Dienst)",
     }),
-    /** Pflicht für sport/relationship (aus dem Planungskontext), sonst leer. */
+    /**
+     * sport/relationship: slotId aus dem Planungskontext für das Zeitfenster des Tages; ohne
+     * slotId zusätzliche Zeit außerhalb des Zeitfensters. Sonst leer.
+     */
     slotId: z.string().max(40).nullish(),
     date: localDateSchema,
     start: clockTimeSchema,
+    /** Freie Blöcke: Ende vor oder auf dem Beginn = Ende am Folgetag (z. B. Schlaf). */
     end: clockTimeSchema,
-    /** Nur für business und appointment; Training und Beziehungszeit benennt der Server. */
+    /** Für Gewerbe und freie Blöcke; Training und Beziehungszeit benennt der Server. */
     title: z.string().trim().min(1).max(PLANNER_TITLE_MAX_LENGTH).optional(),
     reason: z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH).optional(),
   })
@@ -1046,12 +1083,12 @@ const refSchema = z
 const reasonSchema = z.string().trim().min(1).max(PLANNER_REASON_MAX_LENGTH);
 
 /**
- * Abweichung einer Wiederholung nur für diese Woche (die Wiederholung selbst bleibt unverändert):
- * `adjust` – andere Zeiten am selben Tag (Ende ≤ Beginn: Ende am Folgetag); bei einem bereits
- * laufenden Termin nur das Ende. `cancel` – entfällt diese Woche. `regular` – ausdrücklich wie in
- * der Wiederholung (setzt eine bestehende Abweichung zurück).
+ * Änderung nur für diese Woche – an einer Wiederholung (die Wiederholung selbst bleibt
+ * unverändert) oder an einem bereits laufenden Block: `adjust` – andere Zeiten am selben Tag
+ * (Ende ≤ Beginn: Ende am Folgetag); bei einem laufenden Eintrag nur das Ende. `cancel` – entfällt
+ * diese Woche. `regular` – ausdrücklich wie in der Wiederholung (setzt eine Abweichung zurück).
  */
-export const recurringChangeSchema = z.discriminatedUnion("action", [
+export const entryChangeSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("adjust"),
@@ -1064,7 +1101,7 @@ export const recurringChangeSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel"), ref: refSchema, reason: reasonSchema }).strict(),
   z.object({ action: z.literal("regular"), ref: refSchema }).strict(),
 ]);
-export type RecurringChange = z.infer<typeof recurringChangeSchema>;
+export type EntryChange = z.infer<typeof entryChangeSchema>;
 
 export const weekPlanProposalSchema = z
   .object({
@@ -1072,12 +1109,12 @@ export const weekPlanProposalSchema = z
     blocks: z.array(weekPlanBlockSchema).max(PLANNER_MAX_BLOCKS),
     /** Kurze Zusammenfassung der Wochenbesonderheiten (wird als Planungshinweis gespeichert). */
     summary: z.string().trim().min(1).max(PLANNER_SUMMARY_MAX_LENGTH).optional(),
-    recurringChanges: z
-      .array(recurringChangeSchema)
+    changes: z
+      .array(entryChangeSchema)
       .max(PLANNER_MAX_CHANGES)
       .optional()
       .describe(
-        "Abweichungen von Wiederholungen nur für diese Woche (ref aus dem Kontext), nur auf Angabe des Benutzers, mit Grund",
+        "Änderungen nur für diese Woche an Wiederholungen bzw. laufenden Blöcken (ref aus dem Kontext), immer mit kurzem Grund",
       ),
     skippedSlots: z
       .array(z.object({ slotId: z.string().max(40), reason: reasonSchema }).strict())
@@ -1178,7 +1215,7 @@ export interface ConnectorSlot {
 export type ConnectorChangeable = "ja" | "nur Ende" | "nein";
 
 export interface ConnectorRecurring {
-  /** Bezug für `recurringChanges`. */
+  /** Bezug für `changes`. */
   ref: string;
   kind: string;
   date: LocalDate;
@@ -1463,7 +1500,7 @@ interface CheckedBlock {
 /** Ausdrücklich genannte Abweichungen eines Vorschlags – Gründe für die Prüfübersicht. */
 export interface DeclaredExceptions {
   /** Bezug (ref) → Grund (adjust und cancel). */
-  recurring: Record<string, string>;
+  changes: Record<string, string>;
   /** slotId → Grund. */
   slots: Record<string, string>;
   businessMinimum: { minutes: number; reason: string } | null;
@@ -1511,7 +1548,7 @@ function businessByDay(
 /**
  * Prüft einen Vorschlag deterministisch gegen Woche, Zeitlogik, Zeitfenster, Regeln, Pausen und
  * Überschneidungen (auch mit Einzelterminen und bereits Begonnenem). Abweichungen von den Regeln
- * sind nur ausdrücklich erlaubt: `recurringChanges`, `skippedSlots` und `businessMinimum`, jeweils
+ * sind nur ausdrücklich erlaubt: `changes`, `skippedSlots` und `businessMinimum`, jeweils
  * mit Grund. Weicht der aktuelle Stand bereits ab, muss der Vorschlag das übernehmen oder
  * ausdrücklich zurücksetzen – nichts geht still verloren. Nur ein fehlerfreier Vorschlag ergibt
  * Einträge; bei jedem Fehler `ok: false` – dann wird nichts gespeichert.
@@ -1526,7 +1563,7 @@ export function materializeProposal(
   const { timeZone, notBefore } = context;
   const weekDays = new Set(getWeekDays(context.weekStart));
   const buffer = preferences.bufferMinutes * MINUTE_MS;
-  const exceptions: DeclaredExceptions = { recurring: {}, slots: {}, businessMinimum: null };
+  const exceptions: DeclaredExceptions = { changes: {}, slots: {}, businessMinimum: null };
 
   if (proposal.weekStart !== context.weekStart) {
     errors.push(`Der Vorschlag betrifft die falsche Woche (erwartet ${context.weekStart}).`);
@@ -1547,8 +1584,8 @@ export function materializeProposal(
   /** Neues Ende laufender Wiederholungen. */
   const runningEnd = new Map<string, number>();
 
-  (proposal.recurringChanges ?? []).forEach((change, index) => {
-    const where = `Abweichung ${index + 1} (${change.ref})`;
+  (proposal.changes ?? []).forEach((change, index) => {
+    const where = `Änderung ${index + 1} (${change.ref})`;
     if (changed.has(change.ref)) {
       errors.push(`${where}: Bezug mehrfach genannt.`);
       return;
@@ -1566,7 +1603,7 @@ export function materializeProposal(
       return;
     }
     if (change.action !== "regular") {
-      exceptions.recurring[change.ref] = cleanPlannerText(change.reason, PLANNER_REASON_MAX_LENGTH);
+      exceptions.changes[change.ref] = cleanPlannerText(change.reason, PLANNER_REASON_MAX_LENGTH);
     }
     const date = toLocalDate(new Date(anchor.start_at), timeZone);
     if (change.action === "adjust") {
@@ -1689,8 +1726,11 @@ export function materializeProposal(
       errors.push(`${where}: liegt außerhalb der geplanten Woche.`);
       return;
     }
+    const free = isFreeBlockKind(block.kind);
+    // Freie Blöcke dürfen wie Wiederholungen über Mitternacht gehen (z. B. Schlaf).
+    const overnight = free && block.end <= block.start;
     const start = localInstant(block.date, block.start, timeZone);
-    const end = localInstant(block.date, block.end, timeZone);
+    const end = localInstant(overnight ? addDays(block.date, 1) : block.date, block.end, timeZone);
     if (start === null || end === null) {
       errors.push(`${where}: Uhrzeit existiert an diesem Tag nicht (Zeitumstellung).`);
       return;
@@ -1704,6 +1744,10 @@ export function materializeProposal(
       errors.push(`${where}: kürzer als ${PLANNER_MIN_BLOCK_MINUTES} Minuten.`);
       return;
     }
+    if (minutes > 24 * 60) {
+      errors.push(`${where}: länger als 24 Stunden.`);
+      return;
+    }
     if (start < notBefore) {
       errors.push(`${where}: beginnt in der Vergangenheit.`);
       return;
@@ -1711,12 +1755,15 @@ export function materializeProposal(
 
     let title: string;
     let category: EntryCategory;
-    if (block.kind === "appointment") {
-      category = "appointment";
+    if (block.kind !== "business" && block.kind !== "sport" && block.kind !== "relationship") {
+      category = block.kind;
       if (block.slotId !== null && block.slotId !== undefined)
-        errors.push(`${where}: Termine gehören zu keinem Zeitfenster.`);
+        errors.push(
+          `${where}: ${PLANNER_NEUTRAL_KIND_LABELS[category]} gehört zu keinem Zeitfenster.`,
+        );
       title =
-        cleanPlannerText(block.title ?? "", PLANNER_TITLE_MAX_LENGTH) || DEFAULT_APPOINTMENT_TITLE;
+        cleanPlannerText(block.title ?? "", PLANNER_TITLE_MAX_LENGTH) ||
+        (category === "appointment" ? DEFAULT_APPOINTMENT_TITLE : CATEGORY_LABELS[category]);
     } else if (block.kind === "business") {
       category = "business";
       if (block.slotId !== null && block.slotId !== undefined)
@@ -1740,12 +1787,18 @@ export function materializeProposal(
       title =
         cleanPlannerText(block.title ?? "", PLANNER_TITLE_MAX_LENGTH) ||
         DEFAULT_BUSINESS_BLOCK_TITLE;
+    } else if (block.slotId === null || block.slotId === undefined) {
+      // Zusätzliche Zeit für Training bzw. Beziehungszeit außerhalb eines Zeitfensters (z. B.
+      // aufgeteilt oder an einem anderen Tag). Ersetzt kein verbindliches Zeitfenster.
+      category = block.kind;
+      const goal = block.kind;
+      const sameGoal = context.slots.filter((s) => s.goal === goal);
+      title =
+        (sameGoal.find((s) => s.date === block.date) ?? sameGoal[0])?.title ??
+        SLOT_GOAL_LABELS[goal];
     } else {
       category = block.kind;
-      const slot =
-        block.slotId === null || block.slotId === undefined
-          ? undefined
-          : slotsById.get(block.slotId);
+      const slot = slotsById.get(block.slotId);
       if (!slot || slot.goal !== block.kind) {
         errors.push(`${where}: gehört zu keinem hinterlegten Zeitfenster für dieses Ziel.`);
         return;
@@ -1806,21 +1859,26 @@ export function materializeProposal(
   }
 
   // Überschneidungen und Pausen: gegen Wiederholungen, Einzeltermine, Begonnenes und untereinander.
+  // Pausen gelten nur für Gewerbe, Training und Beziehungszeit; freie Blöcke (Fahrt, Körperpflege,
+  // Essen …) sind selbst Übergänge und dürfen direkt anschließen – überschneiden darf sich nichts.
   const busy = [
     ...recurringEntries,
     ...context.fixed.filter((e) => e.source === "manual"),
     ...locked,
   ].map((e) => ({ start: startOf(e), end: endOf(e) }));
+  const pauseOf = (block: CheckedBlock) => (isFreeBlockKind(block.kind) ? 0 : buffer);
   checked.forEach((block, i) => {
     for (const other of busy) {
-      if (block.start < other.end + buffer && other.start < block.end + buffer) {
+      const gap = pauseOf(block);
+      if (block.start < other.end + gap && other.start < block.end + gap) {
         errors.push(
           `Block ${block.index + 1}: überschneidet eine feste Verpflichtung (${formatLocalRange(other.start, other.end, timeZone)}) oder hält die Pause von ${preferences.bufferMinutes} Min. nicht ein.`,
         );
       }
     }
     for (const other of checked.slice(i + 1)) {
-      if (block.start < other.end + buffer && other.start < block.end + buffer) {
+      const gap = Math.min(pauseOf(block), pauseOf(other));
+      if (block.start < other.end + gap && other.start < block.end + gap) {
         errors.push(
           `Block ${block.index + 1} und Block ${other.index + 1}: überschneiden sich oder halten die Pause von ${preferences.bufferMinutes} Min. nicht ein.`,
         );
@@ -1942,6 +2000,20 @@ function slotDeviations(
         problems.push(`${label} am ${dayLabel(day.date)} ohne hinterlegtes Zeitfenster.`);
       continue;
     }
+    const reason = skippedReasons[slot.slotId];
+    if (reason) {
+      // Diese Woche ausdrücklich anders: eine Zeile mit Grund statt Einzelmeldungen.
+      const minutes = onDay.reduce((sum, e) => sum + (endOf(e) - startOf(e)) / MINUTE_MS, 0);
+      problems.push(
+        withReason(
+          onDay.length === 0
+            ? `${label} am ${dayLabel(day.date)} ausgelassen`
+            : `${label} am ${dayLabel(day.date)}: ${formatDuration(minutes)} in ${onDay.length} ${onDay.length === 1 ? "Block" : "Blöcken"} statt ${formatDuration(slot.durationMinutes)} zwischen ${slot.windowStart} und ${slot.windowEnd}`,
+          reason,
+        ),
+      );
+      continue;
+    }
     if (onDay.length > 1) problems.push(`Mehr als ein Block „${label}“ am ${dayLabel(day.date)}.`);
     const fitting = onDay.filter(
       (e) =>
@@ -1949,12 +2021,9 @@ function slotDeviations(
         endOf(e) <= slot.windowEndAt &&
         (endOf(e) - startOf(e)) / MINUTE_MS === slot.durationMinutes,
     );
-    const reason = skippedReasons[slot.slotId];
     if (slot.requirement === "required" && fitting.length === 0) {
       problems.push(
-        reason
-          ? withReason(`${label} am ${dayLabel(day.date)} ausgelassen`, reason)
-          : `${label} am ${dayLabel(day.date)} fehlt (${formatDuration(slot.durationMinutes)} zwischen ${slot.windowStart} und ${slot.windowEnd}${slot.status === "missed" ? "; Zeitfenster vorbei" : ""}).`,
+        `${label} am ${dayLabel(day.date)} fehlt (${formatDuration(slot.durationMinutes)} zwischen ${slot.windowStart} und ${slot.windowEnd}${slot.status === "missed" ? "; Zeitfenster vorbei" : ""}).`,
       );
     } else if (onDay.length > 0 && fitting.length === 0) {
       problems.push(`${label} am ${dayLabel(day.date)} passt nicht zu Zeitfenster und Dauer.`);
@@ -2020,7 +2089,7 @@ export function evaluatePlanDraft(
     timeZone,
   );
   const describe = (deviation: RecurringDeviation) =>
-    withReason(describeDeviation(deviation, timeZone), exceptions?.recurring[deviation.ref]);
+    withReason(describeDeviation(deviation, timeZone), exceptions?.changes[deviation.ref]);
   const dutyDeviations = recurring.filter((d) => d.category === "duty").map(describe);
   const otherDeviations = recurring.filter((d) => d.category !== "duty").map(describe);
   if (context.occurrences.some((o) => o.category === "duty")) {
@@ -2131,9 +2200,11 @@ export function evaluatePlanDraft(
   const preferences = context.preferences;
   if (preferences) {
     const sorted = [...entries].sort((a, b) => startOf(a) - startOf(b));
+    // Wie beim Planen: freie Blöcke (Fahrt, Körperpflege, Essen …) brauchen keine Pause.
+    const freeBlock = (e: EvaluatedEntry) => e.source === "agent" && isFreeBlockKind(e.category);
     const tightGaps = sorted.filter((entry, i) => {
       const next = sorted[i + 1];
-      if (!next) return false;
+      if (!next || freeBlock(entry) || freeBlock(next)) return false;
       const gap = startOf(next) - endOf(entry);
       return gap >= 0 && gap < preferences.bufferMinutes * MINUTE_MS;
     }).length;

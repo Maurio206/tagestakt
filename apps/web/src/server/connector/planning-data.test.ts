@@ -107,6 +107,21 @@ describe("planDraftWrite", () => {
     });
   });
 
+  it("laufender geplanter Block: ebenfalls nur das Ende", () => {
+    const runningBlock = row("2026-10-14T07:00:00.000Z", "2026-10-14T10:00:00.000Z", {
+      title: "Akquise (Beispiel)",
+      category: "business",
+      source: "agent",
+      completion_status: "completed",
+    });
+    const later = planned(runningBlock, { end_at: "2026-10-14T11:00:00.000Z" });
+    expect(planDraftWrite([runningBlock], [later], CUTOFF, false)).toEqual({
+      remove: [],
+      endChanges: [{ id: runningBlock.id, end_at: "2026-10-14T11:00:00.000Z" }],
+      insert: [],
+    });
+  });
+
   it("Begonnenes wird nie entfernt, umbenannt oder nachträglich angelegt", () => {
     expect(() =>
       planDraftWrite(current, [planned(running), planned(future), planned(block)], CUTOFF, false),

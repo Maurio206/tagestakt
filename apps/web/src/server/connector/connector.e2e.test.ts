@@ -77,15 +77,15 @@ const business = (date: string, start: string, end: string): Block => ({
   start,
   end,
 });
-type RecurringChange =
+type EntryChange =
   | { action: "adjust"; ref: string; start: string; end: string; reason: string }
   | { action: "cancel"; ref: string; reason: string }
   | { action: "regular"; ref: string };
 /** Dienst Mo–Fr ausdrücklich wie in den Wiederholungen (Basisversion ohne Wiederholungen). */
-const dutyAsRule = (week: string): RecurringChange[] =>
+const dutyAsRule = (week: string): EntryChange[] =>
   [0, 1, 2, 3, 4].map((day) => ({ action: "regular", ref: `duty-${addDays(week, day)}-0800` }));
 
-function plan(overrides: Block[] = [], week = WEEK, recurringChanges = dutyAsRule(week)) {
+function plan(overrides: Block[] = [], week = WEEK, changes = dutyAsRule(week)) {
   const base: Block[] =
     week === WEEK
       ? [
@@ -134,7 +134,7 @@ function plan(overrides: Block[] = [], week = WEEK, recurringChanges = dutyAsRul
     weekStart: week,
     blocks: [...base, ...overrides],
     summary: "Testwoche (Beispiel).",
-    recurringChanges,
+    changes,
   };
 }
 
@@ -926,7 +926,7 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
           (r) =>
             `${r.category} ${r.start_at.toISOString()}–${r.end_at.toISOString()} ${r.completion_status}`,
         );
-      const proposal = (recurringChanges: RecurringChange[]) => ({
+      const proposal = (changes: EntryChange[]) => ({
         weekStart: CURRENT_WEEK,
         blocks: [
           business("2026-10-09", "13:00", "17:00"),
@@ -938,13 +938,13 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
             end: "21:00",
           },
         ],
-        recurringChanges,
+        changes,
         businessMinimum: { minutes: 480, reason: "Testgrund: Woche fast vorbei" },
       });
 
       it("Vergangenes und Laufendes lassen sich nicht still ändern", async () => {
         const reason = "Testgrund";
-        for (const recurringChanges of [
+        for (const changes of [
           [{ action: "cancel" as const, ref: FRIDAY_DUTY, reason }],
           [{ action: "cancel" as const, ref: "duty-2026-10-05-0800", reason }],
           [
@@ -957,7 +957,7 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
             },
           ],
         ]) {
-          const result = await validateWeekPlan(morning(), auth, proposal(recurringChanges));
+          const result = await validateWeekPlan(morning(), auth, proposal(changes));
           expect(result.valid).toBe(false);
         }
         const strict = await validateWeekPlan(morning(), auth, {
@@ -1067,6 +1067,94 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
             "duty 2026-10-09T06:00:00.000Z–2026-10-09T09:00:00.000Z completed",
           ]),
         );
+      });
+
+      it("später am selben Tag erneut: laufender Block nur im Ende, Status bleibt", async () => {
+        // 14:00 Uhr: Der um 10:00 geplante Gewerbeblock (13:00–17:00) läuft; schon als erledigt
+        // markiert (Status ist in der veröffentlichten Version änderbar).
+        const afternoon = () => ({ config, now: () => new Date("2026-10-09T12:00:00Z") });
+        await asOwnerRole(
+          OWNER,
+          (tx) => tx`
+            update public.schedule_entries e set completion_status = 'completed'
+              from public.schedule_weeks w
+             where w.id = e.schedule_week_id and w.week_start = ${CURRENT_WEEK}::date
+               and w.status = 'published' and e.category = 'business'
+               and e.start_at = '2026-10-09 13:00+02'::timestamptz`,
+        );
+        const context = await getPlanningContext(afternoon(), auth, CURRENT_WEEK);
+        const runningRef = "block-business-2026-10-09-1300";
+        expect(context.days[4]?.busy.find((b) => b.ref === runningRef)).toMatchObject({
+          start: "13:00",
+          end: "17:00",
+          begun: true,
+        });
+        // Die Dienst-Abweichung vom Vormittag liegt jetzt in der Vergangenheit.
+        expect(context.currentDeviations).toEqual([
+          expect.objectContaining({ ref: FRIDAY_DUTY, mustAddress: false }),
+        ]);
+        const later = {
+          weekStart: CURRENT_WEEK,
+          blocks: [
+            {
+              kind: "relationship" as const,
+              slotId: "relationship-2026-10-09",
+              date: "2026-10-09",
+              start: "19:30",
+              end: "21:30",
+            },
+            {
+              kind: "commute" as const,
+              date: "2026-10-09",
+              start: "21:30",
+              end: "22:00",
+              title: "Heimfahrt (Beispiel)",
+            },
+          ],
+          changes: [
+            {
+              action: "adjust" as const,
+              ref: runningRef,
+              start: "13:00",
+              end: "15:00",
+              reason: "Testgrund: früher Schluss",
+            },
+          ],
+          businessMinimum: { minutes: 360, reason: "Testgrund: Woche fast vorbei" },
+        };
+        const saved = await saveWeekDraft(afternoon(), auth, { ...later, expectedDraftRef: null });
+        outputs.push(saved);
+        expect(saved.overview.publishable).toBe(true);
+        expect(await weeksOf(OWNER, CURRENT_WEEK)).toEqual([
+          { version: 1, status: "archived" },
+          { version: 2, status: "published" },
+          { version: 3, status: "draft" },
+        ]);
+        const cutoff = Date.parse("2026-10-09T12:00:00Z");
+        const draft = view(await rowsOf("draft"));
+        expect(draft).toEqual(
+          expect.arrayContaining([
+            expect.stringMatching(/^business 2026-10-05.* completed$/),
+            expect.stringMatching(/^business 2026-10-08.* skipped$/),
+            "duty 2026-10-09T06:00:00.000Z–2026-10-09T09:00:00.000Z completed",
+            "business 2026-10-09T11:00:00.000Z–2026-10-09T13:00:00.000Z completed",
+            "relationship 2026-10-09T17:30:00.000Z–2026-10-09T19:30:00.000Z planned",
+            "commute 2026-10-09T19:30:00.000Z–2026-10-09T20:00:00.000Z planned",
+          ]),
+        );
+        expect(draft).not.toContain(
+          "relationship 2026-10-09T17:00:00.000Z–2026-10-09T19:00:00.000Z planned",
+        );
+        const published = await rowsOf("published");
+        expect(
+          view((await rowsOf("draft")).filter((r) => r.start_at.getTime() < cutoff)).length,
+        ).toBe(published.filter((r) => r.start_at.getTime() < cutoff).length);
+
+        const replay = await saveWeekDraft(afternoon(), auth, {
+          ...later,
+          expectedDraftRef: saved.draftRef,
+        });
+        expect(replay).toMatchObject({ replayed: true, draftRef: saved.draftRef });
       });
     });
 

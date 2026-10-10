@@ -842,7 +842,7 @@ describe("evaluatePlanDraft (Prüfübersicht)", () => {
       "Dienst am Fr 16.10.: 08:00–12:00 statt 08:00–13:00",
     ]);
     const explained = evaluatePlanDraft(context(), entries, {
-      recurring: { "duty-2026-10-16-0800": "Arzttermin am Nachmittag (Beispiel)" },
+      changes: { "duty-2026-10-16-0800": "Arzttermin am Nachmittag (Beispiel)" },
       slots: {},
       businessMinimum: null,
     });
@@ -1176,7 +1176,7 @@ describe("Abweichungen nur für diese Woche (Wiederholungen bleiben unverändert
     const ctx = context();
     const result = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [
+      changes: [
         {
           action: "adjust",
           ref: FRIDAY_DUTY,
@@ -1196,7 +1196,7 @@ describe("Abweichungen nur für diese Woche (Wiederholungen bleiben unverändert
       source: "recurring",
       title: "Dienst (Beispiel)",
     });
-    expect(result.exceptions.recurring).toEqual({
+    expect(result.exceptions.changes).toEqual({
       [FRIDAY_DUTY]: "Benutzer: Freitag nur bis 12 Uhr (Beispiel)",
     });
     const evaluation = evaluate(ctx, result);
@@ -1210,9 +1210,7 @@ describe("Abweichungen nur für diese Woche (Wiederholungen bleiben unverändert
     const ctx = context();
     const result = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [
-        { action: "cancel", ref: "duty-2026-10-15-0800", reason: "Urlaubstag (Beispiel)" },
-      ],
+      changes: [{ action: "cancel", ref: "duty-2026-10-15-0800", reason: "Urlaubstag (Beispiel)" }],
     });
     expect(result.ok ? [] : result.errors).toEqual([]);
     if (!result.ok) return;
@@ -1223,8 +1221,8 @@ describe("Abweichungen nur für diese Woche (Wiederholungen bleiben unverändert
   });
 
   it("lehnt unbekannte, doppelte, zu kurze und überschneidende Abweichungen ab", () => {
-    const errors = (recurringChanges: NonNullable<WeekPlanProposal["recurringChanges"]>) => {
-      const result = materializeProposal(context(), { ...validProposal(), recurringChanges });
+    const errors = (changes: NonNullable<WeekPlanProposal["changes"]>) => {
+      const result = materializeProposal(context(), { ...validProposal(), changes });
       return result.ok ? "" : result.errors.join(" ");
     };
     const reason = "Beispielgrund";
@@ -1249,7 +1247,7 @@ describe("Abweichungen nur für diese Woche (Wiederholungen bleiben unverändert
     expect(
       parseWeekPlanProposal({
         ...validProposal(),
-        recurringChanges: [{ action: "cancel", ref: FRIDAY_DUTY }],
+        changes: [{ action: "cancel", ref: FRIDAY_DUTY }],
       }).ok,
     ).toBe(false);
   });
@@ -1409,11 +1407,11 @@ describe("Laufende Woche: Vergangenes bleibt, ab jetzt wird geplant", () => {
 
   it("laufender Dienst: nur das Ende lässt sich ändern; Vergangenes gar nicht", () => {
     const ctx = currentContext();
-    const run = (recurringChanges: NonNullable<WeekPlanProposal["recurringChanges"]>) =>
+    const run = (changes: NonNullable<WeekPlanProposal["changes"]>) =>
       materializeProposal(ctx, {
         ...validProposal(restOfWeek),
         businessMinimum: lowered,
-        recurringChanges,
+        changes,
       });
     const reason = "Benutzer: heute nur bis 12 Uhr (Beispiel)";
     const shorter = run([
@@ -1526,7 +1524,7 @@ describe("Bestehende Abweichungen gehen nie still verloren", () => {
     );
     const kept = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [
+      changes: [
         {
           action: "adjust",
           ref: FRIDAY_DUTY,
@@ -1539,7 +1537,7 @@ describe("Bestehende Abweichungen gehen nie still verloren", () => {
     expect(fridayEnd(kept)).toBe(at("2026-10-16", "12:00"));
     const reset = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [{ action: "regular", ref: FRIDAY_DUTY }],
+      changes: [{ action: "regular", ref: FRIDAY_DUTY }],
     });
     expect(fridayEnd(reset)).toBe(at("2026-10-16", "13:00"));
     const input = buildConnectorPlanningContext(ctx, {
@@ -1579,19 +1577,19 @@ describe("Bestehende Abweichungen gehen nie still verloren", () => {
       result.ok ? result.entries.find((e) => e.category === "commute") : result.errors.join();
     const removed = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [{ action: "cancel", ref, reason: "Wiederholung beendet (Beispiel)" }],
+      changes: [{ action: "cancel", ref, reason: "Wiederholung beendet (Beispiel)" }],
     });
     expect(commuteOf(removed)).toBeUndefined();
     const kept = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [
+      changes: [
         { action: "adjust", ref, start: "21:15", end: "22:00", reason: "bleibt (Beispiel)" },
       ],
     });
     expect(commuteOf(kept)).toMatchObject({ title: "Fahrt (Beispiel)" });
     const regular = materializeProposal(ctx, {
       ...validProposal(),
-      recurringChanges: [{ action: "regular", ref }],
+      changes: [{ action: "regular", ref }],
     });
     expect(regular.ok ? "" : regular.errors.join()).toContain("gehört zu keiner Wiederholung");
   });
@@ -1628,11 +1626,11 @@ describe("Abweichungen: Zeitumstellung, Mitternacht und Wochenwechsel", () => {
   const proposalFor = (
     weekStart: string,
     saturday: string,
-    change: NonNullable<WeekPlanProposal["recurringChanges"]>[number],
+    change: NonNullable<WeekPlanProposal["changes"]>[number],
   ): WeekPlanProposal => ({
     weekStart,
     blocks: [business(saturday, "10:00", "11:00")],
-    recurringChanges: [change],
+    changes: [change],
   });
   const commuteOf = (result: ReturnType<typeof materializeProposal>) =>
     result.ok ? result.entries.find((e) => e.category === "commute") : result.errors.join();
@@ -1716,7 +1714,7 @@ describe("Abweichungen: Zeitumstellung, Mitternacht und Wochenwechsel", () => {
       {
         weekStart: "2026-10-19",
         blocks: [business("2026-10-23", "16:00", "17:00")],
-        recurringChanges: [
+        changes: [
           {
             action: "adjust",
             ref: "sleep-2026-10-25-0100",
@@ -1728,5 +1726,312 @@ describe("Abweichungen: Zeitumstellung, Mitternacht und Wochenwechsel", () => {
       },
     );
     expect(tooLong.ok ? "" : tooLong.errors.join()).toContain("länger als 24 Stunden");
+  });
+});
+
+describe("Freie Blöcke und zusätzliche Zeit", () => {
+  const free = (
+    kind: Block["kind"],
+    date: string,
+    start: string,
+    end: string,
+    title?: string,
+  ): Block => ({ kind, date, start, end, ...(title ? { title } : {}) });
+  const sundayRest = () => validProposal().blocks.filter((b) => b.date !== "2026-10-18");
+
+  it("Fahrt, Körperpflege, Essen, Schlaf usw. mit eigenem Titel; Schlaf über den Wochenwechsel", () => {
+    const result = materializeProposal(
+      context(),
+      validProposal([
+        ...validProposal().blocks,
+        free("hygiene", "2026-10-18", "21:00", "21:30", "Abendroutine (Beispiel)"),
+        free("sleep", "2026-10-18", "22:30", "06:30"),
+        free("meal", "2026-10-18", "17:00", "18:00", "Abendessen (Beispiel)"),
+      ]),
+    );
+    expect(result.ok ? [] : result.errors).toEqual([]);
+    if (!result.ok) return;
+    const byCategory = (category: string) => result.entries.find((e) => e.category === category);
+    expect(byCategory("hygiene")).toMatchObject({ title: "Abendroutine (Beispiel)" });
+    // Montag 06:30 der Folgewoche (noch Sommerzeit: UTC+2).
+    expect(byCategory("sleep")).toMatchObject({
+      title: "Schlaf",
+      start_at: at("2026-10-18", "22:30"),
+      end_at: "2026-10-19T04:30:00.000Z",
+    });
+    expect(byCategory("meal")?.source).toBe("agent");
+  });
+
+  it("freie Blöcke brauchen keine Pause, überschneiden darf sich aber nichts", () => {
+    const adjoining = materializeProposal(
+      context(),
+      validProposal([
+        ...sundayRest(),
+        goalBlock("relationship", "2026-10-18", "12:00", "16:00"),
+        free("commute", "2026-10-18", "16:00", "16:30", "Heimfahrt (Beispiel)"),
+        free("other", "2026-10-18", "16:30", "17:00", "Packen (Beispiel)"),
+      ]),
+    );
+    expect(adjoining.ok ? [] : adjoining.errors).toEqual([]);
+    const overlapping = materializeProposal(
+      context(),
+      validProposal([
+        ...sundayRest(),
+        goalBlock("relationship", "2026-10-18", "12:00", "16:00"),
+        free("commute", "2026-10-18", "15:45", "16:30"),
+      ]),
+    );
+    expect(overlapping.ok ? "" : overlapping.errors.join()).toContain("überschneiden sich");
+    // Zwischen Planungsblöcken bleibt die Pause Pflicht.
+    const tight = materializeProposal(
+      context(),
+      validProposal([...validProposal().blocks, business("2026-10-12", "20:00", "21:00")]),
+    );
+    expect(tight.ok ? "" : tight.errors.join()).toContain("Pause von 15 Min.");
+    const withSlot = materializeProposal(
+      context(),
+      validProposal([
+        ...validProposal().blocks,
+        { ...free("sleep", "2026-10-18", "22:30", "06:30"), slotId: "sport-2026-10-17" },
+      ]),
+    );
+    expect(withSlot.ok ? "" : withSlot.errors.join()).toContain("gehört zu keinem Zeitfenster");
+    expect(
+      parseWeekPlanProposal(validProposal([free("duty" as never, "2026-10-18", "08:00", "09:00")]))
+        .ok,
+    ).toBe(false);
+  });
+
+  it("Beziehungszeit aufgeteilt: zusätzliche Zeit ohne slotId, Zeitfenster ausdrücklich anders", () => {
+    const ctx = context();
+    const split = [
+      ...sundayRest(),
+      { ...goalBlock("relationship", "2026-10-18", "09:00", "11:00"), slotId: null },
+      { ...goalBlock("relationship", "2026-10-18", "15:00", "18:00"), slotId: null },
+    ];
+    const silent = materializeProposal(ctx, validProposal(split));
+    expect(silent.ok ? "" : silent.errors.join()).toContain(
+      "Verbindlicher Block fehlt: relationship-2026-10-18",
+    );
+    const result = materializeProposal(ctx, {
+      ...validProposal(split),
+      skippedSlots: [{ slotId: "relationship-2026-10-18", reason: "Familienbesuch (Beispiel)" }],
+    });
+    expect(result.ok ? [] : result.errors).toEqual([]);
+    if (!result.ok) return;
+    const together = result.entries.filter((e) => e.category === "relationship");
+    // Titel aus den eigenen Einstellungen, nie aus dem Vorschlag.
+    expect(together.map((e) => e.title)).toEqual(Array(3).fill("Zeit zu zweit (Beispiel)"));
+    const evaluation = evaluatePlanDraft(
+      ctx,
+      [...result.entries, ...result.oneOffs].map((e) => ({
+        ...e,
+        completion_status: "planned" as const,
+      })),
+      result.exceptions,
+    );
+    expect(evaluation.deviations).toEqual([
+      `${GOAL_LABELS.relationship} am So 18.10.: 5 Std. in 2 Blöcken statt 4 Std. zwischen 12:00 und 20:00 – Grund: Familienbesuch (Beispiel)`,
+    ]);
+    expect(evaluation.publishable).toBe(true);
+  });
+});
+
+describe("Abnahme: Wochenende kurzfristig umplanen (erfundene Beispieldaten)", () => {
+  // Struktur wie persönliche Regeln (Dienst, zwei Fahrten, Zeitfenster), alle Zeiten erfunden.
+  const CURRENT = "2026-10-05";
+  const rules: RecurringTemplate[] = [
+    ...([1, 2, 3, 4] as const).map((d) => commitment(d, "06:30", "16:00")),
+    commitment(5, "06:30", "11:30"),
+    commitment(5, "11:30", "15:30", "commute", "Fahrt (Beispiel)"),
+    commitment(7, "18:00", "22:00", "commute", "Fahrt (Beispiel)"),
+  ];
+  const weekendSlots: PlanningGoalSlot[] = [
+    ...([1, 2, 4] as const).map((d) => slot("sport", d, "required", "16:30", "19:00", 90)),
+    slot("sport", 6, "required", "09:00", "18:00", 90),
+    slot("relationship", 5, "required", "17:30", "23:30", 150),
+    slot("relationship", 6, "required", "13:00", "23:30", 300),
+    slot("relationship", 7, "required", "09:30", "23:30", 480),
+  ];
+  const weekendPreferences: PlanningPreferences = {
+    businessEarliestStart: "06:00",
+    businessLatestEnd: "23:30",
+    businessMinBlockMinutes: 60,
+    businessMaxBlockMinutes: 480,
+    businessMaxDailyMinutes: 270,
+    businessSaturdayMaxMinutes: 480,
+    businessSundayMaxMinutes: 420,
+    bufferMinutes: 20,
+  };
+  const agent = (
+    date: string,
+    start: string,
+    end: string,
+    category: PlannerBaseEntry["category"],
+    completion_status: PlannerBaseEntry["completion_status"] = "planned",
+  ) =>
+    baseEntry(date, start, end, {
+      title: `${CATEGORY_LABELS[category]} (Beispiel)`,
+      category,
+      source: "agent",
+      completion_status,
+    });
+  const published = baseWith(
+    [
+      ...["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"].map((d) =>
+        agent(d, "20:00", "22:15", "business", "completed"),
+      ),
+      agent("2026-10-09", "15:45", "18:15", "business", "completed"),
+      agent("2026-10-09", "18:30", "21:00", "relationship", "completed"),
+      agent("2026-10-10", "09:00", "10:30", "sport", "completed"),
+      agent("2026-10-10", "10:45", "16:45", "business"),
+      agent("2026-10-10", "17:00", "22:00", "relationship"),
+      agent("2026-10-10", "22:15", "22:45", "appointment"),
+      agent("2026-10-11", "08:30", "11:00", "business"),
+      agent("2026-10-11", "11:15", "18:15", "relationship"),
+      agent("2026-10-11", "22:30", "23:00", "appointment"),
+    ],
+    CURRENT,
+    rules,
+  );
+  // Samstag 21:30: Die Beziehungszeit läuft gerade.
+  const weekendContext = () =>
+    context({
+      weekStart: CURRENT,
+      now: new Date(at("2026-10-10", "21:30")),
+      commitments: rules,
+      slots: weekendSlots,
+      preferences: weekendPreferences,
+      baseEntries: published,
+    });
+  const SATURDAY_TOGETHER = "block-relationship-2026-10-10-1700";
+  const free = (kind: Block["kind"], date: string, start: string, end: string, title: string) => ({
+    kind,
+    date,
+    start,
+    end,
+    title,
+  });
+  const together = (start: string, end: string): Block => ({
+    kind: "relationship",
+    slotId: null,
+    date: "2026-10-11",
+    start,
+    end,
+  });
+  const proposal: WeekPlanProposal = {
+    weekStart: CURRENT,
+    blocks: [
+      free("hygiene", "2026-10-10", "22:15", "22:45", "Abendroutine (Beispiel)"),
+      free("sleep", "2026-10-10", "22:45", "07:00", "Schlaf (Beispiel)"),
+      free("hygiene", "2026-10-11", "07:00", "07:30", "Aufstehen und Abfahrt (Beispiel)"),
+      together("08:00", "10:30"),
+      free("commute", "2026-10-11", "10:30", "11:00", "Hinfahrt (Beispiel)"),
+      free("commute", "2026-10-11", "11:00", "11:30", "Rückfahrt (Beispiel)"),
+      business("2026-10-11", "11:30", "14:30"),
+      free("commute", "2026-10-11", "14:30", "15:00", "Abholen (Beispiel)"),
+      together("15:00", "18:30"),
+      free("other", "2026-10-11", "18:30", "19:30", "Packen (Beispiel)"),
+      business("2026-10-11", "19:30", "20:30"),
+      free("hygiene", "2026-10-11", "20:45", "21:15", "Abendroutine (Beispiel)"),
+      free("sleep", "2026-10-11", "21:30", "05:30", "Schlaf (Beispiel)"),
+    ],
+    changes: [
+      {
+        action: "adjust",
+        ref: SATURDAY_TOGETHER,
+        start: "17:00",
+        end: "22:15",
+        reason: "Benutzer: heute etwas länger (Beispiel)",
+      },
+      {
+        action: "cancel",
+        ref: "commute-2026-10-11-1800",
+        reason: "Abfahrt erst Montag früh (Beispiel)",
+      },
+    ],
+    skippedSlots: [
+      {
+        slotId: "relationship-2026-10-11",
+        reason: "aufgeteilt: Vormittag und Nachmittag (Beispiel)",
+      },
+    ],
+  };
+
+  it("der laufende Block hat einen Bezug, Vergangenes keinen", () => {
+    const ctx = weekendContext();
+    expect(ctx.locked.filter((e) => e.ref !== null).map((e) => e.ref)).toEqual([SATURDAY_TOGETHER]);
+    const input = buildConnectorPlanningContext(ctx, {
+      locale: "de-DE",
+      saveAllowed: true,
+      draft: null,
+      published: null,
+    });
+    expect(input.days[5]?.busy.find((b) => b.ref === SATURDAY_TOGETHER)).toMatchObject({
+      start: "17:00",
+      end: "22:00",
+      kind: "Beziehungszeit",
+      begun: true,
+    });
+    expect(input.rules.otherRecurring.map((r) => `${r.ref} ${r.changeable}`)).toEqual([
+      "commute-2026-10-09-1130 nein",
+      "commute-2026-10-11-1800 ja",
+    ]);
+    expect(input.alreadyBegun.businessMinutes).toBe(1050);
+  });
+
+  it("der kurzfristige Wochenend-Plan ist darstellbar und veröffentlichbar", () => {
+    const ctx = weekendContext();
+    const result = materializeProposal(ctx, proposal);
+    expect(result.ok ? [] : result.errors).toEqual([]);
+    if (!result.ok) return;
+    expect(result.locked.find((e) => e.ref === SATURDAY_TOGETHER)?.end_at).toBe(
+      at("2026-10-10", "22:15"),
+    );
+    expect(result.entries.some((e) => e.category === "commute" && e.source === "recurring")).toBe(
+      false,
+    );
+    expect(result.entries.at(-1)).toMatchObject({
+      category: "sleep",
+      start_at: at("2026-10-11", "21:30"),
+      end_at: at("2026-10-12", "05:30"),
+    });
+    const evaluation = evaluatePlanDraft(
+      ctx,
+      [
+        ...result.locked,
+        ...result.entries.map((e) => ({ ...e, completion_status: "planned" as const })),
+      ],
+      result.exceptions,
+    );
+    expect(evaluation.openDecisions).toEqual([]);
+    expect(evaluation.publishable).toBe(true);
+    expect(evaluation.minutes.business).toBe(1290);
+    expect(evaluation.deviations).toEqual(
+      expect.arrayContaining([
+        "Fahrt am So 11.10. (18:00–22:00) entfällt – Grund: Abfahrt erst Montag früh (Beispiel)",
+        `${GOAL_LABELS.relationship} am So 11.10.: 6 Std. in 2 Blöcken statt 8 Std. zwischen 09:30 und 23:30 – Grund: aufgeteilt: Vormittag und Nachmittag (Beispiel)`,
+      ]),
+    );
+  });
+
+  it("laufender Block: nur das Ende; nicht entfallen, nicht „wie in der Wiederholung“", () => {
+    const ctx = weekendContext();
+    const reason = "Beispielgrund";
+    const errorsOf = (changes: NonNullable<WeekPlanProposal["changes"]>) => {
+      const result = materializeProposal(ctx, { ...proposal, changes });
+      return result.ok ? "" : result.errors.join(" ");
+    };
+    expect(
+      errorsOf([
+        { action: "adjust", ref: SATURDAY_TOGETHER, start: "17:30", end: "22:15", reason },
+      ]),
+    ).toContain("läuft bereits seit 17:00");
+    expect(errorsOf([{ action: "cancel", ref: SATURDAY_TOGETHER, reason }])).toContain(
+      "kann nicht mehr entfallen",
+    );
+    expect(errorsOf([{ action: "regular", ref: SATURDAY_TOGETHER }])).toContain(
+      "gehört zu keiner Wiederholung",
+    );
   });
 });
