@@ -168,6 +168,26 @@ async function ownerState(tx: Tx, auth: ConnectorAuth, weekStart: LocalDate, now
   return loadWeekState(tx, weekStart, now);
 }
 
+/**
+ * Weichen wiederkehrende Einträge des vorhandenen Entwurfs von den Wiederholungen ab – etwa in
+ * TagesTakt für diese Woche verschoben oder entfernt? Ein Vorschlag ersetzt die geplanten
+ * Einträge durch die Wiederholungen; solche Abweichungen dürfen dabei nie still verloren gehen.
+ */
+function recurringChangedInDraft(state: WeekState): boolean {
+  if (!state.draft) return false;
+  const key = (entry: { category: string; title: string; start_at: string; end_at: string }) =>
+    `${entry.category}|${entry.title}|${Date.parse(entry.start_at)}|${Date.parse(entry.end_at)}`;
+  const expected = state.context.fixed
+    .filter((f) => f.source === "recurring")
+    .map(key)
+    .sort();
+  const actual = state.draft.entries
+    .filter((e) => e.source === "recurring")
+    .map(key)
+    .sort();
+  return expected.length !== actual.length || expected.some((value, i) => value !== actual[i]);
+}
+
 function requireDraft(state: WeekState, expectedDraftRef: string) {
   if (!state.draft) {
     throw new ToolFailure("no_draft", "Für diese Woche gibt es keinen Entwurf.");
@@ -298,6 +318,12 @@ export async function saveWeekDraft(
     await asOwner(tx, auth.ownerId);
     await lockWeek(tx, auth.ownerId, input.weekStart);
     const state = await loadWeekState(tx, input.weekStart, now);
+    if (recurringChangedInDraft(state)) {
+      throw new ToolFailure(
+        "conflict",
+        "Im vorhandenen Entwurf weichen wiederkehrende Termine von den Wiederholungen ab (z. B. in TagesTakt für diese Woche verschoben oder entfernt). Ein neuer Vorschlag würde das zurücksetzen und wird deshalb nicht gespeichert. Bitte mit dem Benutzer klären: die Abweichung in TagesTakt zurücknehmen oder den Entwurf nur auf seinen ausdrücklichen Wunsch mit discard_week_draft verwerfen und neu planen.",
+      );
+    }
     const { weekStart, blocks, summary } = input;
     const validation = validateAgainst(state, { weekStart, blocks, summary });
     if (!validation.result.valid || !validation.entries) {

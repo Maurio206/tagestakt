@@ -575,6 +575,38 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       ]);
     });
 
+    it("save_week_draft: in TagesTakt geänderte Wiederholungen werden nie still zurückgesetzt", async () => {
+      // Der Eigentümer verschiebt im Entwurf den Dienst am Dienstag (z. B. Schichttausch).
+      const moveTuesdayDuty = (from: string, start: string, end: string) =>
+        asOwnerRole(
+          OWNER,
+          (tx) => tx`
+            update public.schedule_entries e
+               set start_at = ${start}::timestamptz, end_at = ${end}::timestamptz
+              from public.schedule_weeks w
+             where w.id = e.schedule_week_id and w.status = 'draft'
+               and w.week_start = ${WEEK}::date and e.source = 'recurring'
+               and e.category = 'duty' and e.start_at = ${from}::timestamptz`,
+        );
+      await moveTuesdayDuty("2026-10-13 08:00+02", "2026-10-13 08:30+02", "2026-10-13 12:30+02");
+      const changed = (await getWeekDraft(deps(), auth, WEEK)).draft!;
+      expect(
+        await failureOf(
+          saveWeekDraft(deps(), auth, { ...plan(), expectedDraftRef: changed.draftRef }),
+        ),
+      ).toBe("conflict");
+      expect((await getWeekDraft(deps(), auth, WEEK)).draft!.draftRef).toBe(changed.draftRef);
+
+      // Abweichung zurückgenommen: Neuplanen ist wieder möglich.
+      await moveTuesdayDuty("2026-10-13 08:30+02", "2026-10-13 08:00+02", "2026-10-13 12:00+02");
+      const restored = (await getWeekDraft(deps(), auth, WEEK)).draft!;
+      const saved = await saveWeekDraft(deps(), auth, {
+        ...plan(),
+        expectedDraftRef: restored.draftRef,
+      });
+      expect(saved.saved).toBe(true);
+    });
+
     it("get_week_draft: Server-Prüfübersicht", async () => {
       const view = await getWeekDraft(deps(), auth, WEEK);
       outputs.push(view);
