@@ -1964,10 +1964,27 @@ details > summary {
   min-width: 0;
 }
 
-/* Schalter „Vollbild“ nur auf schmalen Bildschirmen (siehe unten). */
+/* Stundenzoom und Schalter „Vollbild“ nur auf schmalen Bildschirmen (siehe unten). */
 .week-grid-tools {
   display: none;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.week-grid-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.week-grid-zoom-value {
+  min-width: 48px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--tt-text-muted);
 }
 
 .wk {
@@ -2124,8 +2141,11 @@ a.wb:hover {
     background: var(--tt-surface1);
   }
 
-  /* Rahmen und Rundung trägt der Scrollbereich; `overflow: visible` lässt `sticky` wirken. */
+  /* Rahmen und Rundung trägt der Scrollbereich; `overflow: visible` lässt `sticky` wirken.
+     Der Stundenzoom (`--hour-zoom` am Scrollbereich) staucht nur die Stunden (Basis wie :root),
+     die Tagesspalten behalten ihre Mindestbreite. */
   .week-grid-wrap .wk {
+    --hour-height: calc(44px * var(--hour-zoom, 1));
     grid-template-columns: 48px repeat(7, minmax(90px, 1fr));
     min-width: calc(48px + 7 * 90px);
     border: 0;
