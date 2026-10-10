@@ -172,8 +172,8 @@ Claude-App ──HTTPS, OAuth──▶ /mcp (Next.js) ──Rolle tagestakt_conn
                        Website, Android-App, Widget lesen nur veröffentlichte Wochen ◀┘
 ```
 
-- Sechs feste Tools: Kontext lesen, prüfen, Entwurf speichern (optional direkt veröffentlichen),
-  lesen, verwerfen und veröffentlichen.
+- Sieben feste Tools: Kontext und Aktivitätsverlauf (nur Summen) lesen, prüfen, Entwurf speichern
+  (optional direkt veröffentlichen), lesen, verwerfen und veröffentlichen.
 - Planbar sind die laufende Woche (ab jetzt; Begonnenes bleibt unverändert) und die nächsten
   vier Wochen. Abweichungen von Wiederholungen und Regeln gelten nur für eine Woche und werden
   ausdrücklich mit Grund genannt; die Wiederholungen selbst bleiben unverändert.

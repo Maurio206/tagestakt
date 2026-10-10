@@ -27,6 +27,7 @@ const store = vi.hoisted(() => ({
 }));
 const service = vi.hoisted(() => ({
   getPlanningContext: vi.fn(),
+  getActivityHistory: vi.fn(),
   validateWeekPlan: vi.fn(),
   saveWeekDraft: vi.fn(),
   getWeekDraft: vi.fn(),
@@ -174,6 +175,7 @@ describe("Endpunkt /mcp", () => {
       const client = await connect(ACCESS, mode);
       expect(client.getServerVersion()?.name).toBe("tagestakt");
       expect(client.getInstructions()).toContain("publish: true");
+      expect(client.getInstructions()).toContain("get_activity_history");
       expect(client.getInstructions()).not.toContain("Soll dieser Wochenplan");
       await client.close();
     }
@@ -181,11 +183,12 @@ describe("Endpunkt /mcp", () => {
 });
 
 describe("Tools", () => {
-  it("genau sechs eng begrenzte Tools mit strengen Schemas und passenden Hinweisen", async () => {
+  it("genau sieben eng begrenzte Tools mit strengen Schemas und passenden Hinweisen", async () => {
     const client = await connect(ACCESS);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "discard_week_draft",
+      "get_activity_history",
       "get_planning_context",
       "get_week_draft",
       "publish_week_draft",
@@ -199,6 +202,10 @@ describe("Tools", () => {
     }
     const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
     expect(byName.get_planning_context?.annotations?.readOnlyHint).toBe(true);
+    expect(byName.get_activity_history?.annotations?.readOnlyHint).toBe(true);
+    expect(byName.get_activity_history?.description).toContain(
+      "keine Titel, Notizen, Orte oder IDs",
+    );
     expect(byName.publish_week_draft?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: true,
@@ -208,6 +215,27 @@ describe("Tools", () => {
       "weekStart",
     ]);
     expect(byName.save_week_draft?.inputSchema.properties).toHaveProperty("publish");
+    await client.close();
+  });
+
+  it("get_activity_history: nur mit Lese-Scope, Wochen 1–12, sonst nichts", async () => {
+    service.getActivityHistory.mockResolvedValue({ weeks: [], summary: [] });
+    const client = await connect(READ_ONLY);
+    const ok = await client.callTool({
+      name: "get_activity_history",
+      arguments: { weeks: 4, includeCurrentWeek: false },
+    });
+    expect(ok.isError).toBeFalsy();
+    expect(service.getActivityHistory).toHaveBeenCalledWith(
+      expect.anything(),
+      { ownerId: OWNER, grantId: GRANT },
+      { weeks: 4, includeCurrentWeek: false },
+    );
+    for (const args of [{ weeks: 0 }, { weeks: 13 }, { weeks: 2.5 }, { ownerId: FOREIGN }]) {
+      const result = await client.callTool({ name: "get_activity_history", arguments: args });
+      expect(result.isError).toBe(true);
+    }
+    expect(service.getActivityHistory).toHaveBeenCalledTimes(1);
     await client.close();
   });
 

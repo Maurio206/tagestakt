@@ -12,3 +12,4 @@ export * from "./agent-contract";
 export type { Database, Json } from "./database.types";
 export * from "./widget";
 export * from "./planner";
+export * from "./activity-history";

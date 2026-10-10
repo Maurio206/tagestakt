@@ -93,7 +93,7 @@ private App-Builds: **[docs/mobile-preview-build.md](docs/mobile-preview-build.m
 | `pnpm db:test`                               | pgTAP-Sicherheitstests (RLS, Grants, Constraints)                                 |
 | `pnpm db:upgrade-test`                       | Upgrade-Test: neue Migrationen lassen vorhandene Daten unverändert (lokal)        |
 | `pnpm db:concurrency-test`                   | Gleichzeitige Wechsel/Starts von Aktivitäten mit zwei echten DB-Sitzungen (lokal) |
-| `pnpm connector:e2e`                         | Claude-Connector: alle sechs Tools und OAuth gegen die lokale DB                  |
+| `pnpm connector:e2e`                         | Claude-Connector: alle sieben Tools und OAuth gegen die lokale DB                 |
 | `pnpm --filter @tagestakt/mobile run doctor` | Expo Doctor (Abhängigkeiten und Konfiguration der App)                            |
 | `pnpm db:lint`                               | Supabase-Datenbank-Lint                                                           |
 | `pnpm db:types`                              | TypeScript-Typen aus der lokalen DB generieren                                    |

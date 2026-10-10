@@ -1,6 +1,8 @@
 import "server-only";
 
 import {
+  ACTIVITY_HISTORY_DEFAULT_WEEKS,
+  type ActivityHistory,
   type ConnectorPlanningContext,
   type DeclaredExceptions,
   type EvaluatedEntry,
@@ -11,10 +13,13 @@ import {
   type PlannedEntry,
   type PlanningContext,
   type WeekPlanProposal,
+  activityHistoryWeekStarts,
+  buildActivityHistory,
   buildConnectorPlanningContext,
   cleanPlannerText,
   evaluatePlanDraft,
   getMissingPlanningRequirements,
+  getWeekBounds,
   materializeProposal,
   neutralBlocks,
   neutralizePlannerText,
@@ -27,6 +32,7 @@ import {
   type WeekState,
   type WritableEntry,
   discardDraft,
+  loadActivityHistoryInput,
   loadWeekState,
   planDraftWrite,
   publishDraft,
@@ -221,6 +227,46 @@ export async function getPlanningContext(
             entries: sourced(state.published.entries),
           }
         : null,
+    });
+  });
+}
+
+/**
+ * Aktivitätsverlauf der letzten Wochen (geplant gegenüber erfasst, Muster nach Wochentag und
+ * Tageszeit) – nur Summen, keine Titel, Notizen oder IDs. Liest nur.
+ */
+export async function getActivityHistory(
+  deps: ServiceDeps,
+  auth: ConnectorAuth,
+  input: { weeks?: number | undefined; includeCurrentWeek?: boolean | undefined },
+): Promise<ActivityHistory> {
+  const now = deps.now();
+  const weekStarts = activityHistoryWeekStarts(
+    now,
+    input.weeks ?? ACTIVITY_HISTORY_DEFAULT_WEEKS,
+    input.includeCurrentWeek ?? true,
+  );
+  const firstWeek = weekStarts[0];
+  const lastWeek = weekStarts.at(-1);
+  if (!firstWeek || !lastWeek) throw new Error("history_range");
+  const lastEnd = getWeekBounds(lastWeek).end;
+  return connectorTransaction(deps.config, async (tx) => {
+    await tx`set transaction read only`;
+    await asOwner(tx, auth.ownerId);
+    const data = await loadActivityHistoryInput(tx, {
+      firstWeek,
+      lastWeek,
+      start: getWeekBounds(firstWeek).start,
+      end: lastEnd.getTime() < now.getTime() ? lastEnd : now,
+    });
+    const published = new Map(data.weeks.map((week) => [week.weekStart, week.published]));
+    return buildActivityHistory({
+      now,
+      weeks: weekStarts.map((weekStart) => ({
+        weekStart,
+        published: published.get(weekStart) ?? null,
+      })),
+      sessions: data.sessions,
     });
   });
 }

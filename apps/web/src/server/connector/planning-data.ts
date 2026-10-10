@@ -3,12 +3,15 @@ import "server-only";
 import {
   DEFAULT_LOCALE,
   DEFAULT_WEEKLY_BUSINESS_TARGET_MINUTES,
+  type HistoryWeekInput,
   type LocalDate,
   type PlannedEntry,
   type PlanningContext,
   SCHEDULE_TIMEZONE,
   type ScheduleEntry,
   type ScheduleWeek,
+  type TrackedSession,
+  activitySessionRowSchema,
   buildPlanningContext,
   planningGoalSlotRowSchema,
   planningPreferencesRowSchema,
@@ -300,4 +303,59 @@ export async function publishDraft(
 
 export async function discardDraft(tx: Tx, weekId: string, fingerprint: string): Promise<void> {
   await tx`select public.discard_reviewed_schedule_draft(${weekId}::uuid, ${fingerprint}::text)`;
+}
+
+const historySchema = z.object({
+  weeks: z.array(
+    z.object({
+      week_start: z.string(),
+      entries: z.array(
+        scheduleEntryRowSchema.pick({
+          category: true,
+          completion_status: true,
+          start_at: true,
+          end_at: true,
+        }),
+      ),
+    }),
+  ),
+  sessions: z.array(
+    activitySessionRowSchema.pick({ goal_category: true, started_at: true, ended_at: true }),
+  ),
+});
+
+/**
+ * Daten für den Aktivitätsverlauf: Zielblöcke der veröffentlichten Versionen und erfasste
+ * Aktivitäten im Zeitraum – nur Art, Status und Zeiten (keine Titel, Notizen, Orte oder IDs).
+ */
+export async function loadActivityHistoryInput(
+  tx: Tx,
+  range: { firstWeek: LocalDate; lastWeek: LocalDate; start: Date; end: Date },
+): Promise<{ weeks: HistoryWeekInput[]; sessions: TrackedSession[] }> {
+  const [row] = await tx<{ weeks: unknown; sessions: unknown }[]>`select
+      (select coalesce(json_agg(json_build_object(
+                'week_start', w.week_start,
+                'entries', (select coalesce(json_agg(json_build_object(
+                                     'category', e.category,
+                                     'completion_status', e.completion_status,
+                                     'start_at', e.start_at,
+                                     'end_at', e.end_at) order by e.start_at), '[]'::json)
+                              from public.schedule_entries e
+                             where e.schedule_week_id = w.id
+                               and e.category in ('business', 'sport', 'relationship')))), '[]'::json)
+         from public.schedule_weeks w
+        where w.status = 'published'
+          and w.week_start between ${range.firstWeek}::date and ${range.lastWeek}::date) as weeks,
+      (select coalesce(json_agg(json_build_object(
+                'goal_category', s.goal_category,
+                'started_at', s.started_at,
+                'ended_at', s.ended_at) order by s.started_at), '[]'::json)
+         from public.activity_sessions s
+        where s.started_at < ${range.end.toISOString()}::timestamptz
+          and (s.ended_at is null or s.ended_at > ${range.start.toISOString()}::timestamptz)) as sessions`;
+  const data = historySchema.parse(row ?? { weeks: [], sessions: [] });
+  return {
+    weeks: data.weeks.map((week) => ({ weekStart: week.week_start, published: week.entries })),
+    sessions: data.sessions,
+  };
 }

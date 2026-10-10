@@ -80,7 +80,7 @@ Vollständige Beschreibung und Bedrohungsanalyse: [claude-connector.md](claude-c
   Refresh-Tokens 60 Tage mit Rotation und Diebstahlerkennung, Ressourcenbindung (RFC 8707),
   Widerruf in den Einstellungen. Gespeichert werden **nur SHA-256-Hashes**.
 - **Identität nur aus dem Token**, nie aus Tool-Argumenten; unbekannte Felder werden abgelehnt.
-- **Drei Scopes** (`planning:read`, `planning:draft`, `planning:publish`), sechs feste Tools,
+- **Drei Scopes** (`planning:read`, `planning:draft`, `planning:publish`), sieben feste Tools,
   kein freies SQL, kein allgemeines Datenbank-, Shell- oder HTTP-Tool.
 - **Veröffentlichen ohne Rückfrage (akzeptiertes Risiko):** Auf Wunsch des Benutzers
   (2026-10-10) veröffentlicht Claude gültige Pläne selbst – `save_week_draft` mit `publish: true`
@@ -97,7 +97,10 @@ Vollständige Beschreibung und Bedrohungsanalyse: [claude-connector.md](claude-c
   nur für eine Woche, müssen ausdrücklich mit Grund genannt werden und stehen sichtbar in der
   Prüfübersicht.
 - **Datenminimierung:** Claude erhält nur Zeiten, neutrale Arten, Regeln und Versionen – keine
-  Titel, Notizen, Orte, Tagesnotizen, E-Mail, IDs oder Tokens. Texte aus der Datenbank können
+  Titel, Notizen, Orte, Tagesnotizen, E-Mail, IDs oder Tokens. Der Aktivitätsverlauf
+  (`get_activity_history`, höchstens 12 Wochen) liefert nur Summen und Muster je Woche,
+  Wochentag und Zeitfenster – er zeigt damit den Tagesrhythmus des Benutzers, aber keine
+  einzelnen Aktivitäten, Titel oder IDs. Texte aus der Datenbank können
   deshalb keine Anweisungen an Claude sein.
 - **Datenbank:** eigene Rolle `tagestakt_connector` (nur Mitglied von `authenticated`, NOINHERIT,
   Passwort nur in Coolify), Planungsdaten nur über RLS mit den Claims des Owners; Schema

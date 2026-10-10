@@ -6,8 +6,8 @@
  * räumt danach alles wieder ab. Alle Daten sind frei erfunden (Beispiel).
  *
  * Geprüft: OAuth (PKCE, Code-Einmaligkeit, Ablauf, Rotation, Wiederverwendung, Widerruf,
- * Ressourcenbindung, fremde Konten), alle sechs Tools mit echter Datenbank (Kontext ohne
- * persönliche Daten, Prüfen, idempotentes Speichern, veralteter und paralleler Stand,
+ * Ressourcenbindung, fremde Konten), alle sieben Tools mit echter Datenbank (Kontext ohne
+ * persönliche Daten, Aktivitätsverlauf nur als Summen, Prüfen, idempotentes Speichern, veralteter und paralleler Stand,
  * Einzeltermine, Abweichungen nur für eine Woche, laufende Woche mit unverändertem
  * Vergangenem und Erledigt-Status, direktes Veröffentlichen, Speichern und Veröffentlichen in
  * einem Schritt, doppeltes Veröffentlichen, Verwerfen)
@@ -33,6 +33,7 @@ import {
   type ConnectorAuth,
   ToolFailure,
   discardWeekDraft,
+  getActivityHistory,
   getPlanningContext,
   getWeekDraft,
   publishWeekDraft,
@@ -514,6 +515,65 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
       expect(current.earliestStart).toEqual({ date: "2026-10-09", time: "14:00" });
       expect(current.alreadyBegun).toEqual({ businessMinutes: 240 });
       expect(current.days[0]?.busy.every((b) => b.begun)).toBe(true);
+    });
+
+    it("get_activity_history: erfasste Zeit nur als Summen, nur eigene, laufende Woche bis jetzt", async () => {
+      // Frei erfundene Aktivitäten (Beispiel): im Plan, ohne Plan, über den Wochenwechsel.
+      await asOwnerRole(
+        OWNER,
+        (tx) => tx`
+          insert into public.activity_sessions (goal_category, title, started_at, ended_at)
+          values ('business', 'Akquise (Beispiel)', '2026-10-05 13:05+02', '2026-10-05 16:35+02'),
+                 ('business', 'Akquise (Beispiel)', '2026-10-07 20:00+02', '2026-10-07 21:30+02'),
+                 ('sport', 'Training (Beispiel)', '2026-09-29 18:00+02', '2026-09-29 19:00+02'),
+                 ('relationship', 'Zeit zu zweit (Beispiel)', '2026-10-04 23:30+02',
+                  '2026-10-05 00:30+02')`,
+      );
+      await asOwnerRole(
+        FOREIGN,
+        (tx) => tx`
+          insert into public.activity_sessions (goal_category, title, started_at, ended_at)
+          values ('business', 'Fremd (Beispiel)', '2026-10-06 09:00+02', '2026-10-06 12:00+02')`,
+      );
+
+      const history = await getActivityHistory(deps(), auth, { weeks: 2 });
+      outputs.push(history);
+      expect(history.weeks.map((w) => [w.weekStart, w.state, w.publishedPlan])).toEqual([
+        ["2026-09-21", "past", false],
+        ["2026-09-28", "past", false],
+        ["2026-10-05", "current", true],
+      ]);
+      const [, previous, current] = history.weeks;
+      expect(previous?.goals.sport).toMatchObject({
+        trackedMinutes: 60,
+        trackedWithoutPlanMinutes: 60,
+      });
+      expect(previous?.goals.relationship.trackedMinutes).toBe(30);
+      // Laufende Woche (Freitag 14:00): Fr 15–18 Uhr liegt noch vor uns, Do wurde ausgelassen.
+      expect(current?.goals.business).toEqual({
+        plannedMinutes: 240,
+        trackedMinutes: 300,
+        trackedInPlanMinutes: 210,
+        trackedWithoutPlanMinutes: 90,
+        blocks: { finished: 2, followed: 1, skipped: 1, missed: 0 },
+      });
+      expect(current?.goals.sport).toMatchObject({
+        plannedMinutes: 60,
+        trackedMinutes: 0,
+        blocks: { finished: 1, followed: 1, skipped: 0, missed: 0 },
+      });
+      expect(current?.goals.relationship.trackedMinutes).toBe(30);
+      expect(history.patterns.business.mostTracked[0]).toBe(
+        "Mo 12–17 Uhr: 3,5 h erfasst (in 1 von 3 Wochen)",
+      );
+      expect(JSON.stringify(history)).not.toMatch(/Akquise|Fremd|Zeit zu zweit|Beispiel/);
+
+      const withoutCurrent = await getActivityHistory(deps(), auth, {
+        weeks: 1,
+        includeCurrentWeek: false,
+      });
+      expect(withoutCurrent.weeks.map((w) => w.weekStart)).toEqual(["2026-09-28"]);
+      expect(withoutCurrent.includesCurrentWeek).toBe(false);
     });
 
     it("bestehende Abweichungen gehen nicht still verloren", async () => {
@@ -1223,7 +1283,7 @@ describe.runIf(DATABASE_URL && OWNER && FOREIGN)("Connector mit lokaler Datenban
           requestInit: { headers: { authorization: `Bearer ${access_token}` } },
         }),
       );
-      expect((await client.listTools()).tools).toHaveLength(6);
+      expect((await client.listTools()).tools).toHaveLength(7);
       const result = await client.callTool({
         name: "get_week_draft",
         // Der Endpunkt rechnet mit der echten Uhrzeit: erste kommende Woche ab heute.
