@@ -14,15 +14,15 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
     "@supabase/ssr": "0.12.7",
-    "@supabase/supabase-js": "2.117.2",
+    "@supabase/supabase-js": "2.117.3",
     "@tagestakt/design-tokens": "workspace:*",
     "@tagestakt/schedule-schema": "workspace:*",
     "geist": "1.7.2",
     "lucide-react": "1.52.0",
-    "next": "16.3.8",
+    "next": "16.4.0",
     "postgres": "3.4.9",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "server-only": "0.0.1",
     "zod": "4.6.5"
   },
@@ -38,10 +38,10 @@
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "6.1.2",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.0",
     "jsdom": "30.1.2",
     "typescript": "~6.0.3",
-    "vite": "8.3.2",
+    "vite": "8.3.3",
     "vitest": "5.0.3"
   }
 }
