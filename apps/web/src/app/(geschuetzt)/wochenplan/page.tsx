@@ -274,8 +274,8 @@ export default async function WeekPlanPage({ searchParams }: { searchParams: Sea
               </p>
               {entries.some((entry) => entry.source === "agent") ? (
                 <p>
-                  Vom Claude-Wochenplaner erstellt:{" "}
-                  <Link href={planPath(weekStart)}>Prüfübersicht im Wochenplaner</Link> vor dem
+                  Von Claude über den Connector erstellt:{" "}
+                  <Link href={planPath(weekStart)}>Prüfübersicht der Wochenplanung</Link> vor dem
                   Veröffentlichen ansehen.
                 </p>
               ) : null}
