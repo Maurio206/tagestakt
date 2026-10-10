@@ -393,6 +393,37 @@ describe("Token-Endpunkt", () => {
     expect(d.exchange).not.toHaveBeenCalled();
   });
 
+  it("zu große Bodys werden abgebrochen – auch ohne Content-Length (chunked)", async () => {
+    const d = deps();
+    const revoke = vi.fn(async () => undefined);
+    let pulled = 0;
+    const chunked = (path: string) =>
+      new Request(`https://plan.tagestakt.test${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        // 64 × 1 KiB, ohne Content-Length: Gelesen wird nur bis knapp über 8 KiB.
+        body: new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulled += 1;
+            if (pulled > 64) controller.close();
+            else controller.enqueue(new TextEncoder().encode(`a=${"x".repeat(1022)}&`));
+          },
+        }),
+        duplex: "half",
+      } as RequestInit);
+    const token = await handleTokenRequest(chunked("/api/oauth/token"), config(), d);
+    expect(token.status).toBe(400);
+    expect(((await token.json()) as { error: string }).error).toBe("invalid_request");
+    expect(pulled).toBeLessThan(16);
+    expect(d.exchange).not.toHaveBeenCalled();
+
+    pulled = 0;
+    const revoked = await handleRevocationRequest(chunked("/api/oauth/revoke"), config(), revoke);
+    expect(revoked.status).toBe(400);
+    expect(pulled).toBeLessThan(16);
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
   it("Widerruf antwortet immer mit 200", async () => {
     const revoke = vi.fn(async () => undefined);
     const request = new Request("https://plan.tagestakt.test/api/oauth/revoke", {

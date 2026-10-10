@@ -203,14 +203,39 @@ function oauthError(error: string, description: string, status = 400) {
 
 const MAX_FORM_BYTES = 8 * 1024;
 
+/**
+ * Liest höchstens `limit` Bytes – auch ohne bzw. mit falscher Content-Length (chunked). Ein
+ * größerer Body wird abgebrochen statt vollständig in den Speicher geladen.
+ */
+async function readLimitedText(request: Request, limit: number): Promise<string | null> {
+  if (Number(request.headers.get("content-length") ?? "0") > limit) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > limit) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
 /** Liest einen x-www-form-urlencoded-Body; mehrfach angegebene Parameter sind unzulässig. */
 async function readForm(request: Request): Promise<Map<string, string> | null> {
   const type = request.headers.get("content-type") ?? "";
   if (!type.toLowerCase().startsWith("application/x-www-form-urlencoded")) return null;
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_FORM_BYTES) return null;
-  const text = await request.text();
-  if (text.length > MAX_FORM_BYTES) return null;
+  const text = await readLimitedText(request, MAX_FORM_BYTES);
+  if (text === null) return null;
   const params = new URLSearchParams(text);
   const form = new Map<string, string>();
   for (const [key, value] of params) {
