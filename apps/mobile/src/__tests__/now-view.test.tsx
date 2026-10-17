@@ -50,6 +50,17 @@ describe("NowView – Jetzt-Ansicht", () => {
     expect(a.start).toHaveBeenCalledWith("business", businessBlock.id);
   });
 
+  it("Zielblock: die beiden anderen Ziele bleiben spontan startbar (ohne Planblock)", async () => {
+    const a = actions();
+    await render(<NowView result={online()} now={NOW} actions={a} />); // Gewerbe geplant
+    expect(screen.getByText("Andere Aktivität starten")).toBeOnTheScreen();
+    // Gewerbe gibt es nur einmal – als „Fokus starten“ mit Bezug zum Planblock.
+    expect(screen.queryByRole("button", { name: "Aktivität Gewerbe starten" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Aktivität Sport starten" })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Aktivität Laila starten" }));
+    expect(a.start).toHaveBeenCalledWith("relationship", null);
+  });
+
   it("markiert einen Block als erledigt oder ausgelassen", async () => {
     const a = actions();
     await render(<NowView result={online()} now={NOW} actions={a} />);
@@ -85,6 +96,20 @@ describe("NowView – Jetzt-Ansicht", () => {
     ).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("button", { name: "Sport beenden, Gewerbe starten" }));
     expect(a.switchTo).toHaveBeenCalledWith(running.id, "business", businessBlock.id);
+  });
+
+  it("wechselt zu jedem anderen Ziel auch ohne passenden Planblock", async () => {
+    const a = actions();
+    // Sport läuft, geplant ist Gewerbe – Laila ist trotzdem erreichbar, Sport nicht doppelt.
+    const running = session("sport", "2026-10-06T14:40:00.000Z", null);
+    await render(<NowView result={online({ sessions: [running] })} now={NOW} actions={a} />);
+    expect(screen.getByText("Zu anderer Aktivität wechseln")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Zu Sport wechseln" })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Zu Laila wechseln" }));
+    expect(a.switchTo).not.toHaveBeenCalled();
+    expect(screen.getByText(/ohne Planblock · ab jetzt/)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Sport beenden, Laila starten" }));
+    expect(a.switchTo).toHaveBeenCalledWith(running.id, "relationship", null);
   });
 
   it("offline: deutlicher Hinweis, Plan lesbar, Starten gesperrt", async () => {

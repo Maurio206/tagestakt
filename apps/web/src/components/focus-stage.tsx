@@ -199,12 +199,29 @@ function Around({ focus, now }: { focus: Focus; now: Date }) {
   );
 }
 
-function SpontaneousStart({ actions, size }: { actions: BoundActions; size: "lg" | "sm" }) {
+/**
+ * Spontaner Start ohne Planblock. Die drei Ziele sind jederzeit startbar – auch während eines
+ * geplanten Zielblocks (wer statt Laila Gewerbe macht, startet Gewerbe). `exclude` lässt nur
+ * die Ziele weg, für die bereits „Fokus starten“ mit Planblock angeboten wird.
+ */
+function SpontaneousStart({
+  actions,
+  size,
+  exclude = [],
+}: {
+  actions: BoundActions;
+  size: "lg" | "sm";
+  exclude?: readonly GoalKey[];
+}) {
+  const goals = GOAL_KEYS.filter((goal) => !exclude.includes(goal));
+  if (goals.length === 0) return null;
   return (
     <div className="stack-tight">
-      <p className="field-label">Aktivität starten</p>
+      <p className="field-label">
+        {exclude.length > 0 ? "Andere Aktivität starten" : "Aktivität starten"}
+      </p>
       <div className="button-row">
-        {GOAL_KEYS.map((goal) => (
+        {goals.map((goal) => (
           <ActionButton
             key={goal}
             action={actions.start(goal, null)}
@@ -282,6 +299,10 @@ function RunningCard({
     current && isGoalKey(current.category) && session.schedule_entry_id !== current.id
       ? { goal: current.category, entry: current }
       : undefined;
+  // Jedes andere Ziel ist jederzeit erreichbar – ohne Planblock, unabhängig vom Plan.
+  const otherGoals = GOAL_KEYS.filter(
+    (goal) => goal !== session.goal_category && goal !== switchTarget?.goal,
+  );
 
   return (
     <>
@@ -365,6 +386,26 @@ function RunningCard({
           </div>
         </div>
       ) : null}
+      {!blocked && otherGoals.length > 0 ? (
+        <div className="stack-tight">
+          <p className="field-label">Zu anderer Aktivität wechseln</p>
+          <div className="button-row">
+            {otherGoals.map((goal) => (
+              <ActionButton
+                key={goal}
+                action={actions.switchTo(session.id, goal, null)}
+                label={GOAL_LABELS[goal]}
+                icon={<ToneIcon tone={categoryTone[goal]} />}
+                size="sm"
+                variant="ghost"
+                ariaLabel={`Zu ${GOAL_LABELS[goal]} wechseln`}
+                pendingLabel="Wird gewechselt …"
+                confirmMessage={`${label} beenden (${formatDuration(minutes)} erfasst) und ${GOAL_LABELS[goal]} starten?`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -382,6 +423,8 @@ function BlockCard({
 }) {
   const goal = isGoalKey(entry.category) ? entry.category : undefined;
   const overlapGoals = focus.overlapping.filter((e) => isGoalKey(e.category));
+  // Ziele, für die es bereits „Fokus starten“ mit Planblock gibt – die übrigen bleiben spontan startbar.
+  const offeredGoals = [entry.category, ...overlapGoals.map((e) => e.category)].filter(isGoalKey);
   return (
     <>
       <div className="focus-head">
@@ -455,7 +498,7 @@ function BlockCard({
           />
         ) : null}
       </div>
-      {goal ? null : <SpontaneousStart actions={actions} size="sm" />}
+      <SpontaneousStart actions={actions} size="sm" exclude={offeredGoals} />
     </>
   );
 }

@@ -104,44 +104,81 @@ function OfflineHint({ canWrite }: { canWrite: boolean }) {
   return canWrite ? null : <Muted small>{OFFLINE_MESSAGE}</Muted>;
 }
 
+/** Ein Ziel als Knopf mit Symbol und Farbe (immer auch als Text). */
+function GoalButton({
+  goal,
+  accessibilityLabel,
+  disabled,
+  large,
+  onPress,
+}: {
+  goal: GoalKey;
+  accessibilityLabel: string;
+  disabled: boolean;
+  large: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const onTint = useOnTint();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.goalButton,
+        large ? styles.goalButtonLarge : null,
+        {
+          borderColor: onTint ? theme.textSubtle : theme.lineStrong,
+          backgroundColor: theme.surface2,
+          opacity: disabled ? 0.45 : 1,
+        },
+      ]}
+    >
+      <ToneIcon tone={categoryTone[goal]} color={theme[categoryTone[goal]]} size={20} />
+      <Text style={[styles.goalButtonText, { color: theme.text }]}>{GOAL_LABELS[goal]}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Spontaner Start ohne Planblock. Die drei Ziele sind jederzeit startbar – auch während eines
+ * geplanten Zielblocks (wer statt Laila Gewerbe macht, startet Gewerbe). `exclude` lässt nur
+ * die Ziele weg, für die bereits „Fokus starten“ mit Planblock angeboten wird.
+ */
 function SpontaneousStart({
   actions,
   canWrite,
   pending,
   large,
+  exclude = [],
 }: {
   actions: NowActions;
   canWrite: boolean;
   pending: boolean;
   large: boolean;
+  exclude?: readonly GoalKey[];
 }) {
   const theme = useTheme();
-  const onTint = useOnTint();
+  const goals = GOAL_KEYS.filter((goal) => !exclude.includes(goal));
+  if (goals.length === 0) return null;
   return (
     <View style={styles.block}>
-      <Text style={[styles.label, { color: theme.textMuted }]}>Aktivität starten</Text>
+      <Text style={[styles.label, { color: theme.textMuted }]}>
+        {exclude.length > 0 ? "Andere Aktivität starten" : "Aktivität starten"}
+      </Text>
       <View style={styles.row}>
-        {GOAL_KEYS.map((goal) => (
-          <Pressable
+        {goals.map((goal) => (
+          <GoalButton
             key={goal}
-            accessibilityRole="button"
+            goal={goal}
             accessibilityLabel={`Aktivität ${GOAL_LABELS[goal]} starten`}
-            accessibilityState={{ disabled: !canWrite || pending }}
             disabled={!canWrite || pending}
+            large={large}
             onPress={() => actions.start(goal, null)}
-            style={[
-              styles.goalButton,
-              large ? styles.goalButtonLarge : null,
-              {
-                borderColor: onTint ? theme.textSubtle : theme.lineStrong,
-                backgroundColor: theme.surface2,
-                opacity: !canWrite || pending ? 0.45 : 1,
-              },
-            ]}
-          >
-            <ToneIcon tone={categoryTone[goal]} color={theme[categoryTone[goal]]} size={20} />
-            <Text style={[styles.goalButtonText, { color: theme.text }]}>{GOAL_LABELS[goal]}</Text>
-          </Pressable>
+          />
         ))}
       </View>
     </View>
@@ -346,6 +383,12 @@ function FocusCard({
   );
 }
 
+/** Wohin gewechselt wird: ein Ziel, wahlweise mit dem jetzt geplanten Block, sonst ohne Planblock. */
+interface SwitchTarget {
+  goal: GoalKey;
+  entry: ScheduleEntry | null;
+}
+
 /** Bestätigung beim Wechseln: Vorher/Nachher, drei klare Möglichkeiten. */
 function SwitchSheet({
   visible,
@@ -358,7 +401,7 @@ function SwitchSheet({
 }: {
   visible: boolean;
   running: ActivitySession;
-  target: { goal: GoalKey; entry: ScheduleEntry };
+  target: SwitchTarget;
   now: Date;
   onClose: () => void;
   onSwitch: () => void;
@@ -376,7 +419,7 @@ function SwitchSheet({
         </Text>
         <Text style={[styles.compareLabel, { color: theme.textSubtle }]}>DANACH</Text>
         <Text style={[styles.compareText, { color: theme.text }]}>
-          {to} · {target.entry.title} · ab jetzt
+          {to} · {target.entry ? target.entry.title : "ohne Planblock"} · ab jetzt
         </Text>
       </View>
       <Button
@@ -407,14 +450,19 @@ function RunningPanel({
   pending: boolean;
 }) {
   const theme = useTheme();
-  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchTarget, setSwitchTarget] = useState<SwitchTarget | null>(null);
   const { current, linked } = focus;
   const blocked = requiresCorrectionToStop(session, now);
   const label = GOAL_LABELS[session.goal_category];
-  const target =
+  // Jetzt geplanter Zielblock, zu dem die laufende Aktivität nicht gehört: Wechsel mit Bezug.
+  const planned =
     current && isGoalKey(current.category) && session.schedule_entry_id !== current.id
       ? { goal: current.category, entry: current }
       : undefined;
+  // Jedes andere Ziel ist jederzeit erreichbar – ohne Planblock, unabhängig vom Plan.
+  const otherGoals = GOAL_KEYS.filter(
+    (goal) => goal !== session.goal_category && goal !== planned?.goal,
+  );
 
   const confirmDiscard = () => {
     Alert.alert(
@@ -475,32 +523,53 @@ function RunningPanel({
         />
       </View>
       <OfflineHint canWrite={canWrite} />
-      {target ? (
+      {planned ? (
         <>
-          <Notice tone="info" title={`Jetzt geplant: ${GOAL_LABELS[target.goal]}`}>
-            {`${target.entry.title} · ${formatTimeRange(target.entry.start_at, target.entry.end_at)}`}
+          <Notice tone="info" title={`Jetzt geplant: ${GOAL_LABELS[planned.goal]}`}>
+            {`${planned.entry.title} · ${formatTimeRange(planned.entry.start_at, planned.entry.end_at)}`}
           </Notice>
           <Button
-            label={`Zu ${GOAL_LABELS[target.goal]} wechseln`}
+            label={`Zu ${GOAL_LABELS[planned.goal]} wechseln`}
             disabled={!canWrite || pending}
-            onPress={() => setSwitchOpen(true)}
-          />
-          <SwitchSheet
-            visible={switchOpen}
-            running={session}
-            target={target}
-            now={now}
-            onClose={() => setSwitchOpen(false)}
-            onSwitch={() => {
-              setSwitchOpen(false);
-              actions.switchTo(session.id, target.goal, target.entry.id);
-            }}
-            onStopOnly={() => {
-              setSwitchOpen(false);
-              actions.stop(session.id);
-            }}
+            onPress={() => setSwitchTarget(planned)}
           />
         </>
+      ) : null}
+      {!blocked && otherGoals.length > 0 ? (
+        <View style={styles.block}>
+          <Text style={[styles.label, { color: theme.textMuted }]}>
+            Zu anderer Aktivität wechseln
+          </Text>
+          <View style={styles.row}>
+            {otherGoals.map((goal) => (
+              <GoalButton
+                key={goal}
+                goal={goal}
+                accessibilityLabel={`Zu ${GOAL_LABELS[goal]} wechseln`}
+                disabled={!canWrite || pending}
+                large={false}
+                onPress={() => setSwitchTarget({ goal, entry: null })}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {switchTarget ? (
+        <SwitchSheet
+          visible
+          running={session}
+          target={switchTarget}
+          now={now}
+          onClose={() => setSwitchTarget(null)}
+          onSwitch={() => {
+            setSwitchTarget(null);
+            actions.switchTo(session.id, switchTarget.goal, switchTarget.entry?.id ?? null);
+          }}
+          onStopOnly={() => {
+            setSwitchTarget(null);
+            actions.stop(session.id);
+          }}
+        />
       ) : null}
     </View>
   );
@@ -528,6 +597,8 @@ function EntryPanel({
   const color = theme[categoryTone[entry.category]];
   const minutes = getRemainingMinutes(entry, now);
   const overlapGoals = focus.overlapping.filter((e) => isGoalKey(e.category));
+  // Ziele, für die es bereits „Fokus starten“ mit Planblock gibt – die übrigen bleiben spontan startbar.
+  const offeredGoals = [entry.category, ...overlapGoals.map((e) => e.category)].filter(isGoalKey);
   return (
     <View style={styles.now}>
       {goal ? (
@@ -607,9 +678,13 @@ function EntryPanel({
         ) : null}
       </View>
       <OfflineHint canWrite={canWrite} />
-      {goal ? null : (
-        <SpontaneousStart actions={actions} canWrite={canWrite} pending={pending} large={false} />
-      )}
+      <SpontaneousStart
+        actions={actions}
+        canWrite={canWrite}
+        pending={pending}
+        large={false}
+        exclude={offeredGoals}
+      />
     </View>
   );
 }

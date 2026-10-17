@@ -154,6 +154,17 @@ describe("FocusStage – Auswahl", () => {
     );
   });
 
+  it("Zielblock: die beiden anderen Ziele bleiben spontan startbar (ohne Planblock)", () => {
+    renderAt("2026-10-14T15:30:00Z"); // 17:30, Gewerbe geplant
+    expect(screen.getByText("Andere Aktivität starten")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aktivität Sport starten" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aktivität Laila starten" })).toBeInTheDocument();
+    // Gewerbe gibt es nur einmal – als „Fokus starten“ mit Bezug zum Planblock.
+    expect(
+      screen.queryByRole("button", { name: "Aktivität Gewerbe starten" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("Nachbarblöcke sind unscharf, ohne Bedienelemente und für Screenreader verborgen", () => {
     renderAt("2026-10-14T15:30:00Z");
     for (const id of ["focus-ghost-prev", "focus-ghost-next"]) {
@@ -193,6 +204,11 @@ describe("FocusStage – Auswahl", () => {
     expect(
       screen.getByRole("button", { name: /Fokus für „Kundenprojekt \(Beispiel\)“ starten/ }),
     ).toBeInTheDocument();
+    // Spontan bleibt nur das dritte Ziel – Sport und Gewerbe gibt es bereits mit Planblock.
+    expect(screen.getByRole("button", { name: "Aktivität Laila starten" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktivität Sport starten" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -219,8 +235,23 @@ describe("FocusStage – laufende Aktivität", () => {
     expect(
       screen.getByRole("button", { name: "Gewerbe beenden, Sport starten" }),
     ).toBeInTheDocument();
+    // Das dritte Ziel ist ebenfalls erreichbar – ohne Planblock; Sport nicht doppelt.
+    expect(screen.getByRole("button", { name: "Zu Laila wechseln" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Zu Sport wechseln" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Fokus starten/ })).not.toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(FORBIDDEN_WORDS);
+  });
+
+  it("wechselt zu jedem anderen Ziel, auch wenn gerade kein Zielblock geplant ist", () => {
+    // Laila läuft während des geplanten Dienstes.
+    renderAt("2026-10-14T08:00:00Z", {
+      running: session("relationship", "2026-10-14T07:30:00Z"),
+    });
+    expect(screen.getByText("Zu anderer Aktivität wechseln")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zu Gewerbe wechseln" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zu Sport wechseln" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Zu Laila wechseln" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aktivität .* starten/ })).not.toBeInTheDocument();
   });
 
   it("über 24 Stunden: Beenden nur über „Zeit korrigieren“", () => {
@@ -228,6 +259,8 @@ describe("FocusStage – laufende Aktivität", () => {
     renderAt("2026-10-14T15:30:00Z", { running: old });
     expect(screen.queryByRole("button", { name: /^Beenden/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Vermutlich vergessen/)).toBeInTheDocument();
+    // Ein Wechsel würde ebenfalls am 24-Stunden-Limit scheitern – deshalb nicht angeboten.
+    expect(screen.queryByRole("button", { name: /wechseln/ })).not.toBeInTheDocument();
   });
 });
 

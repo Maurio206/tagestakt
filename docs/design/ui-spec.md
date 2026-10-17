@@ -99,11 +99,15 @@ Stufe bleibt beim Wechsel ins und aus dem Vollbild erhalten.
 
 1. **Aktivität läuft** (Vorrang vor dem Plan): Ziel-Chip + „Läuft“, Titel, Laufzeit (Mono),
    „seit 17:04 · Plan bis 20:00“, Bezug zum Planblock, **Beenden**, „Zeit korrigieren“,
-   „Abbrechen“; ab 12 h „Vermutlich vergessen“, ab 24 h nur noch „Zeit korrigieren“. Läuft
-   gleichzeitig ein anderer Zielblock: Wechsel-Angebot.
+   „Abbrechen“; ab 12 h „Vermutlich vergessen“, ab 24 h nur noch „Zeit korrigieren“ (dann auch
+   kein Wechsel). Läuft gleichzeitig ein anderer Zielblock: Wechsel-Angebot mit Bezug zum Block;
+   die übrigen Ziele sind jederzeit unter „Zu anderer Aktivität wechseln“ erreichbar (ohne
+   Planblock).
 2. **Zielblock (Fokusblock):** Ziel-Chip, „Jetzt · 17:00–20:00“, Titel, Restzeit groß
    („1:55 Std. übrig · endet um 20:00“), Fortschrittslinie, Ort, „Noch nicht erfasst“,
-   **Fokus starten**, „Erledigt“ / „Ausgelassen“.
+   **Fokus starten**, „Erledigt“ / „Ausgelassen“; darunter „Andere Aktivität starten“ mit den
+   beiden übrigen Zielen (ohne Planblock). Was geplant ist, schränkt nie ein, was gestartet
+   werden kann – wer statt Laila Gewerbe macht, startet Gewerbe.
 3. **Anderer Block (z. B. Dienst):** wie 2., ohne Fokus-Knopf; Status-Aktionen und „Aktivität
    starten“ bleiben.
 4. **Überschneidung:** Fokus auf dem zuletzt begonnenen Block; Warnzeile „Überschneidung:
@@ -160,7 +164,8 @@ Fokus wird höflich angesagt („Jetzt im Fokus: …“). Unschärfe: Web per CS
 ### Dialoge
 
 - **Wechsel:** „Gewerbe läuft noch“ – Vorher/Nachher-Vergleich – „Gewerbe beenden, Sport starten“
-  (primär), „Nur Gewerbe beenden“, „Abbrechen – Gewerbe läuft weiter“.
+  (primär), „Nur Gewerbe beenden“, „Abbrechen – Gewerbe läuft weiter“. Ohne Planblock steht unter
+  „Danach“ „Sport · ohne Planblock · ab jetzt“.
 - **Abbrechen:** „Aktivität verwerfen? Die erfasste Zeit (12 Min.) wird gelöscht.“
 - **Neue Version:** „Version 1 ist veröffentlicht. Zum Ändern wird Version 2 als Entwurf angelegt;
   die App zeigt weiter Version 1, bis du veröffentlichst.“
