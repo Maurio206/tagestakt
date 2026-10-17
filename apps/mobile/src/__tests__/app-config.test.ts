@@ -49,8 +49,8 @@ describe("Android-Berechtigungen (app.json)", () => {
     expect(appConfig.expo.orientation).toBe("default");
   });
 
-  it("Release: versionCode 5 (Stundenzoom im Wochenraster), eigenes Release-Plugin eingebunden", () => {
-    expect(android.versionCode).toBe(5);
+  it("Release: versionCode 6 (Aktivitäten jederzeit startbar), eigenes Release-Plugin eingebunden", () => {
+    expect(android.versionCode).toBe(6);
     expect(appConfig.expo.plugins).toContain("./plugins/with-android-release");
   });
 

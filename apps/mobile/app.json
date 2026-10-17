@@ -10,7 +10,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "app.tagestakt.privat",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
