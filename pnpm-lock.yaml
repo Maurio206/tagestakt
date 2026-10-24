@@ -230,8 +230,8 @@ importers:
         specifier: 10.1.8
         version: 10.1.8(eslint@9.39.5(supports-color@8.1.1))
       globals:
-        specifier: 16.5.0
-        version: 16.5.0
+        specifier: 17.13.0
+        version: 17.13.0
       typescript-eslint:
         specifier: 8.71.0
         version: 8.71.0(eslint@9.39.5(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
@@ -3671,6 +3671,10 @@ packages:
 
   globals@16.5.0:
     resolution: {integrity: sha512-c/c15i26VrJ4IRt5Z89DnIzCGDn9EcebibhAOjw5ibqEHsE1wLUgkPn9RDmNcUKyU87GeaL633nyJ+pplFR2ZQ==}
+    engines: {node: '>=18'}
+
+  globals@17.13.0:
+    resolution: {integrity: sha512-RwMTC61u7hrG3ZJMkZQOK4JLJrKS8QtoTii63EmWvFXHqycY9FObBJQCbsLxSO8kjKhWE5kV1GC+Vb1g3RI0Zg==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -10013,6 +10017,8 @@ snapshots:
   globals@16.4.0: {}
 
   globals@16.5.0: {}
+
+  globals@17.13.0: {}
 
   globalthis@1.0.4:
     dependencies:
