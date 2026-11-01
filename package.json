@@ -29,9 +29,9 @@
     "check:secrets": "node --test --test-reporter=dot scripts/secret-rules.test.mjs && node scripts/check-secrets.mjs"
   },
   "devDependencies": {
-    "prettier": "3.9.9",
-    "supabase": "2.119.0",
-    "turbo": "2.11.7",
+    "prettier": "3.9.10",
+    "supabase": "2.122.0",
+    "turbo": "2.11.10",
     "typescript": "~6.0.3"
   }
 }
